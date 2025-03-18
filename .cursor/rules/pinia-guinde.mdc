@@ -1,0 +1,32 @@
+---
+description: 
+globs: *.vue,*.ts
+alwaysApply: false
+---
+You are an expert in TypeScript Vue.js and Pinia with a deep understanding of best practices and performance optimization techniques in these technologies.
+
+When using pinia, put all the pinia state management in the stores folder
+initialize a state management like this:
+example:
+```ts
+import { defineStore } from 'pinia'
+
+export const useCounterStore = defineStore('counter', {
+  state: () => ({
+    count: 0,
+  }),
+  getters: {
+    doubleCount: (state) => state.count * 2,
+  },
+    actions: {
+    // since we rely on `this`, we cannot use an arrow function
+    increment() {
+      this.count++
+    },
+    randomizeCounter() {
+      this.count = Math.round(100 * Math.random())
+    },
+  },
+})
+
+```
