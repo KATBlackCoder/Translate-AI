@@ -3,7 +3,7 @@ import vue from "@vitejs/plugin-vue";
 import tailwindcss from "@tailwindcss/vite";
 import Components from "unplugin-vue-components/vite";
 import { PrimeVueResolver } from "unplugin-vue-components/resolvers";
-import { fileURLToPath, URL } from "node:url"; // <-- Use Node.js utilities
+import { fileURLToPath, URL } from "url"; 
 
 const host = process.env.TAURI_DEV_HOST;
 
@@ -17,13 +17,19 @@ export default defineConfig(async () => ({
     }),
   ],
   resolve: {
-    alias: {
-      // Map '@' to './src'
-      '@': fileURLToPath(new URL('./src', import.meta.url)),
-      // Optional: Add more aliases (e.g., for components)
-      '@components': fileURLToPath(new URL('./src/components', import.meta.url)),
-      '@views': fileURLToPath(new URL('./src/views', import.meta.url)),
-    }
+    alias: [
+      { find: '@', replacement: fileURLToPath(new URL('./src', import.meta.url)) },
+      { find: '@components', replacement: fileURLToPath(new URL('./src/components', import.meta.url)) },
+      { find: '@views', replacement: fileURLToPath(new URL('./src/views', import.meta.url)) },
+      { find: '@stores', replacement: fileURLToPath(new URL('./src/stores', import.meta.url)) },
+      { find: '@router', replacement: fileURLToPath(new URL('./src/router', import.meta.url)) },
+      { find: '@types', replacement: fileURLToPath(new URL('./src/types', import.meta.url)) },
+      { find: '@assets', replacement: fileURLToPath(new URL('./src/assets', import.meta.url)) },
+      { find: '@services', replacement: fileURLToPath(new URL('./src/services', import.meta.url))},
+      { find: '@i18n', replacement: fileURLToPath(new URL('./src/i18n', import.meta.url)) },
+      { find: '@composables', replacement: fileURLToPath(new URL('./src/composables', import.meta.url)) },
+      { find: '@plugins', replacement: fileURLToPath(new URL('./src/plugins', import.meta.url)) }
+    ],
   },
   // Vite options tailored for Tauri development and only applied in `tauri dev` or `tauri build`
   //

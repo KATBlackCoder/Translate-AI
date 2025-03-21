@@ -13,6 +13,7 @@
     "windows": [
       {
         "title": "translation-ai",
+        "resizable": false,
         "width": 1024,
         "height": 768
       }

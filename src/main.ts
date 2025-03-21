@@ -1,15 +1,12 @@
 import { createApp } from "vue";
 import App from "./App.vue";
 import "./assets/styles.css";
-
+import { createPinia } from "pinia";
 import router from "./router/routes";
 
 import 'primeicons/primeicons.css'
 import PrimeVue from 'primevue/config';
 import Aura from '@primeuix/themes/aura';
-
-import { createPinia } from "pinia";
-
 
 
 const app = createApp(App);

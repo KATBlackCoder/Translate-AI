@@ -1,6 +1,6 @@
 ---
 description: 
-globs: *.rs
+globs: 
 alwaysApply: false
 ---
 
