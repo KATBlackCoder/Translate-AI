@@ -8,6 +8,9 @@ import 'primeicons/primeicons.css'
 import PrimeVue from 'primevue/config';
 import Aura from '@primeuix/themes/aura';
 
+// Select
+import Select from 'primevue/select'
+
 // Toast
 import ToastService from 'primevue/toastservice';
 
@@ -33,6 +36,9 @@ app.use(PrimeVue, {
 
 // Toast
 app.use(ToastService);
+
+// Select
+app.component('Select', Select);
 
 // Router
 app.use(router);

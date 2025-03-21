@@ -1,13 +1,23 @@
-import type { AIProvider, AIConfig, TranslationRequest, TranslationResponse, BatchTranslationResult } from '@/types/ai/base'
+import type { 
+  AIProvider, 
+  AIConfig, 
+  TranslationRequest, 
+  TranslationResponse, 
+  BatchTranslationResult,
+  PromptType,
+  TranslationPrompt
+} from '@/types/ai/base'
 import type { TranslationTarget } from '@/types/engines/base'
 import OpenAI from 'openai'
+import { prompts } from '@/services/prompts'
 
 export class DeepSeekProvider implements AIProvider {
   readonly name = 'DeepSeek'
   readonly version = '1.0.0'
   readonly supportedLanguages = ['en', 'ja', 'zh', 'ko', 'fr', 'de', 'es', 'it', 'pt', 'ru']
   readonly maxBatchSize = 10
-  readonly costPerToken = 0.00002 // $0.02 per 1K tokens for GPT-4
+  readonly costPerToken = 0.00002 // $0.02 per 1K tokens
+  readonly supportedPromptTypes: PromptType[] = ['general', 'dialogue', 'menu', 'items', 'skills']
 
   private client: OpenAI
   private config: AIConfig
@@ -21,18 +31,19 @@ export class DeepSeekProvider implements AIProvider {
   }
 
   async translate(request: TranslationRequest): Promise<TranslationResponse> {
-    const prompt = this.buildPrompt(request)
+    const startTime = Date.now()
+    const { systemPrompt, userPrompt } = this.buildPrompt(request)
     
     const completion = await this.client.chat.completions.create({
       model: this.config.model || 'deepseek-chat',
       messages: [
         {
           role: 'system',
-          content: 'You are a professional translator. Translate the given text accurately while preserving the original meaning and context. Respond only with the translation, no explanations.'
+          content: systemPrompt
         },
         {
           role: 'user',
-          content: prompt
+          content: userPrompt
         }
       ],
       temperature: this.config.temperature || 0.3,
@@ -40,6 +51,7 @@ export class DeepSeekProvider implements AIProvider {
     })
 
     const response = completion.choices[0]?.message?.content || ''
+    const processingTime = Date.now() - startTime
     
     return {
       translatedText: response.trim(),
@@ -48,37 +60,77 @@ export class DeepSeekProvider implements AIProvider {
         completion: completion.usage?.completion_tokens || 0,
         total: completion.usage?.total_tokens || 0
       },
-      cost: (completion.usage?.total_tokens || 0) * this.costPerToken
+      cost: (completion.usage?.total_tokens || 0) * this.costPerToken,
+      metadata: {
+        promptType: request.promptType || 'general',
+        modelUsed: this.config.model || 'deepseek-chat',
+        processingTime,
+        qualityScore: 0.92 // DeepSeek models typically have good accuracy
+      }
     }
   }
 
   async translateBatch(
     targets: TranslationTarget[], 
     sourceLanguage: string, 
-    targetLanguage: string
+    targetLanguage: string,
+    options?: {
+      promptType?: PromptType
+      batchSize?: number
+      retryCount?: number
+      timeout?: number
+    }
   ): Promise<BatchTranslationResult> {
     const results: TranslationTarget[] = []
+    const errors: Array<{ text: string; error: string; retryCount?: number }> = []
     let totalTokens = 0
     let totalCost = 0
+    let successfulTranslations = 0
+    let failedTranslations = 0
+    const startTime = Date.now()
     
-    // Process in chunks of maxBatchSize
-    for (let i = 0; i < targets.length; i += this.maxBatchSize) {
-      const batch = targets.slice(i, i + this.maxBatchSize)
+    const batchSize = options?.batchSize || this.maxBatchSize
+    const maxRetries = options?.retryCount || 3
+    
+    // Process in chunks
+    for (let i = 0; i < targets.length; i += batchSize) {
+      const batch = targets.slice(i, i + batchSize)
       const batchPromises = batch.map(async target => {
-        const response = await this.translate({
-          text: target.source,
-          context: target.context,
-          sourceLanguage,
-          targetLanguage
-        })
-        
-        totalTokens += response.tokens?.total || 0
-        totalCost += response.cost || 0
-        
-        return {
-          ...target,
-          target: response.translatedText
+        let retryCount = 0
+        while (retryCount < maxRetries) {
+          try {
+            const response = await this.translate({
+              text: target.source,
+              context: target.context,
+              sourceLanguage,
+              targetLanguage,
+              promptType: options?.promptType
+            })
+            
+            totalTokens += response.tokens?.total || 0
+            totalCost += response.cost || 0
+            successfulTranslations++
+            
+            return {
+              ...target,
+              target: response.translatedText
+            }
+          } catch (error) {
+            retryCount++
+            if (retryCount === maxRetries) {
+              failedTranslations++
+              errors.push({
+                text: target.source,
+                error: error instanceof Error ? error.message : 'Unknown error',
+                retryCount
+              })
+              return target // Return original target without translation
+            }
+            // Wait before retrying with exponential backoff
+            await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, retryCount)))
+          }
         }
+        return target
       })
       
       const batchResults = await Promise.all(batchPromises)
@@ -90,15 +142,20 @@ export class DeepSeekProvider implements AIProvider {
       stats: {
         totalTokens,
         totalCost,
-        averageConfidence: 0.95 // OpenAI doesn't provide confidence scores
-      }
+        averageConfidence: 0.92,
+        failedTranslations,
+        successfulTranslations,
+        totalProcessingTime: Date.now() - startTime
+      },
+      errors: errors.length > 0 ? errors : undefined
     }
   }
 
   validateConfig(config: AIConfig): boolean {
     if (!config.apiKey) return false
-    if (config.model && !config.model.startsWith('gpt-')) return false
+    if (config.model && !config.model.startsWith('deepseek-')) return false
     if (config.temperature && (config.temperature < 0 || config.temperature > 2)) return false
+    if (config.promptType && !this.supportedPromptTypes.includes(config.promptType)) return false
     return true
   }
 
@@ -111,19 +168,33 @@ export class DeepSeekProvider implements AIProvider {
     }
   }
 
-  private buildPrompt(request: TranslationRequest): string {
-    let prompt = `Translate the following text from ${request.sourceLanguage} to ${request.targetLanguage}.\n\n`
+  getDefaultPrompt(type: PromptType): TranslationPrompt {
+    return prompts[type] || prompts.general
+  }
+
+  validatePrompt(prompt: TranslationPrompt): boolean {
+    return (
+      typeof prompt.system === 'string' &&
+      typeof prompt.user === 'string' &&
+      prompt.system.length > 0 &&
+      prompt.user.length > 0
+    )
+  }
+
+  private buildPrompt(request: TranslationRequest): { systemPrompt: string; userPrompt: string } {
+    const promptType = request.promptType || 'general'
+    const defaultPrompt = this.getDefaultPrompt(promptType)
     
-    if (request.context) {
-      prompt += `Context: ${request.context}\n`
-    }
+    const systemPrompt = request.systemPrompt || defaultPrompt.system
+    let userPrompt = request.userPrompt || defaultPrompt.user
     
-    if (request.instructions) {
-      prompt += `Special instructions: ${request.instructions}\n`
-    }
+    // Replace placeholders in user prompt
+    userPrompt = userPrompt
+      .replace('{source}', request.sourceLanguage)
+      .replace('{target}', request.targetLanguage)
+      .replace('{text}', request.text)
+      .replace('{context}', request.context || '')
     
-    prompt += `\nText to translate:\n${request.text}`
-    
-    return prompt
+    return { systemPrompt, userPrompt }
   }
 } 

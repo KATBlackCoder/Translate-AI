@@ -1,6 +1,15 @@
-import type { AIProvider, AIConfig, TranslationRequest, TranslationResponse, BatchTranslationResult } from '@/types/ai/base'
+import type { 
+  AIProvider, 
+  AIConfig, 
+  TranslationRequest, 
+  TranslationResponse, 
+  BatchTranslationResult,
+  PromptType,
+  TranslationPrompt
+} from '@/types/ai/base'
 import type { TranslationTarget } from '@/types/engines/base'
 import axios from 'axios'
+import { prompts } from '@/services/prompts'
 
 interface OllamaResponse {
   response: string
@@ -17,6 +26,7 @@ export class OllamaProvider implements AIProvider {
   readonly supportedLanguages = ['en', 'ja', 'zh', 'ko', 'fr', 'de', 'es', 'it', 'pt', 'ru']
   readonly maxBatchSize = 5 // Lower batch size for local processing
   readonly costPerToken = 0 // Free, runs locally
+  readonly supportedPromptTypes: PromptType[] = ['general', 'dialogue', 'menu', 'items', 'skills']
 
   private config: AIConfig
   private baseUrl: string
@@ -35,6 +45,7 @@ export class OllamaProvider implements AIProvider {
   }
 
   async translate(request: TranslationRequest): Promise<TranslationResponse> {
+    const startTime = Date.now()
     const prompt = this.buildPrompt(request)
     
     try {
@@ -43,6 +54,9 @@ export class OllamaProvider implements AIProvider {
         prompt: prompt,
         stream: false
       })
+
+      const processingTime = Date.now() - startTime
+      
       return {
         translatedText: data.response.trim(),
         tokens: {
@@ -50,7 +64,13 @@ export class OllamaProvider implements AIProvider {
           completion: data.eval_count,
           total: data.prompt_eval_count + data.eval_count
         },
-        cost: 0 // Free
+        cost: 0, // Free
+        metadata: {
+          promptType: request.promptType || 'general',
+          modelUsed: this.config.model || 'mistral',
+          processingTime,
+          qualityScore: 0.85 // Default quality score for local models
+        }
       }
     } catch (error) {
       if (axios.isAxiosError(error)) {
@@ -63,28 +83,60 @@ export class OllamaProvider implements AIProvider {
   async translateBatch(
     targets: TranslationTarget[], 
     sourceLanguage: string, 
-    targetLanguage: string
+    targetLanguage: string,
+    options?: {
+      promptType?: PromptType
+      batchSize?: number
+      retryCount?: number
+      timeout?: number
+    }
   ): Promise<BatchTranslationResult> {
     const results: TranslationTarget[] = []
+    const errors: Array<{ text: string; error: string; retryCount?: number }> = []
     let totalTokens = 0
+    let successfulTranslations = 0
+    let failedTranslations = 0
+    const startTime = Date.now()
     
-    // Process in chunks of maxBatchSize
-    for (let i = 0; i < targets.length; i += this.maxBatchSize) {
-      const batch = targets.slice(i, i + this.maxBatchSize)
+    const batchSize = options?.batchSize || this.maxBatchSize
+    const maxRetries = options?.retryCount || 3
+    
+    // Process in chunks
+    for (let i = 0; i < targets.length; i += batchSize) {
+      const batch = targets.slice(i, i + batchSize)
       const batchPromises = batch.map(async target => {
-        const response = await this.translate({
-          text: target.source,
-          context: target.context,
-          sourceLanguage,
-          targetLanguage
-        })
-        
-        totalTokens += response.tokens?.total || 0
-        
-        return {
-          ...target,
-          target: response.translatedText
+        let retryCount = 0
+        while (retryCount < maxRetries) {
+          try {
+            const response = await this.translate({
+              text: target.source,
+              context: target.context,
+              sourceLanguage,
+              targetLanguage,
+              promptType: options?.promptType
+            })
+            
+            totalTokens += response.tokens?.total || 0
+            successfulTranslations++
+            
+            return {
+              ...target,
+              target: response.translatedText
+            }
+          } catch (error) {
+            retryCount++
+            if (retryCount === maxRetries) {
+              failedTranslations++
+              errors.push({
+                text: target.source,
+                error: error instanceof Error ? error.message : 'Unknown error',
+                retryCount
+              })
+              return target // Return original target without translation
+            }
+          }
         }
+        return target
       })
       
       const batchResults = await Promise.all(batchPromises)
@@ -96,8 +148,12 @@ export class OllamaProvider implements AIProvider {
       stats: {
         totalTokens,
         totalCost: 0, // Free
-        averageConfidence: 0.85 // Local models might be less accurate
-      }
+        averageConfidence: 0.85,
+        failedTranslations,
+        successfulTranslations,
+        totalProcessingTime: Date.now() - startTime
+      },
+      errors: errors.length > 0 ? errors : undefined
     }
   }
 
@@ -106,6 +162,9 @@ export class OllamaProvider implements AIProvider {
       return false
     }
     if (config.temperature && (config.temperature < 0 || config.temperature > 2)) {
+      return false
+    }
+    if (config.promptType && !this.supportedPromptTypes.includes(config.promptType)) {
       return false
     }
     return true
@@ -119,19 +178,33 @@ export class OllamaProvider implements AIProvider {
     }
   }
 
+  getDefaultPrompt(type: PromptType): TranslationPrompt {
+    return prompts[type] || prompts.general
+  }
+
+  validatePrompt(prompt: TranslationPrompt): boolean {
+    return (
+      typeof prompt.system === 'string' &&
+      typeof prompt.user === 'string' &&
+      prompt.system.length > 0 &&
+      prompt.user.length > 0
+    )
+  }
+
   private buildPrompt(request: TranslationRequest): string {
-    let prompt = `Translate the following text from ${request.sourceLanguage} to ${request.targetLanguage}.\n\n`
+    const promptType = request.promptType || 'general'
+    const defaultPrompt = this.getDefaultPrompt(promptType)
     
-    if (request.context) {
-      prompt += `Context: ${request.context}\n`
-    }
+    const systemPrompt = request.systemPrompt || defaultPrompt.system
+    let userPrompt = request.userPrompt || defaultPrompt.user
     
-    if (request.instructions) {
-      prompt += `Special instructions: ${request.instructions}\n`
-    }
+    // Replace placeholders in user prompt
+    userPrompt = userPrompt
+      .replace('{source}', request.sourceLanguage)
+      .replace('{target}', request.targetLanguage)
+      .replace('{text}', request.text)
+      .replace('{context}', request.context || '')
     
-    prompt += `\nText to translate:\n${request.text}`
-    
-    return prompt
+    return `${systemPrompt}\n\n${userPrompt}`
   }
 } 

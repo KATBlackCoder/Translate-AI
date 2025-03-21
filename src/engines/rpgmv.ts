@@ -1,7 +1,14 @@
-import type { GameEngine, EngineFile, EngineValidation, TranslationTarget } from '@/types/engines/base'
-import type { RPGMVActorData, RPGMVActor, RPGMVActorTranslatable } from '@/types/engines/rpgmv'
+import type { 
+  GameEngine, 
+  EngineFile, 
+  EngineValidation, 
+  TranslationTarget,
+  TranslatedText
+} from '@/types/engines/base'
 import { useValidateFile } from '@/composables/useValidateFile'
 import { join } from '@tauri-apps/api/path'
+import * as actorHandler from './rpgmv/actors'
+import { FileHandler, createStats, updateStats, getFileType } from './rpgmv/base'
 
 export class RPGMakerMVEngine implements GameEngine {
   readonly name = 'RPG Maker MV'
@@ -14,27 +21,14 @@ export class RPGMakerMVEngine implements GameEngine {
   private readonly validatePath = 'www/data'
   private readonly fs = useValidateFile()
 
-  private readonly translatableFields: Record<keyof RPGMVActorTranslatable, {
-    field: string,
-    context: string
-  }> = {
-    name: {
-      field: 'name',
-      context: 'ActorCharacter Name'
-    },
-    nickname: {
-      field: 'nickname',
-      context: 'ActorCharacter Title'
-    },
-    profile: {
-      field: 'profile',
-      context: 'ActorCharacter Bio'
-    },
-    note: {
-      field: 'note',
-      context: 'ActorCharacter Notes'
+  // Register file handlers
+  private readonly handlers: FileHandler[] = [
+    {
+      type: 'actors',
+      extractTranslations: actorHandler.extractTranslations,
+      applyTranslations: actorHandler.applyTranslations
     }
-  }
+  ]
 
   /**
    * Validates if a directory contains a valid RPG Maker MV project
@@ -46,7 +40,6 @@ export class RPGMakerMVEngine implements GameEngine {
     // Check if data folder exists
     const fullPath = await join(path, this.validatePath)
     const { data: dataFolderExists, error: folderError } = await this.fs.checkPathExists(fullPath)
-    console.log(fullPath)
     if (folderError) {
       errors.push(`Error checking data folder: ${folderError.message}`)
       return {
@@ -105,88 +98,31 @@ export class RPGMakerMVEngine implements GameEngine {
     const translations: TranslationTarget[] = []
 
     for (const file of files) {
-      // Get the last part of the path for type checking
-      const type = file.path.split('/').pop()?.split('.')[0].toLowerCase()
-      switch (type) {
-        case 'actors':
-          translations.push(...this.extractActorTranslations(file))
-          break
+      const handler = this.handlers.find(h => h.type === getFileType(file))
+      if (handler) {
+        translations.push(...handler.extractTranslations(file))
       }
     }
 
-    return translations
-  }
-
-  /**
-   * Extracts translatable content from Actors.json
-   */
-  private extractActorTranslations(file: EngineFile): TranslationTarget[] {
-    const actors = file.content as RPGMVActorData
-    const translations: TranslationTarget[] = []
-    
-    // Skip the first null element and process the rest
-    for (let i = 1; i < actors.length; i++) {
-      const actor = actors[i]
-      if (!actor) continue // Skip null/undefined entries
-      // Extract each translatable field
-      (Object.keys(this.translatableFields) as Array<keyof RPGMVActorTranslatable>).forEach(key => {
-        const value = actor[key]
-        if (typeof value === 'string' && value !== '') {
-          translations.push({
-            id: `${actor.id}`,
-            field: key,
-            source: value,
-            target: '',
-            context: `${this.translatableFields[key].context}`,
-            file: file.path
-          })
-        }
-      })
-    }
-    
     return translations
   }
 
   /**
    * Applies translations back to project files
    */
-  applyTranslations(files: EngineFile[], translations: TranslationTarget[]): EngineFile[] {
-    return files.map(file => {
-      // Get the last part of the path for type checking
-      const type = file.path.split('/').pop()?.split('.')[0].toLowerCase()
+  applyTranslations(files: EngineFile[], translations: TranslatedText[]): EngineFile[] {
+    const stats = createStats()
+
+    const processedFiles = files.map(file => {
+      const handler = this.handlers.find(h => h.type === getFileType(file))
+      if (!handler) return file
+
       const fileTranslations = translations.filter(t => t.file === file.path)
-      switch (type) {
-        case 'actors':
-          return this.applyActorTranslations(file, fileTranslations)
-        default:
-          return file
-      }
-    })
-  }
-
-  /**
-   * Applies translations back to actor file
-   */
-  private applyActorTranslations(file: EngineFile, translations: TranslationTarget[]): EngineFile {
-    const actors = file.content as RPGMVActorData
-    const updatedActors = [...actors] as RPGMVActorData
-    translations.forEach(translation => {
-      const index = parseInt(translation.id)
-      const field = translation.field as keyof RPGMVActorTranslatable
+      updateStats(stats, fileTranslations)
       
-      if (index > 0 && updatedActors[index] && translation.target && field in this.translatableFields) {
-        const updatedActor: RPGMVActor = {
-          ...updatedActors[index]!,
-          [field]: translation.target
-        }
-        updatedActors[index] = updatedActor
-      }
+      return handler.applyTranslations(file, fileTranslations)
     })
 
-    return {
-      ...file,
-      content: updatedActors
-    }
+    return processedFiles
   }
-
 } 

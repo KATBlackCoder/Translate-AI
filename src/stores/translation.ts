@@ -1,137 +1,44 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
-import type { EngineFile, EngineValidation, TranslationTarget, TranslatedText } from '@/types/engines/base'
-import type { AIProvider } from '@/types/ai/base'
-import { AIProviderFactory, type AIProviderType } from '@/services/ai/factory'
-import { RPGMakerMVEngine } from '@/engines/rpgmv'
+import { ref, computed } from 'vue'
+import type { TranslatedText } from '@/types/engines/base'
 import { writeTextFile, writeFile } from '@tauri-apps/plugin-fs'
 import { join } from '@tauri-apps/api/path'
 import { open, save } from '@tauri-apps/plugin-dialog'
 import { zip } from 'fflate'
-
-// Define supported game engines
-export type GameEngineType = 'rpgmv' // Add more engines here later
+import { useProjectStore } from './project'
+import { useSettingsStore } from './settings'
+import { useAIStore } from './ai'
+import { useEngineStore } from './engine'
 
 export const useTranslationStore = defineStore('translation', () => {
-
-  // Project State
-  const projectPath = ref('')
-  const engineType = ref<GameEngineType>('rpgmv') // Default to RPGMV
-  const projectFiles = ref<EngineFile[]>([])
-  const validationStatus = ref<EngineValidation>()
-
-  // Translation Settings
-  const sourceLanguage = ref('')
-  const targetLanguage = ref('')
-  const aiProvider = ref<AIProviderType>('ollama')
-  const aiModel = ref('')
-  const apiKey = ref('')
+  const projectStore = useProjectStore()
+  const settingsStore = useSettingsStore()
+  const aiStore = useAIStore()
+  const engineStore = useEngineStore()
 
   // Translation State
-  const extractedTexts = ref<TranslationTarget[]>([])
   const translatedTexts = ref<TranslatedText[]>([])
   const currentFile = ref('')
   const progress = ref(0)
   const errors = ref<string[]>([])
+  const shouldCancel = ref(false)
 
-  // AI Provider State
-  let provider: AIProvider | null = null
-
-  // Project Actions
-  async function validateProject(path: string) {
-    try {
-      errors.value = []
-      projectPath.value = path
-      
-      // Get appropriate engine based on type
-      const engine = new RPGMakerMVEngine()
-      
-      // Validate project
-      validationStatus.value = await engine.validateProject(path)
-      
-      if (!validationStatus.value.isValid) {
-        errors.value = validationStatus.value.errors
-        return false
-      }
-      
-      // Read project files if valid
-      projectFiles.value = await engine.readProject(path)
-
-      // Extract translations
-      extractedTexts.value = engine.extractTranslations(projectFiles.value)
-      console.log(extractedTexts.value)
-      return true
-    } catch (error) {
-      errors.value = [error instanceof Error ? error.message : 'Unknown error']
-      return false
-    }
-  }
-
-  function resetProject() {
-    projectPath.value = ''
-    projectFiles.value = []
-    validationStatus.value = undefined
-    errors.value = []
-    extractedTexts.value = []
-    translatedTexts.value = []
-    currentFile.value = ''
-    progress.value = 0
-  }
+  // Computed
+  const isTranslating = computed(() => progress.value > 0 && progress.value < 100)
+  const canTranslate = computed(() => 
+    projectStore.extractedTexts.length > 0 && 
+    settingsStore.isTranslationConfigValid && 
+    settingsStore.isAIConfigValid
+  )
 
   // Translation Actions
-  async function translateSingle(text: TranslationTarget) {
-    if (!provider) {
-      provider = AIProviderFactory.createProvider(aiProvider.value, {
-        apiKey: apiKey.value,
-        model: aiModel.value
-      })
-    }
-
-    try {
-      const response = await provider.translate({
-        text: text.source,
-        context: text.context,
-        sourceLanguage: sourceLanguage.value,
-        targetLanguage: targetLanguage.value
-      })
-
-      translatedTexts.value.push({
-        ...text,
-        target: response.translatedText,
-        tokens: response.tokens
-      })
-
-    } catch (error) {
-      errors.value.push(error instanceof Error ? error.message : 'Translation failed')
-    }
-  }
-
-  async function translateBatch(texts: TranslationTarget[]) {
-    if (!provider) {
-      provider = AIProviderFactory.createProvider(aiProvider.value, {
-        apiKey: apiKey.value,
-        model: aiModel.value
-      })
-    }
-
-    try {
-      const result = await provider.translateBatch(
-        texts,
-        sourceLanguage.value,
-        targetLanguage.value
-      )
-
-      translatedTexts.value.push(...result.translations)
-      return result.stats
-
-    } catch (error) {
-      errors.value.push(error instanceof Error ? error.message : 'Batch translation failed')
-      return null
-    }
-  }
-
   async function translateAll() {
-    const untranslated = extractedTexts.value.filter(text => 
+    if (!canTranslate.value) {
+      errors.value.push('Cannot start translation: invalid configuration')
+      return false
+    }
+
+    const untranslated = projectStore.extractedTexts.filter(text => 
       !translatedTexts.value.some(t => 
         t.id === text.id && 
         t.field === text.field && 
@@ -139,31 +46,68 @@ export const useTranslationStore = defineStore('translation', () => {
       )
     )
 
-    if (untranslated.length === 0) return
+    if (untranslated.length === 0) {
+      return true
+    }
 
-    progress.value = 0
-    const batchSize = 10 // Adjust based on provider's maxBatchSize
-    const batches = Math.ceil(untranslated.length / batchSize)
+    try {
+      errors.value = [] // Clear previous errors
+      shouldCancel.value = false
+      aiStore.initializeProvider()
+      
+      progress.value = 0
+      const batchSize = 10
+      const batches = Math.ceil(untranslated.length / batchSize)
 
-    for (let i = 0; i < batches; i++) {
-      const batch = untranslated.slice(i * batchSize, (i + 1) * batchSize)
-      await translateBatch(batch)
-      progress.value = Math.round(((i + 1) / batches) * 100)
+      for (let i = 0; i < batches && !shouldCancel.value; i++) {
+        currentFile.value = untranslated[i * batchSize]?.file || ''
+        const batch = untranslated.slice(i * batchSize, (i + 1) * batchSize)
+        const result = await aiStore.translateBatch(batch)
+        
+        if (result.translations.length > 0) {
+          translatedTexts.value.push(...result.translations)
+        }
+
+        // Add any AI errors to translation errors
+        if (aiStore.errors.length > 0) {
+          errors.value.push(...aiStore.errors)
+          aiStore.errors = [] // Clear AI errors after adding them
+        }
+
+        progress.value = Math.round(((i + 1) / batches) * 100)
+      }
+
+      return !shouldCancel.value
+    } catch (error) {
+      errors.value.push(error instanceof Error ? error.message : 'Translation failed')
+      return false
+    } finally {
+      if (shouldCancel.value) {
+        errors.value.push('Translation cancelled')
+      }
+      currentFile.value = ''
+      progress.value = 0
+      shouldCancel.value = false
     }
   }
 
-  // Save Actions
+  function cancelTranslation() {
+    if (isTranslating.value) {
+      shouldCancel.value = true
+    }
+  }
+
+  // File Operations
   async function saveTranslations() {
     try {
-      if (!projectPath.value || !projectFiles.value.length) {
+      if (!projectStore.projectPath || !projectStore.projectFiles.length) {
         throw new Error('No project files loaded')
       }
 
       if (!translatedTexts.value.length) {
-        throw new Error('No translations to export')
+        throw new Error('No translations to save')
       }
 
-      // Ask user where to save
       const selectedDir = await open({
         directory: true,
         multiple: false,
@@ -174,23 +118,17 @@ export const useTranslationStore = defineStore('translation', () => {
         throw new Error('No directory selected')
       }
 
-      const engine = new RPGMakerMVEngine()
+      const updatedFiles = engineStore.applyTranslations(projectStore.projectFiles, translatedTexts.value)
       
-      // Apply translations to files
-      const updatedFiles = engine.applyTranslations(projectFiles.value, translatedTexts.value)
-      
-      // Save each file
       const savedFiles: string[] = []
       const failedFiles: string[] = []
 
       for (const file of updatedFiles) {
         try {
-          // Create the same folder structure in selected directory
           const relativePath = file.path.replace('www/data/', '')
           const fullPath = await join(selectedDir as string, relativePath)
           await writeTextFile(fullPath, JSON.stringify(file.content, null, 2))
           savedFiles.push(relativePath)
-          console.log(`Saved translations to: ${fullPath}`)
         } catch (error) {
           failedFiles.push(file.path)
           errors.value.push(`Failed to save ${file.path}: ${error instanceof Error ? error.message : 'Unknown error'}`)
@@ -211,29 +149,25 @@ export const useTranslationStore = defineStore('translation', () => {
     }
   }
 
-  // Export Actions
   async function exportTranslations() {
     try {
       if (!translatedTexts.value.length) {
         throw new Error('No translations to export')
       }
 
-      const engine = new RPGMakerMVEngine()
-      const updatedFiles = engine.applyTranslations(projectFiles.value, translatedTexts.value)
+      const updatedFiles = engineStore.applyTranslations(projectStore.projectFiles, translatedTexts.value)
       
-      // Prepare files for ZIP
       const files: Record<string, Uint8Array> = {}
 
-      // Add metadata and translations JSON
       const exportData = {
         metadata: {
           timestamp: new Date().toISOString(),
-          sourceLanguage: sourceLanguage.value,
-          targetLanguage: targetLanguage.value,
-          provider: aiProvider.value,
+          sourceLanguage: settingsStore.sourceLanguage,
+          targetLanguage: settingsStore.targetLanguage,
+          provider: settingsStore.aiProvider,
           stats: {
             total: translatedTexts.value.length,
-            totalTokens: translatedTexts.value.reduce((sum, t) => sum + (t.tokens?.total || 0), 0)
+            totalTokens: aiStore.totalTokens
           }
         },
         translations: translatedTexts.value
@@ -241,12 +175,10 @@ export const useTranslationStore = defineStore('translation', () => {
       
       files['translations.json'] = new TextEncoder().encode(JSON.stringify(exportData, null, 2))
 
-      // Add translated game files
       for (const file of updatedFiles) {
         files[file.path] = new TextEncoder().encode(JSON.stringify(file.content, null, 2))
       }
 
-      // Create ZIP file
       return new Promise<boolean>((resolve, reject) => {
         zip(files, { level: 6 }, async (err: Error | null, data: Uint8Array) => {
           if (err) {
@@ -255,7 +187,6 @@ export const useTranslationStore = defineStore('translation', () => {
           }
 
           try {
-            // Ask user where to save ZIP
             const savePath = await save({
               filters: [{
                 name: 'ZIP Archive',
@@ -282,34 +213,30 @@ export const useTranslationStore = defineStore('translation', () => {
     }
   }
 
+  function reset() {
+    translatedTexts.value = []
+    currentFile.value = ''
+    progress.value = 0
+    errors.value = []
+    aiStore.reset()
+  }
+
   return {
-    // Project
-    projectPath,
-    engineType,
-    projectFiles,
-    validationStatus,
-    
-    // Settings
-    sourceLanguage,
-    targetLanguage,
-    aiProvider,
-    aiModel,
-    apiKey,
-    
-    // Translation State
-    extractedTexts,
+    // State
     translatedTexts,
     currentFile,
     progress,
     errors,
 
+    // Computed
+    isTranslating,
+    canTranslate,
+
     // Actions
-    validateProject,
-    resetProject,
-    translateSingle,
-    translateBatch,
     translateAll,
+    cancelTranslation,
     saveTranslations,
-    exportTranslations
+    exportTranslations,
+    reset
   }
 }) 

@@ -4,7 +4,7 @@
     <template #content>
       <div class="flex flex-col gap-4">
         <!-- Progress Bar -->
-        <div v-if="store.extractedTexts.length > 0">
+        <div v-if="projectStore.extractedTexts.length > 0">
           <ProgressBar 
             :value="progressPercentage" 
             :showValue="true"
@@ -16,13 +16,13 @@
         </div>
 
         <!-- Current File -->
-        <div v-if="store.currentFile" class="flex items-center gap-2">
+        <div v-if="translationStore.currentFile" class="flex items-center gap-2">
           <i class="pi pi-file"></i>
-          <span class="text-sm">{{ store.currentFile }}</span>
+          <span class="text-sm">{{ translationStore.currentFile }}</span>
         </div>
 
         <!-- Translation Stats -->
-        <div v-if="store.translatedTexts.length > 0" class="grid grid-cols-2 gap-4">
+        <div v-if="translationStore.translatedTexts.length > 0" class="grid grid-cols-2 gap-4">
           <div class="p-3 bg-blue-50 rounded">
             <div class="text-sm text-blue-600">Total Tokens</div>
             <div class="text-lg font-semibold">{{ totalTokens }}</div>
@@ -37,7 +37,7 @@
         <div class="flex justify-between items-center">
           <div class="flex gap-2">
             <Button
-              v-if="store.translatedTexts.length > 0"
+              v-if="translationStore.translatedTexts.length > 0"
               label="Save to Files"
               icon="pi pi-save"
               severity="success"
@@ -45,7 +45,7 @@
               @click="saveTranslations"
             />
             <Button
-              v-if="store.translatedTexts.length > 0"
+              v-if="translationStore.translatedTexts.length > 0"
               label="Export JSON"
               icon="pi pi-download"
               severity="info"
@@ -72,8 +72,8 @@
         </div>
 
         <!-- Error Messages -->
-        <div v-if="store.errors.length" class="mt-2">
-          <Message severity="error" v-for="error in store.errors" :key="error">
+        <div v-if="translationStore.errors.length" class="mt-2">
+          <Message severity="error" v-for="error in translationStore.errors" :key="error">
             {{ error }}
           </Message>
         </div>
@@ -84,23 +84,27 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useTranslationStore } from '@/stores/translation'
+import { useProjectStore } from '@/stores/project'
+import { useSettingsStore } from '@/stores/settings'
 import { useToast } from 'primevue/usetoast'
 
-const store = useTranslationStore()
+const translationStore = useTranslationStore()
+const projectStore = useProjectStore()
+const settingsStore = useSettingsStore()
 const toast = useToast()
 const isSaving = ref(false)
 const isExporting = ref(false)
 
 // Computed properties
-const totalCount = computed(() => store.extractedTexts.length)
-const translatedCount = computed(() => store.translatedTexts.length)
+const totalCount = computed(() => projectStore.extractedTexts.length)
+const translatedCount = computed(() => translationStore.translatedTexts.length)
 const progressPercentage = computed(() => {
   if (totalCount.value === 0) return 0
   return (translatedCount.value / totalCount.value) * 100
 })
 
 const totalTokens = computed(() => {
-  return store.translatedTexts.reduce((sum, t) => sum + (t.tokens?.total || 0), 0)
+  return translationStore.translatedTexts.reduce((sum, t) => sum + (t.tokens?.total || 0), 0)
 })
 
 const estimatedCost = computed(() => {
@@ -108,27 +112,27 @@ const estimatedCost = computed(() => {
   return totalTokens.value * 0.0001
 })
 
-const isTranslating = computed(() => store.progress > 0 && store.progress < 100)
+const isTranslating = computed(() => translationStore.progress > 0 && translationStore.progress < 100)
 const canStart = computed(() => {
-  return store.extractedTexts.length > 0 && 
-         store.sourceLanguage && 
-         store.targetLanguage && 
-         store.aiProvider
+  return projectStore.extractedTexts.length > 0 && 
+         settingsStore.sourceLanguage && 
+         settingsStore.targetLanguage && 
+         settingsStore.aiProvider
 })
 
 // Methods
 async function startTranslation() {
-  // TODO: Implement translation start
+  await translationStore.translateAll()
 }
 
 function cancelTranslation() {
-  // TODO: Implement translation cancel
+  translationStore.cancelTranslation()
 }
 
 async function saveTranslations() {
   try {
     isSaving.value = true
-    const success = await store.saveTranslations()
+    const success = await translationStore.saveTranslations()
     if (success) {
       toast.add({
         severity: 'success',
@@ -136,11 +140,11 @@ async function saveTranslations() {
         detail: 'Translations saved successfully',
         life: 5000
       })
-    } else if (store.errors.length > 0) {
+    } else if (translationStore.errors.length > 0) {
       toast.add({
         severity: 'error',
         summary: 'Save Failed',
-        detail: store.errors[store.errors.length - 1],
+        detail: translationStore.errors[translationStore.errors.length - 1],
         life: 8000
       })
     }
@@ -159,19 +163,19 @@ async function saveTranslations() {
 async function exportTranslations() {
   try {
     isExporting.value = true
-    const success = await store.exportTranslations()
+    const success = await translationStore.exportTranslations()
     if (success) {
       toast.add({
         severity: 'success',
         summary: 'Exported',
-        detail: `Translations exported to ${store.projectPath}/translations.json`,
+        detail: 'Translations exported successfully',
         life: 5000
       })
-    } else if (store.errors.length > 0) {
+    } else if (translationStore.errors.length > 0) {
       toast.add({
         severity: 'error',
         summary: 'Export Failed',
-        detail: store.errors[store.errors.length - 1],
+        detail: translationStore.errors[translationStore.errors.length - 1],
         life: 8000
       })
     }
@@ -186,4 +190,9 @@ async function exportTranslations() {
     isExporting.value = false
   }
 }
+
+defineExpose({
+  startTranslation,
+  cancelTranslation
+})
 </script> 

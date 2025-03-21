@@ -15,18 +15,17 @@ const toggleSidebar = () => {
 </script>
 
 <template>
-  <div class="flex flex-col h-screen bg-gray-100">
+  <div class="flex flex-col h-screen bg-gray-100 dark:bg-gray-900">
     <!-- Header -->
-    <AppHeader @toggle-sidebar="toggleSidebar" />
+    <AppHeader @toggle-sidebar="toggleSidebar"/>
 
     <div class="flex flex-1 overflow-hidden">
       <!-- Sidebar -->
-      <AppSidebar :is-collapsed="isSidebarCollapsed" />
+      <AppSidebar :is-collapsed="isSidebarCollapsed" class="flex-shrink-0" />
 
       <!-- Main Content -->
       <main 
-        class="flex-1 overflow-auto p-4"
-        :class="{ 'ml-64': !isSidebarCollapsed, 'ml-16': isSidebarCollapsed }"
+        class="flex-1 overflow-auto p-4 transition-all ml-auto duration-300"
       >
         <RouterView v-slot="{ Component }">
           <transition name="fade" mode="out-in">

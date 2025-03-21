@@ -7,12 +7,29 @@ export interface TranslationTarget {
   file: string
 }
 
+export interface TranslationMetadata {
+  promptType: string
+  modelUsed: string
+  processingTime: number
+  qualityScore: number
+}
+
+export interface TranslationStats {
+  totalTokens: number
+  totalCost: number
+  averageConfidence: number
+  failedTranslations: number
+  successfulTranslations: number
+  totalProcessingTime: number
+}
+
 export interface TranslatedText extends TranslationTarget {
   tokens?: {
     total: number
     prompt: number
     completion: number
   }
+  metadata?: TranslationMetadata
 }
 
 export interface EngineFile {

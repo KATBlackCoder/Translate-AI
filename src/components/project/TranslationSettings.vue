@@ -1,14 +1,16 @@
 <template>
-  <Card>
-    <template #title>Translation Settings</template>
+  <Card class="h-full">
+    <template #title>
+      <div class="text-lg font-medium">Translation Settings</div>
+    </template>
     <template #content>
-      <div class="flex flex-col gap-4">
+      <div class="flex flex-col gap-6">
         <!-- Language Selection -->
-        <div class="flex gap-4">
-          <div class="flex-1">
-            <label class="block mb-2">Source Language</label>
-            <Dropdown 
-              v-model="store.sourceLanguage"
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block mb-2 text-sm font-medium text-gray-700">Source Language</label>
+            <Select 
+              v-model="settingsStore.sourceLanguage"
               :options="languages"
               optionLabel="name"
               optionValue="code"
@@ -16,10 +18,10 @@
               class="w-full"
             />
           </div>
-          <div class="flex-1">
-            <label class="block mb-2">Target Language</label>
-            <Dropdown 
-              v-model="store.targetLanguage"
+          <div>
+            <label class="block mb-2 text-sm font-medium text-gray-700">Target Language</label>
+            <Select 
+              v-model="settingsStore.targetLanguage"
               :options="languages"
               optionLabel="name"
               optionValue="code"
@@ -31,9 +33,9 @@
 
         <!-- AI Provider Selection -->
         <div>
-          <label class="block mb-2">AI Provider</label>
-          <Dropdown 
-            v-model="store.aiProvider"
+          <label class="block mb-2 text-sm font-medium text-gray-700">AI Provider</label>
+          <Select 
+            v-model="settingsStore.aiProvider"
             :options="aiProviders"
             optionLabel="name"
             optionValue="type"
@@ -43,10 +45,10 @@
         </div>
 
         <!-- AI Model Selection -->
-        <div v-if="store.aiProvider === 'ollama'">
-          <label class="block mb-2">Ollama Model</label>
-          <Dropdown 
-            v-model="store.aiModel"
+        <div v-if="settingsStore.aiProvider === 'ollama'">
+          <label class="block mb-2 text-sm font-medium text-gray-700">Ollama Model</label>
+          <Select 
+            v-model="settingsStore.aiModel"
             :options="ollamaModels"
             optionLabel="name"
             optionValue="id"
@@ -56,10 +58,10 @@
         </div>
 
         <!-- API Key Input -->
-        <div v-if="store.aiProvider === 'chatgpt'">
-          <label class="block mb-2">OpenAI API Key</label>
+        <div v-if="settingsStore.aiProvider === 'chatgpt'">
+          <label class="block mb-2 text-sm font-medium text-gray-700">OpenAI API Key</label>
           <Password 
-            v-model="store.apiKey"
+            v-model="settingsStore.apiKey"
             :feedback="false"
             placeholder="Enter your OpenAI API key"
             class="w-full"
@@ -67,9 +69,9 @@
         </div>
 
         <!-- Validation -->
-        <div v-if="!isValid" class="text-red-500">
-          <i class="pi pi-exclamation-circle mr-2"></i>
-          Please fill in all required settings
+        <div v-if="!isValid" class="text-red-600 flex items-center gap-2">
+          <i class="pi pi-exclamation-circle"></i>
+          <span>Please fill in all required settings</span>
         </div>
       </div>
     </template>
@@ -77,9 +79,9 @@
 </template>
 <script setup lang="ts">
 import { computed } from 'vue'
-import { useTranslationStore } from '@/stores/translation'
+import { useSettingsStore } from '@/stores/settings'
 
-const store = useTranslationStore()
+const settingsStore = useSettingsStore()
 
 // Language options
 const languages = [
@@ -110,13 +112,5 @@ const ollamaModels = [
 ]
 
 // Validation
-const isValid = computed(() => {
-  if (!store.sourceLanguage || !store.targetLanguage || !store.aiProvider) {
-    return false
-  }
-  if (store.aiProvider === 'chatgpt' && !store.apiKey) {
-    return false
-  }
-  return true
-})
+const isValid = computed(() => settingsStore.isTranslationConfigValid && settingsStore.isAIConfigValid)
 </script> 

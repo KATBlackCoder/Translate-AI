@@ -31,7 +31,7 @@ const themes = [
         <div class="space-y-4">
           <div class="flex items-center justify-between">
             <label class="text-sm font-medium text-gray-700">Default Language</label>
-            <Dropdown 
+            <Select 
               v-model="settings.defaultLanguage"
               :options="languages"
               optionLabel="label"
@@ -42,7 +42,7 @@ const themes = [
 
           <div class="flex items-center justify-between">
             <label class="text-sm font-medium text-gray-700">Theme</label>
-            <Dropdown 
+            <Select 
               v-model="settings.theme"
               :options="themes"
               optionLabel="label"

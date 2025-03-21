@@ -22,3 +22,13 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# test
+test
+*.test.ts
+*.test.tsx
+*.test.js
+*.test.jsx
+*.test.vue
+*.test.tsx
+*.test.tsx
