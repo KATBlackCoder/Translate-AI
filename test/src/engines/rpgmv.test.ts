@@ -23,14 +23,16 @@ describe('RPGMakerMVEngine', () => {
       const result = await engine.validateProject('/game')
       expect(result.isValid).toBe(true)
       expect(result.errors).toHaveLength(0)
+      expect(result.requiredFiles).toEqual(['data/Actors.json'])
     })
 
-    it('should fail validation if data folder missing', async () => {
+    it('should fail validation when data folder is missing', async () => {
       vi.mocked(exists).mockResolvedValue(false)
 
       const result = await engine.validateProject('/game')
       expect(result.isValid).toBe(false)
       expect(result.errors).toContain('Data folder not found')
+      expect(result.requiredFiles).toEqual(['data/Actors.json'])
     })
 
     it('should handle filesystem errors', async () => {

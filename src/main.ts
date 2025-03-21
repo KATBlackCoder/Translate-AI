@@ -8,6 +8,8 @@ import 'primeicons/primeicons.css'
 import PrimeVue from 'primevue/config';
 import Aura from '@primeuix/themes/aura';
 
+// Toast
+import ToastService from 'primevue/toastservice';
 
 const app = createApp(App);
 
@@ -28,6 +30,9 @@ app.use(PrimeVue, {
     }
   },
 });
+
+// Toast
+app.use(ToastService);
 
 // Router
 app.use(router);

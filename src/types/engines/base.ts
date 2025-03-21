@@ -1,10 +1,18 @@
 export interface TranslationTarget {
-  key: string
+  id: string
   field: string
   source: string
   target: string
   context?: string
   file: string
+}
+
+export interface TranslatedText extends TranslationTarget {
+  tokens?: {
+    total: number
+    prompt: number
+    completion: number
+  }
 }
 
 export interface EngineFile {

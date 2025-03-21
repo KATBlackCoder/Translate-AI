@@ -2,6 +2,7 @@ import type { AIProvider, AIConfig } from '@/types/ai/base'
 import { ChatGPTProvider } from './chatgpt'
 import { OllamaProvider } from './ollama'
 import { DeepSeekProvider } from './deepseek'
+
 export type AIProviderType = 'chatgpt' | 'ollama' | 'deepseek'
 
 export class AIProviderFactory {

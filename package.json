@@ -20,6 +20,7 @@
     "@tauri-apps/plugin-opener": "^2",
     "@vueuse/core": "^13.0.0",
     "axios": "^1.8.3",
+    "fflate": "^0.8.2",
     "openai": "^4.88.0",
     "pinia": "^3.0.1",
     "primeicons": "^7.0.0",

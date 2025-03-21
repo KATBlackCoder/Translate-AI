@@ -1,16 +1,17 @@
 import type { GameEngine, EngineFile, EngineValidation, TranslationTarget } from '@/types/engines/base'
 import type { RPGMVActorData, RPGMVActor, RPGMVActorTranslatable } from '@/types/engines/rpgmv'
 import { useValidateFile } from '@/composables/useValidateFile'
+import { join } from '@tauri-apps/api/path'
 
 export class RPGMakerMVEngine implements GameEngine {
   readonly name = 'RPG Maker MV'
   readonly version = '1.0.0'
 
   private readonly requiredFiles = [
-    'data/Actors.json'
+    'www/data/Actors.json'
   ]
 
-  private readonly validatePath = '/www/data'
+  private readonly validatePath = 'www/data'
   private readonly fs = useValidateFile()
 
   private readonly translatableFields: Record<keyof RPGMVActorTranslatable, {
@@ -43,8 +44,9 @@ export class RPGMakerMVEngine implements GameEngine {
     const errors: string[] = []
 
     // Check if data folder exists
-    const { data: dataFolderExists, error: folderError } = await this.fs.checkPathExists(path + this.validatePath)
-    
+    const fullPath = await join(path, this.validatePath)
+    const { data: dataFolderExists, error: folderError } = await this.fs.checkPathExists(fullPath)
+    console.log(fullPath)
     if (folderError) {
       errors.push(`Error checking data folder: ${folderError.message}`)
       return {
@@ -63,7 +65,7 @@ export class RPGMakerMVEngine implements GameEngine {
       }
     }
 
-    // Check required files
+    // Check required files with proper path joining
     const { data: missingFiles, error: validationError } = await this.fs.validateRequiredFiles(path, this.requiredFiles)
     
     if (validationError) {
@@ -131,7 +133,7 @@ export class RPGMakerMVEngine implements GameEngine {
         const value = actor[key]
         if (typeof value === 'string' && value !== '') {
           translations.push({
-            key: `${actor.id}`,
+            id: `${actor.id}`,
             field: key,
             source: value,
             target: '',
@@ -169,7 +171,7 @@ export class RPGMakerMVEngine implements GameEngine {
     const actors = file.content as RPGMVActorData
     const updatedActors = [...actors] as RPGMVActorData
     translations.forEach(translation => {
-      const index = parseInt(translation.key)
+      const index = parseInt(translation.id)
       const field = translation.field as keyof RPGMVActorTranslatable
       
       if (index > 0 && updatedActors[index] && translation.target && field in this.translatableFields) {
