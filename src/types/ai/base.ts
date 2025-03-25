@@ -1,7 +1,40 @@
-import type { TranslationTarget } from '../engines/base'
+import type { 
+  TranslationTarget,
+  TranslationPrompt,
+  TranslationRequest,
+  TranslationResponse,
+  BatchTranslationResult
+} from '@/types/shared/translation'
 
-export type PromptType = 'general' | 'dialogue' | 'menu' | 'items' | 'skills' | 'name'
+/**
+ * Types of prompts available for translation
+ */
+export type PromptType = 'general' | 'dialogue' | 'menu' | 'items' | 'skills' | 'name' | 'adult'
 
+/**
+ * Settings for translation quality control
+ */
+export interface TranslationQualitySettings {
+  temperature: number
+  maxTokens: number
+  retryCount: number
+  batchSize: number
+  timeout: number
+}
+
+/**
+ * Settings for custom prompts by type
+ */
+export interface PromptSettings {
+  customPrompts: Record<PromptType, {
+    system?: string
+    user?: string
+  }>
+}
+
+/**
+ * Configuration for AI providers
+ */
 export interface AIConfig {
   apiKey?: string
   model: string
@@ -9,58 +42,13 @@ export interface AIConfig {
   maxTokens?: number
   baseUrl?: string
   promptType?: PromptType
+  isAdult?: boolean
+  contentRating?: 'general' | 'teen' | 'mature' | 'adult'
 }
 
-export interface TranslationPrompt {
-  system: string
-  user: string
-}
-
-export interface TranslationRequest {
-  text: string
-  context?: string
-  sourceLanguage: string
-  targetLanguage: string
-  promptType?: PromptType
-  instructions?: string
-  systemPrompt?: string
-  userPrompt?: string
-}
-
-export interface TranslationResponse {
-  translatedText: string
-  confidence?: number
-  tokens?: {
-    prompt: number
-    completion: number
-    total: number
-  }
-  cost?: number
-  metadata?: {
-    promptType?: PromptType
-    modelUsed?: string
-    processingTime?: number
-    qualityScore?: number
-  }
-}
-
-export interface BatchTranslationResult {
-  translations: TranslationTarget[]
-  stats: {
-    totalTokens: number
-    totalCost: number
-    averageConfidence: number
-    failedTranslations?: number
-    successfulTranslations?: number
-    totalProcessingTime?: number
-  }
-  errors?: Array<{
-    text: string
-    error: string
-    retryCount?: number
-  }>
-}
-
+/**
+ * Base interface for all AI providers
+ */
 export interface AIProvider {
   readonly name: string
   readonly version: string
@@ -68,6 +56,8 @@ export interface AIProvider {
   readonly maxBatchSize: number
   readonly costPerToken: number
   readonly supportedPromptTypes: PromptType[]
+  readonly supportsAdultContent: boolean
+  readonly contentRating?: 'general' | 'teen' | 'mature' | 'adult'
 
   translate(request: TranslationRequest): Promise<TranslationResponse>
   translateBatch(
@@ -79,13 +69,14 @@ export interface AIProvider {
       batchSize?: number
       retryCount?: number
       timeout?: number
+      isAdult?: boolean
+      contentRating?: 'general' | 'teen' | 'mature' | 'adult'
     }
   ): Promise<BatchTranslationResult>
   
-  validateConfig(config: AIConfig): boolean
+  validateConfig(config: AIConfig): Promise<boolean>
   estimateCost(text: string): { tokens: number; cost: number }
   
-  // New methods for prompt handling
   getDefaultPrompt(type: PromptType): TranslationPrompt
   validatePrompt(prompt: TranslationPrompt): boolean
 } 

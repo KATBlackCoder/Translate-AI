@@ -70,13 +70,14 @@ import { useSettingsStore } from '@/stores/settings'
 import { useTranslationStore } from '@/stores/translation'
 import { useRouter } from 'vue-router'
 import { open } from '@tauri-apps/plugin-dialog'
-
+import { useEngineStore } from '@/stores/engines/engine'
 const router = useRouter()
 const projectStore = useProjectStore()
 const settingsStore = useSettingsStore()
 const translationStore = useTranslationStore()
 const path = ref('')
 const isValidating = ref(false)
+const engineStore = useEngineStore()
 
 // Computed properties
 const validationStatus = computed(() => projectStore.validationStatus)
@@ -102,7 +103,7 @@ async function selectFolder() {
     })
     
     if (selected) {
-      const isValid = await projectStore.validateProject(selected as string)
+      const isValid = await engineStore.startEngineProject(selected as string)
       if (isValid) {
         path.value = selected as string
       }
@@ -116,7 +117,7 @@ async function selectFolder() {
 }
 
 function resetProject() {
-  projectStore.resetProject()
+  engineStore.$resetEngine()
   path.value = ''
 }
 

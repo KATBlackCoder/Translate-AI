@@ -161,10 +161,7 @@ export function useValidateFile() {
    *   result.data.forEach(file => console.log(file.path, file.content))
    * }
    */
-  async function readJsonFiles(
-    basePath: string,
-    files: string[]
-  ): Promise<FileOperationResult<{ path: string; content: any }[]>> {
+  async function readJsonFiles( basePath: string, files: string[] ): Promise<FileOperationResult<{ path: string; content: any }[]>> {
     isProcessing.value = true
     const results: { path: string; content: any }[] = []
     const errors: string[] = []

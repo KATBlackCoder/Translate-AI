@@ -1,33 +1,29 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import type { AIProviderType } from '@/services/ai/factory'
-import type { GameEngineType } from './engine'
-import type { PromptType } from '@/types/ai/base'
+import type { AIProviderType } from '@/services/providers/factory'
+import type { GameEngineType } from './engines/engine'
+import type { PromptType, PromptSettings, TranslationQualitySettings } from '@/types/ai/base'
 import { usePreferredDark } from '@vueuse/core'
+import { useRPGMVStore } from './engines/rpgmv'
+// TODO: Import new engine store when adding
+// import { useNewEngineStore } from './engines/newengine'
 
-export interface TranslationQualitySettings {
-  temperature: number
-  maxTokens: number
-  retryCount: number
-  batchSize: number
-  timeout: number
-}
-
-export interface PromptSettings {
-  customPrompts: Record<PromptType, {
-    system?: string
-    user?: string
-  }>
-}
-
+/**
+ * Store for managing application settings
+ * @returns {Object} Settings state and methods
+ */
 export const useSettingsStore = defineStore('settings', () => {
+  const rpgmvStore = useRPGMVStore()
+  // TODO: Add new engine store when adding
+  // const newEngineStore = useNewEngineStore()
+
   // Translation Settings
-  const sourceLanguage = ref('')
-  const targetLanguage = ref('')
+  const sourceLanguage = ref('ja')
+  const targetLanguage = ref('en')
 
   // AI Provider Settings
   const aiProvider = ref<AIProviderType>('ollama')
-  const aiModel = ref('')
+  const aiModel = ref('mistral')
   const apiKey = ref('')
   const baseUrl = ref('')
 
@@ -48,20 +44,17 @@ export const useSettingsStore = defineStore('settings', () => {
       menu: {},
       items: {},
       skills: {},
-      name: {}
+      name: {},
+      adult: {}
     }
   })
 
   // Engine Settings
+  // To add a new engine:
+  // 1. Add the engine type to GameEngineType in ./engine.ts
+  // 2. Create new engine store in src/stores/engines/[engine].ts
+  // 3. Create engine-specific handlers in src/services/engines/[engine]/
   const engineType = ref<GameEngineType>('rpgmv')
-  const engineSettings = ref<Record<string, any>>({
-    rpgmv: {
-      dataDir: 'www/data',
-      encoding: 'utf8',
-      skipEmptyLines: true,
-      preserveFormatting: true
-    }
-  })
 
   // Theme
   const isDark = ref(false)
@@ -94,25 +87,68 @@ export const useSettingsStore = defineStore('settings', () => {
     )
   })
 
-  function getEngineConfig<T>(key: string): T | undefined {
-    return engineSettings.value[engineType.value]?.[key]
-  }
-
-  function setEngineConfig(key: string, value: any) {
-    if (!engineSettings.value[engineType.value]) {
-      engineSettings.value[engineType.value] = {}
+  /**
+   * Gets engine-specific configuration
+   * @param {string} key - Configuration key
+   * @returns {T | undefined} Configuration value
+   */
+  function getEngineConfig<T>(key: keyof typeof rpgmvStore.settings): T | undefined {
+    switch (engineType.value) {
+      case 'rpgmv':
+        return rpgmvStore.getConfig(key)
+      // TODO: Add new engine when adding
+      // case 'newengine':
+      //   return newEngineStore.getConfig(key)
+      default:
+        return undefined
     }
-    engineSettings.value[engineType.value][key] = value
   }
 
+  /**
+   * Sets engine-specific configuration
+   * @param {keyof typeof rpgmvStore.settings} key - Configuration key
+   * @param {typeof rpgmvStore.settings[keyof typeof rpgmvStore.settings]} value - Configuration value
+   */
+  function setEngineConfig<K extends keyof typeof rpgmvStore.settings>(
+    key: K, 
+    value: typeof rpgmvStore.settings[K]
+  ) {
+    switch (engineType.value) {
+      case 'rpgmv':
+        rpgmvStore.setConfig(key, value)
+        break
+      // TODO: Add new engine when adding
+      // case 'newengine':
+      //   newEngineStore.setConfig(key, value)
+      //   break
+    }
+  }
+
+  /**
+   * Gets custom prompt for a specific type
+   * @param {PromptType} type - Prompt type
+   * @returns {Object} Custom prompt settings
+   */
   function getCustomPrompt(type: PromptType) {
     return promptSettings.value.customPrompts[type]
   }
 
+  /**
+   * Sets custom prompt for a specific type
+   * @param {PromptType} type - Prompt type
+   * @param {string} [system] - System prompt
+   * @param {string} [user] - User prompt
+   */
   function setCustomPrompt(type: PromptType, system?: string, user?: string) {
+    if (!type || !(type in promptSettings.value.customPrompts)) {
+      throw new Error(`Invalid prompt type: ${type}`)
+    }
     promptSettings.value.customPrompts[type] = { system, user }
   }
 
+  /**
+   * Resets all settings to default values
+   */
   function reset() {
     sourceLanguage.value = ''
     targetLanguage.value = ''
@@ -136,35 +172,37 @@ export const useSettingsStore = defineStore('settings', () => {
         menu: {},
         items: {},
         skills: {},
-        name: {}
+        name: {},
+        adult: {}
       }
     }
 
     engineType.value = 'rpgmv'
-    engineSettings.value = {
-      rpgmv: {
-        dataDir: 'www/data',
-        encoding: 'utf8',
-        skipEmptyLines: true,
-        preserveFormatting: true
-      }
-    }
+    rpgmvStore.reset()
+    // TODO: Add new engine when adding
+    // newEngineStore.reset()
   }
 
-  // Initialize theme from localStorage or system preference
+  /**
+   * Initializes theme from localStorage or system preference
+   */
   const initializeTheme = () => {
     const stored = localStorage.getItem('darkMode')
     isDark.value = stored ? JSON.parse(stored) : systemDark.value
     updateTheme()
   }
 
-  // Update theme
+  /**
+   * Updates theme in DOM and localStorage
+   */
   const updateTheme = () => {
     document.documentElement.classList.toggle('dark', isDark.value)
     localStorage.setItem('darkMode', JSON.stringify(isDark.value))
   }
 
-  // Toggle theme
+  /**
+   * Toggles dark mode
+   */
   const toggleDarkMode = () => {
     isDark.value = !isDark.value
     updateTheme()
@@ -191,7 +229,6 @@ export const useSettingsStore = defineStore('settings', () => {
     
     // Engine Settings
     engineType,
-    engineSettings,
     getEngineConfig,
     setEngineConfig,
 

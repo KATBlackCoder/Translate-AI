@@ -1,18 +1,21 @@
 import { describe, it, expect } from 'vitest'
-import type { TranslationTarget, EngineFile, EngineValidation, GameEngine } from '../../../../src/types/engines/base'
+import type { EngineFile, EngineValidation, GameEngine } from '../../../../src/types/engines/base'
+import type { TranslationTarget } from '../../../../src/core/shared/translation'
 
 describe('Base Engine Types', () => {
   describe('TranslationTarget', () => {
     it('should validate translation target structure', () => {
       const target: TranslationTarget = {
-        key: 'actor.name',
+        id: 'actor.1.name',
+        field: 'name',
         source: '源氏',
         target: 'Genji',
         context: 'Character name',
         file: 'data/Actors.json'
       }
 
-      expect(target.key).toBeTypeOf('string')
+      expect(target.id).toBeTypeOf('string')
+      expect(target.field).toBeTypeOf('string')
       expect(target.source).toBeTypeOf('string')
       expect(target.target).toBeTypeOf('string')
       expect(target.file).toBeTypeOf('string')
@@ -21,7 +24,8 @@ describe('Base Engine Types', () => {
 
     it('should allow optional context', () => {
       const target: TranslationTarget = {
-        key: 'item.description',
+        id: 'item.1.description',
+        field: 'description',
         source: '回復薬',
         target: 'Healing Potion',
         file: 'data/Items.json'
@@ -111,10 +115,10 @@ describe('Base Engine Types', () => {
         async readProject(path: string) {
           return []
         },
-        extractTranslations(files: EngineFile[]) {
+        async extractTranslations(files: EngineFile[]) {
           return []
         },
-        applyTranslations(files: EngineFile[], translations: TranslationTarget[]) {
+        async applyTranslations(files: EngineFile[], translations: TranslationTarget[]) {
           return files
         }
       }
@@ -145,15 +149,16 @@ describe('Base Engine Types', () => {
             content: {}
           }]
         },
-        extractTranslations(files: EngineFile[]) {
+        async extractTranslations(files: EngineFile[]) {
           return [{
-            key: 'test',
+            id: 'test.1.field',
+            field: 'field',
             source: 'Source',
             target: 'Target',
             file: 'test.json'
           }]
         },
-        applyTranslations(files: EngineFile[], translations: TranslationTarget[]) {
+        async applyTranslations(files: EngineFile[], translations: TranslationTarget[]) {
           return files
         }
       }
@@ -171,14 +176,15 @@ describe('Base Engine Types', () => {
       expect(files[0]).toHaveProperty('type')
       expect(files[0]).toHaveProperty('content')
 
-      const translations = mockEngine.extractTranslations(files)
+      const translations = await mockEngine.extractTranslations(files)
       expect(translations).toBeInstanceOf(Array)
-      expect(translations[0]).toHaveProperty('key')
+      expect(translations[0]).toHaveProperty('id')
+      expect(translations[0]).toHaveProperty('field')
       expect(translations[0]).toHaveProperty('source')
       expect(translations[0]).toHaveProperty('target')
       expect(translations[0]).toHaveProperty('file')
 
-      const updatedFiles = mockEngine.applyTranslations(files, translations)
+      const updatedFiles = await mockEngine.applyTranslations(files, translations)
       expect(updatedFiles).toBeInstanceOf(Array)
       expect(updatedFiles).toEqual(files)
     })

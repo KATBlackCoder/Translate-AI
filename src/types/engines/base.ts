@@ -1,73 +1,129 @@
-export interface TranslationTarget {
-  id: string
-  field: string
-  source: string
-  target: string
-  context?: string
-  file: string
+import type { ResourceTranslation } from '@/types/shared/translation'
+
+/**
+ * Supported game engine types
+ */
+export type EngineType = 'rpgmv' // | 'rpgmz' | 'renpy' | 'unity'
+
+/**
+ * Configuration for engine file paths and directories
+ * 
+ * @interface PathConfiguration
+ * @property {string} rootDir - Root directory of the game project
+ * @property {string} dataDir - Directory containing game data files
+ * @property {string} [pluginsDir] - Optional directory for game plugins/extensions
+ * @property {string} [assetsDir] - Optional directory for game assets (images, audio, etc)
+ * @property {string} [scriptsDir] - Optional directory containing game scripts
+ */
+export interface PathConfiguration {
+  rootDir: string
+  dataDir: string
+  pluginsDir?: string
+  assetsDir?: string
+  scriptsDir?: string
 }
 
-export interface TranslationMetadata {
-  promptType: string
-  modelUsed: string
-  processingTime: number
-  qualityScore: number
+/**
+ * Common settings for all game engines
+ */
+export interface EngineSettings {
+  name: string
+  version: string
+  engineType: EngineType
+  pathConfig: PathConfiguration
+  encoding: string
+  requiredFiles: string[]
+  requiredPlugins?: string[]
+  translatableFileTypes: string[]
 }
 
-export interface TranslationStats {
-  totalTokens: number
-  totalCost: number
-  averageConfidence: number
-  failedTranslations: number
-  successfulTranslations: number
-  totalProcessingTime: number
+/**
+ * A file resource from a game that can be translated
+ */
+export interface GameResourceFile {
+  dir: string                     // Directory containing the file
+  path: string                    // Full path to the file
+  fileType: string                // Single file type for this specific file
+  content: unknown                // The actual file content
 }
 
-export interface TranslatedText extends TranslationTarget {
-  tokens?: {
-    total: number
-    prompt: number
-    completion: number
-  }
-  metadata?: TranslationMetadata
-}
-
-export interface EngineFile {
-  path: string
-  type: string
-  content: unknown
-}
-
+/**
+ * Represents the validation result for a game engine project.
+ */
 export interface EngineValidation {
   isValid: boolean
-  requiredFiles: string[]
-  errors: string[]
+  missingFiles: string[]         // Files that are required but missing
+  missingPlugins?: string[]      // Plugins that are required but missing
+  errors: string[]               // Validation error messages
+  warnings?: string[]            // Non-critical issues
 }
 
+/**
+ * Base interface for all game engine implementations.
+ */
 export interface GameEngine {
   /**
-   * Engine name and version
+   * Engine settings including name and version
    */
-  readonly name: string
-  readonly version: string
+  readonly settings: EngineSettings
 
   /**
-   * Validate if a project folder is valid for this engine
+   * Gets the engine name from settings
+   */
+  getEngineName(): string
+
+  /**
+   * Gets the engine version from settings
+   */
+  getEngineVersion(): string
+
+  /**
+   * Gets the file type from a path
+   */
+  getResourceFileType(filePath: string): string
+
+  /**
+   * Validates if a project folder is valid for this engine.
+   * Checks for required files and project structure.
+   * 
+   * @param {string} path - The path to the project folder
+   * @returns {Promise<EngineValidation>} The validation result
    */
   validateProject(path: string): Promise<EngineValidation>
 
   /**
-   * Read all translatable files from the project
+   * Reads all translatable files from the project.
+   * 
+   * @param {string} path - The path to the project folder
+   * @param {object} options - Optional reading options
+   * @param {boolean} options.includeDependencies - Whether to analyze and include dependencies
+   * @returns {Promise<GameResourceFile[]>} Array of files containing translatable content
    */
-  readProject(path: string): Promise<EngineFile[]>
+  readProject(path: string): Promise<GameResourceFile[]>
 
   /**
-   * Extract translatable content from files
+   * Extracts translatable content from files.
+   * 
+   * @param {GameResourceFile[]} files - Array of files to extract translations from
+   * @param {object} options - Optional extraction options
+   * @param {boolean} options.useRelatedContext - Whether to use related files for context
+   * @returns {Promise<ResourceTranslation[]>} Array of translation targets
    */
-  extractTranslations(files: EngineFile[]): TranslationTarget[]
+  extractTranslations(
+    files: GameResourceFile[]
+  ): Promise<ResourceTranslation[]>
 
   /**
-   * Apply translations back to files
+   * Applies translations back to the original files.
+   * 
+   * @param {GameResourceFile[]} files - Original files to update
+   * @param {ResourceTranslation[]} translations - Array of translations to apply
+   * @param {object} options - Optional application options
+   * @param {boolean} options.updateRelatedFiles - Whether to update related files if needed
+   * @returns {Promise<GameResourceFile[]>} Updated files with translations applied
    */
-  applyTranslations(files: EngineFile[], translations: TranslationTarget[]): EngineFile[]
-} 
+  applyTranslations(
+    files: GameResourceFile[], 
+    translations: ResourceTranslation[]
+  ): Promise<GameResourceFile[]>
+}

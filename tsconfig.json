@@ -33,7 +33,9 @@
       "@stores/*": ["./src/stores/*"],
       "@router/*": ["./src/router/*"],
       "@i18n/*": ["./src/i18n/*"],
-      "@plugins/*": ["./src/plugins/*"]
+      "@core/*": ["./src/core/*"],
+      "@utils/*": ["./src/utils/*"],
+      "@test/*": ["./test/*"]
     },
   },
   "include": ["src/**/*.ts", "src/**/*.d.ts", "src/**/*.tsx", "src/**/*.vue"],

@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import type { TranslatedText } from '@/types/engines/base'
+import type { TranslationTarget, TranslatedText } from '@/core/shared/translation'
 import { writeTextFile, writeFile } from '@tauri-apps/plugin-fs'
 import { join } from '@tauri-apps/api/path'
 import { open, save } from '@tauri-apps/plugin-dialog'
@@ -8,7 +8,7 @@ import { zip } from 'fflate'
 import { useProjectStore } from './project'
 import { useSettingsStore } from './settings'
 import { useAIStore } from './ai'
-import { useEngineStore } from './engine'
+import { useEngineStore } from './engines/engine'
 
 export const useTranslationStore = defineStore('translation', () => {
   const projectStore = useProjectStore()
@@ -38,8 +38,8 @@ export const useTranslationStore = defineStore('translation', () => {
       return false
     }
 
-    const untranslated = projectStore.extractedTexts.filter(text => 
-      !translatedTexts.value.some(t => 
+    const untranslated = projectStore.extractedTexts.filter((text: TranslationTarget) => 
+      !translatedTexts.value.some((t: TranslatedText) => 
         t.id === text.id && 
         t.field === text.field && 
         t.file === text.file
@@ -69,9 +69,8 @@ export const useTranslationStore = defineStore('translation', () => {
         }
 
         // Add any AI errors to translation errors
-        if (aiStore.errors.length > 0) {
-          errors.value.push(...aiStore.errors)
-          aiStore.errors = [] // Clear AI errors after adding them
+        if ('errors' in result && result.errors?.length) {
+          errors.value.push(...result.errors.map(e => e.error))
         }
 
         progress.value = Math.round(((i + 1) / batches) * 100)
@@ -118,7 +117,7 @@ export const useTranslationStore = defineStore('translation', () => {
         throw new Error('No directory selected')
       }
 
-      const updatedFiles = engineStore.applyTranslations(projectStore.projectFiles, translatedTexts.value)
+      const updatedFiles = await engineStore.applyTranslations(projectStore.projectFiles, translatedTexts.value)
       
       const savedFiles: string[] = []
       const failedFiles: string[] = []
@@ -155,7 +154,7 @@ export const useTranslationStore = defineStore('translation', () => {
         throw new Error('No translations to export')
       }
 
-      const updatedFiles = engineStore.applyTranslations(projectStore.projectFiles, translatedTexts.value)
+      const updatedFiles = await engineStore.applyTranslations(projectStore.projectFiles, translatedTexts.value)
       
       const files: Record<string, Uint8Array> = {}
 
@@ -167,7 +166,7 @@ export const useTranslationStore = defineStore('translation', () => {
           provider: settingsStore.aiProvider,
           stats: {
             total: translatedTexts.value.length,
-            totalTokens: aiStore.totalTokens
+            totalTokens: aiStore.stats.totalTokens
           }
         },
         translations: translatedTexts.value

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import type { RPGMVActor, RPGMVActorTranslatable } from '../../../../../../src/types/engines/rpgmv/data/actors'
-import actorsData from '../../../../../www/data/Actors.json'
+import actorsData from '../../../../../game/www/data/Actors.json'
 
 describe('RPGMVActorTranslatable', () => {
   it('should validate translatable fields structure', () => {
