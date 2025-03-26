@@ -32,7 +32,7 @@ export const translatableFields: Record<keyof RPGMVActorTranslatable, {
 export function extractTranslations(file: GameResourceFile): ResourceTranslation[] {
   const actors = file.content as RPGMVActorData
   const translations: ResourceTranslation[] = []
-  
+
   for (let i = 1; i < actors.length; i++) {
     const actor = actors[i] as RPGMVActor
     if (!actor) continue
@@ -41,12 +41,13 @@ export function extractTranslations(file: GameResourceFile): ResourceTranslation
       const value = actor[key]
       if (typeof value === 'string' && value !== '') {
         translations.push({
-          id: `${actor.id}`,
+          resourceId: `${actor.id}`, // Use actor.id for resourceId
           field: key,
           source: value,
           target: '',
           context: `${translatableFields[key].context}`,
-          file: file.path
+          file: file.path,
+          section: 'actors'
         })
       }
     })
@@ -60,15 +61,15 @@ export function applyTranslations(file: GameResourceFile, translations: Resource
   const updatedActors = [...actors] as RPGMVActorData
 
   translations.forEach(translation => {
-    const index = parseInt(translation.id)
+    const actorId = parseInt(translation.resourceId) // Use resourceId instead of id
     const field = translation.field as keyof RPGMVActorTranslatable
     
-    if (index > 0 && updatedActors[index] && translation.target && field in translatableFields) {
+    if (actorId > 0 && updatedActors[actorId] && translation.target && field in translatableFields) {
       const updatedActor = {
-        ...updatedActors[index] as RPGMVActor,
+        ...updatedActors[actorId] as RPGMVActor,
         [field]: translation.target
       }
-      updatedActors[index] = updatedActor
+      updatedActors[actorId] = updatedActor
     }
   })
 

@@ -97,7 +97,6 @@ export abstract class RPGMakerBaseEngine extends BaseGameEngine {
       const extractedTranslations = await this.extractFileTranslations(file)
       translations.push(...extractedTranslations)
     }
-
     return translations
   }
 

@@ -1,13 +1,13 @@
-import type { StoreState } from '@/types/store/stores'
 import { useAIConnection } from './useAIConnection'
+import { getDefaultModelForProvider, getErrorMessagesForProvider } from '@/config/aiModelPresets'
+import type { AIConnectionConfig } from '@/types/ai/base'
 
 /**
  * Composable for managing DeepSeek API connection
- * @param state - Store state for error handling and loading state
  * @returns DeepSeek connection state and methods
  */
-export function useDeepSeekConnection(state: StoreState) {
-  const { isConnected, checkConnection, reset } = useAIConnection(state)
+export function useDeepSeekConnection() {
+  const { isConnected, errors, checkConnection, reset } = useAIConnection()
 
   /**
    * Check connection to DeepSeek API
@@ -15,21 +15,18 @@ export function useDeepSeekConnection(state: StoreState) {
    * @param apiKey - DeepSeek API key
    */
   async function checkDeepSeekConnection(baseUrl?: string, apiKey?: string) {
-    return checkConnection({
-      provider: 'deepseek',
+    const config: AIConnectionConfig = {
+      model: getDefaultModelForProvider('deepseek'),
       baseUrl,
       apiKey,
-      errorMessages: {
-        connectionFailed: 'Cannot connect to DeepSeek. Make sure DeepSeek is running.',
-        apiNotFound: 'DeepSeek API endpoint not found. Check if DeepSeek is installed correctly.',
-        authFailed: 'Invalid DeepSeek API key. Please check your credentials.',
-        default: 'DeepSeek connection error'
-      }
-    })
+      errorMessages: getErrorMessagesForProvider('deepseek')
+    }
+    return checkConnection(config)
   }
 
   return {
     isConnected,
+    errors,
     checkConnection: checkDeepSeekConnection,
     reset
   }

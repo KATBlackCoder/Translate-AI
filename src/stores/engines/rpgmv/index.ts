@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
-import { useRPGMVState } from '@/hooks/engines/rpgmv/state'
-import { useRPGMVActions } from '@/hooks/engines/rpgmv/actions'
+import { useRPGMVState } from '@/composables/engines/rpgmv/state'
+import { useRPGMVActions } from '@/composables/engines/rpgmv/actions'
 
 /**
  * Store for managing RPG Maker MV specific data and operations.

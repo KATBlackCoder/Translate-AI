@@ -1,13 +1,13 @@
 import type { GameResourceFile, EngineValidation, EngineSettings } from '@/types/engines/base'
-import type { TranslationTarget, TranslatedText } from '@/core/shared/translation'
+import type { ResourceTranslation } from '@/types/shared/translation'
 import type { RPGMVActor } from '@/types/engines/rpgmv'
 import { RPGMakerMVEngine } from '@/services/engines/rpgmv/rpgmv'
-import { settings } from '@/hooks/engines/rpgmv/state'
+import { settings } from '@/composables/engines/rpgmv/state'
 /**
  * Actions and methods for RPGMV store
  */
 export function useRPGMVActions(
-  state: ReturnType<typeof import('@/hooks/engines/rpgmv/state').useRPGMVState>
+  state: ReturnType<typeof import('@/composables/engines/rpgmv/state').useRPGMVState>
 ) {
   const engine = new RPGMakerMVEngine()
 
@@ -30,7 +30,7 @@ export function useRPGMVActions(
       const validation = await engine.validateProject(path)
       return {
         isValid: false,
-        requiredFiles: validation.requiredFiles,
+        missingFiles: validation.missingFiles,
         errors: state.errors.value
       }
     } finally {
@@ -43,7 +43,7 @@ export function useRPGMVActions(
       state.isLoading.value = true
       state.errors.value = []
       const files = await engine.readProject(path)
-      const actorFile = files.find(f => f.translatableFileTypes.includes('actors'))
+      const actorFile = files.find(f => f.fileType === 'Actors')
       if (actorFile) {
         state.actors.value = actorFile.content as RPGMVActor[]
       }
@@ -64,7 +64,7 @@ export function useRPGMVActions(
    *     state.isLoading.value = true
    *     state.errors.value = []
    *     const files = await engine.readProject(path)
-   *     const itemFile = files.find(f => f.type === 'items')
+   *     const itemFile = files.find(f => f.fileType === 'Items')
    *     if (itemFile) {
    *       state.items.value = itemFile.content as RPGMVItem[]
    *     }
@@ -78,7 +78,7 @@ export function useRPGMVActions(
    */
   // async function loadItems(path: string) { ... }
 
-  async function extractTranslations(files: GameResourceFile[]): Promise<TranslationTarget[]> {
+  async function extractTranslations(files: GameResourceFile[]): Promise<ResourceTranslation[]> {
     try {
       return await engine.extractTranslations(files)
     } catch (error) {
@@ -87,7 +87,7 @@ export function useRPGMVActions(
     }
   }
 
-  async function applyTranslations(files: GameResourceFile[], translations: TranslatedText[]): Promise<GameResourceFile[]> {
+  async function applyTranslations(files: GameResourceFile[], translations: ResourceTranslation[]): Promise<GameResourceFile[]> {
     try {
       return await engine.applyTranslations(files, translations)
     } catch (error) {

@@ -1,6 +1,7 @@
 import { OpenAIBaseProvider } from '@/core/ai/openai-base-provider'
-import { BaseProvider } from '@/core/ai/base-provider'
-import type { TranslationRequest } from '@/core/shared/translation'
+import type { AIProviderConfig } from '@/types/ai/base'
+import type { TranslationRequest } from '@/types/shared/translation'
+import { aiModelPresets, getDefaultModelForProvider, getDefaultBaseUrlForProvider } from '@/config/aiModelPresets'
 
 /**
  * Ollama AI provider implementation for translation services.
@@ -15,24 +16,18 @@ export class OllamaProvider extends OpenAIBaseProvider {
   readonly supportsAdultContent: boolean = true
   readonly contentRating: 'general' | 'teen' | 'mature' | 'adult' = 'adult'
 
-  private readonly supportedModels = [
-    'mistral',
-    'llama2',
-    'codellama',
-    'neural-chat',
-    'starling-lm'
-  ]
-
   protected getBaseUrl(baseUrl?: string): string {
-    return `${baseUrl || 'http://localhost:11434'}/v1`
+    return `${baseUrl || getDefaultBaseUrlForProvider('ollama')}/v1`
   }
 
   protected getDefaultModel(): string {
-    return 'mistral'
+    return getDefaultModelForProvider('ollama')
   }
 
   protected getDefaultTemperature(): number {
-    return 0.3
+    const defaultModel = this.getDefaultModel()
+    const preset = aiModelPresets.ollama[defaultModel]
+    return preset?.defaultTemperature || 0.3
   }
 
   protected getQualityScore(): number {
@@ -40,7 +35,7 @@ export class OllamaProvider extends OpenAIBaseProvider {
   }
 
   protected isModelSupported(model: string): boolean {
-    return this.supportedModels.includes(model)
+    return Object.keys(aiModelPresets.ollama).includes(model)
   }
 
   protected buildPrompt(request: TranslationRequest): string {
@@ -68,7 +63,7 @@ export class OllamaProvider extends OpenAIBaseProvider {
    * @param config - The configuration to validate
    * @returns Promise resolving to true if config is valid
    */
-  async validateConfig(config: BaseProvider['config']): Promise<boolean> {
+  async validateConfig(config: AIProviderConfig): Promise<boolean> {
     if (config.model && !this.isModelSupported(config.model)) return false
     if (config.temperature && (config.temperature < 0 || config.temperature > 2)) {
       return false
@@ -76,7 +71,7 @@ export class OllamaProvider extends OpenAIBaseProvider {
     if (config.promptType && !this.supportedPromptTypes.includes(config.promptType)) {
       return false
     }
-    if (config.contentRating && config.contentRating !== this.contentRating) {
+    if (config.promptType === 'adult' && !this.supportsAdultContent) {
       return false
     }
     return true

@@ -1,103 +1,71 @@
 import { ref } from 'vue'
-import type { AIProvider } from '@/types/ai/base'
+import type { AIProvider, AIProviderConfig, AIProviderType } from '@/types/ai/base'
 import { AIProviderFactory } from '@/services/providers/factory'
-import type { StoreState } from '@/types/store/stores'
-import { createStoreError } from '@/types/store/stores'
-import { useSettingsStore } from '@/stores/settings'
 import { useOllamaConnection } from './providers/useOllamaConnection'
 import { useChatGPTConnection } from './providers/useChatGPTConnection'
 import { useDeepSeekConnection } from './providers/useDeepSeekConnection'
 
 /**
  * Composable for managing AI provider initialization and state
- * @param state - Store state for error handling and loading state
- * @returns AI provider state and methods
  */
-export function useAIProvider(state: StoreState) {
-  const settings = useSettingsStore()
+export function useAIProvider() {
   /** Current AI provider instance */
   const provider = ref<AIProvider | null>(null)
   /** Whether provider is being initialized */
   const isVerifying = ref(false)
+  /** Last error message if any */
+  const error = ref<string | null>(null)
 
-  const { checkConnection: checkOllamaConnection } = useOllamaConnection(state)
-  const { checkConnection: checkChatGPTConnection } = useChatGPTConnection(state)
-  const { checkConnection: checkDeepSeekConnection } = useDeepSeekConnection(state)
+  const { checkConnection: checkOllamaConnection } = useOllamaConnection()
+  const { checkConnection: checkChatGPTConnection } = useChatGPTConnection()
+  const { checkConnection: checkDeepSeekConnection } = useDeepSeekConnection()
 
   /**
-   * Initializes the AI provider based on current settings
-   * @throws {Error} When provider creation or validation fails
-   * @returns {Promise<void>}
-   * 
-   * @example
-   * ```ts
-   * const { initializeProvider } = useAIProvider(state)
-   * await initializeProvider()
-   * ```
+   * Initializes the AI provider
+   * @param providerType The AI provider type
+   * @param config The provider configuration
    */
-  async function initializeProvider() {
-    if (!settings.isAIConfigValid) {
-      state.errors.push(createStoreError(
-        'INVALID_CONFIG',
-        'Invalid AI configuration'
-      ))
-      return
-    }
-
+  async function initialize(providerType: AIProviderType, config: AIProviderConfig) {
     try {
+      error.value = null
       isVerifying.value = true
-      state.errors = [] // Clear previous errors
-
+      
       // Check provider-specific connection
       let isConnected = true
-      switch (settings.aiProvider) {
+      switch (providerType) {
         case 'ollama':
-          isConnected = await checkOllamaConnection(settings.baseUrl)
+          isConnected = await checkOllamaConnection(config.baseUrl)
           break
         case 'chatgpt':
-          isConnected = await checkChatGPTConnection(settings.apiKey)
+          isConnected = await checkChatGPTConnection(config.apiKey)
           break
         case 'deepseek':
-          isConnected = await checkDeepSeekConnection(settings.baseUrl)
+          isConnected = await checkDeepSeekConnection(config.baseUrl)
           break
       }
-      if (!isConnected) return
-
-      const config = {
-        apiKey: settings.apiKey,
-        model: settings.aiModel,
-        baseUrl: settings.baseUrl
+      
+      if (!isConnected) {
+        error.value = `Failed to connect to ${providerType} service`
+        return false
       }
 
-      const newProvider = await AIProviderFactory.createProvider(settings.aiProvider, config)
+      const newProvider = await AIProviderFactory.createProvider(providerType, config)
       if (!newProvider) {
-        state.errors.push(createStoreError(
-          'PROVIDER_CREATION_FAILED',
-          'Failed to create AI provider',
-          { provider: settings.aiProvider }
-        ))
-        return
+        error.value = `Failed to create ${providerType} provider`
+        return false
       }
 
       const isValid = await newProvider.validateConfig(config)
       if (!isValid) {
-        state.errors.push(createStoreError(
-          'INVALID_PROVIDER_CONFIG',
-          'Invalid AI provider configuration',
-          { provider: settings.aiProvider }
-        ))
-        return
+        error.value = `Invalid configuration for ${providerType}`
+        return false
       }
 
       provider.value = newProvider
-      state.lastUpdated = Date.now()
-    } catch (error) {
-      state.errors.push(createStoreError(
-        'INIT_FAILED',
-        error instanceof Error ? error.message : 'Failed to initialize AI provider',
-        { provider: settings.aiProvider }
-      ))
-      provider.value = null
+      return true
+    } catch (err) {
+      error.value = err instanceof Error ? err.message : 'Unknown error occurred'
+      return false
     } finally {
       isVerifying.value = false
     }
@@ -105,20 +73,17 @@ export function useAIProvider(state: StoreState) {
 
   /**
    * Resets the AI provider state
-   * @example
-   * ```ts
-   * const { reset } = useAIProvider(state)
-   * reset()
-   * ```
    */
   function reset() {
     provider.value = null
+    error.value = null
   }
 
   return {
     provider,
     isVerifying,
-    initializeProvider,
+    error,
+    initialize,
     reset
   }
 } 

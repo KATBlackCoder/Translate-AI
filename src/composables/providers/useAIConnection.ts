@@ -1,92 +1,60 @@
 import { ref } from 'vue'
 import OpenAI from 'openai'
-import type { StoreState } from '@/types/store/stores'
-import { createStoreError } from '@/types/store/stores'
-
-interface AIConnectionConfig {
-  provider: 'chatgpt' | 'ollama' | 'deepseek'
-  baseUrl?: string
-  apiKey?: string
-  errorMessages: {
-    connectionFailed: string
-    apiNotFound: string
-    authFailed?: string
-    rateLimit?: string
-    default: string
-  }
-}
+import type { AIConnectionConfig } from '@/types/ai/base'
 
 /**
- * Base composable for managing AI provider connections
- * @param state - Store state for error handling and loading state
- * @returns AI connection state and methods
+ * Base composable for managing AI API connections
+ * @returns Connection state and methods
  */
-export function useAIConnection(state: StoreState) {
+export function useAIConnection() {
   const isConnected = ref(false)
+  const errors = ref<Array<{ code: string; message: string }>>([])
 
   async function checkConnection(config: AIConnectionConfig) {
-    const { provider, baseUrl, apiKey, errorMessages } = config
-
-    if (!baseUrl && !apiKey) return true
-
     try {
-      state.isLoading = true
       const client = new OpenAI({
-        ...(baseUrl && { baseURL: baseUrl }),
-        ...(apiKey && { apiKey })
+        apiKey: config.apiKey,
+        baseURL: config.baseUrl
       })
-      
-      await client.models.list()
+
+      // Try a simple API call to verify connection
+      await client.chat.completions.create({
+        model: config.model || 'gpt-3.5-turbo',
+        messages: [{ role: 'user', content: 'test' }],
+        max_tokens: 1
+      })
+
       isConnected.value = true
-      state.lastUpdated = Date.now()
+      errors.value = []
       return true
     } catch (error) {
       isConnected.value = false
-      if (error instanceof Error) {
-        if (error.message.includes('ECONNREFUSED')) {
-          state.errors.push(createStoreError(
-            `${provider.toUpperCase()}_CONNECTION_FAILED`,
-            errorMessages.connectionFailed,
-            { baseUrl }
-          ))
-        } else if (error.message.includes('404')) {
-          state.errors.push(createStoreError(
-            `${provider.toUpperCase()}_API_NOT_FOUND`,
-            errorMessages.apiNotFound,
-            { baseUrl }
-          ))
-        } else if (error.message.includes('401') && errorMessages.authFailed) {
-          state.errors.push(createStoreError(
-            `${provider.toUpperCase()}_AUTH_FAILED`,
-            errorMessages.authFailed,
-            { apiKey: apiKey?.slice(0, 4) + '...' }
-          ))
-        } else if (error.message.includes('429') && errorMessages.rateLimit) {
-          state.errors.push(createStoreError(
-            `${provider.toUpperCase()}_RATE_LIMIT`,
-            errorMessages.rateLimit,
-            {}
-          ))
-        } else {
-          state.errors.push(createStoreError(
-            `${provider.toUpperCase()}_ERROR`,
-            errorMessages.default,
-            { baseUrl }
-          ))
-        }
+      const errorMessage = error instanceof Error ? error.message : config.errorMessages.default
+      
+      if (errorMessage.includes('connect')) {
+        errors.value.push({ code: 'CONNECTION_FAILED', message: config.errorMessages.connectionFailed })
+      } else if (errorMessage.includes('404')) {
+        errors.value.push({ code: 'API_NOT_FOUND', message: config.errorMessages.apiNotFound })
+      } else if (errorMessage.includes('401') || errorMessage.includes('403')) {
+        errors.value.push({ code: 'AUTH_FAILED', message: config.errorMessages.authFailed || config.errorMessages.default })
+      } else if (errorMessage.includes('429')) {
+        errors.value.push({ code: 'RATE_LIMIT', message: config.errorMessages.rateLimit || config.errorMessages.default })
+      } else {
+        errors.value.push({ code: 'CONNECTION_ERROR', message: config.errorMessages.default })
       }
+      
       return false
-    } finally {
-      state.isLoading = false
     }
   }
 
   function reset() {
     isConnected.value = false
+    errors.value = []
   }
 
   return {
     isConnected,
+    errors,
     checkConnection,
     reset
   }

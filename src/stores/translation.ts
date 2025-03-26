@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import type { TranslationTarget, TranslatedText } from '@/core/shared/translation'
+import type { ResourceTranslation } from '@/types/shared/translation'
 import { writeTextFile, writeFile } from '@tauri-apps/plugin-fs'
 import { join } from '@tauri-apps/api/path'
 import { open, save } from '@tauri-apps/plugin-dialog'
@@ -9,12 +9,22 @@ import { useProjectStore } from './project'
 import { useSettingsStore } from './settings'
 import { useAIStore } from './ai'
 import { useEngineStore } from './engines/engine'
+import { useTranslationStats } from '@/composables/useTranslationStats'
 
+// Define TranslationTarget and TranslatedText types based on ResourceTranslation
+type TranslationTarget = ResourceTranslation;
+type TranslatedText = ResourceTranslation;
+
+/**
+ * Store for managing translation operations
+ * Handles translating, saving, and exporting game resources
+ */
 export const useTranslationStore = defineStore('translation', () => {
   const projectStore = useProjectStore()
   const settingsStore = useSettingsStore()
   const aiStore = useAIStore()
   const engineStore = useEngineStore()
+  const translationStats = useTranslationStats()
 
   // Translation State
   const translatedTexts = ref<TranslatedText[]>([])
@@ -22,6 +32,15 @@ export const useTranslationStore = defineStore('translation', () => {
   const progress = ref(0)
   const errors = ref<string[]>([])
   const shouldCancel = ref(false)
+
+  // Helper functions
+  function findTranslationByResourceId(resourceId: string): TranslatedText | undefined {
+    return translatedTexts.value.find(t => t.resourceId === resourceId)
+  }
+
+  function findTranslationsByResourceId(resourceId: string): TranslatedText[] {
+    return translatedTexts.value.filter(t => t.resourceId === resourceId)
+  }
 
   // Computed
   const isTranslating = computed(() => progress.value > 0 && progress.value < 100)
@@ -31,8 +50,11 @@ export const useTranslationStore = defineStore('translation', () => {
     settingsStore.isAIConfigValid
   )
 
-  // Translation Actions
-  async function translateAll() {
+  /**
+   * Start translation of all untranslated texts
+   * @returns {Promise<boolean>} True if successful, false otherwise
+   */
+  async function translateAll(): Promise<boolean> {
     if (!canTranslate.value) {
       errors.value.push('Cannot start translation: invalid configuration')
       return false
@@ -40,7 +62,7 @@ export const useTranslationStore = defineStore('translation', () => {
 
     const untranslated = projectStore.extractedTexts.filter((text: TranslationTarget) => 
       !translatedTexts.value.some((t: TranslatedText) => 
-        t.id === text.id && 
+        t.resourceId === text.resourceId && 
         t.field === text.field && 
         t.file === text.file
       )
@@ -53,10 +75,21 @@ export const useTranslationStore = defineStore('translation', () => {
     try {
       errors.value = [] // Clear previous errors
       shouldCancel.value = false
-      aiStore.initializeProvider()
+      
+      // Initialize AI provider with the current settings
+      aiStore.initializeProvider(
+        settingsStore.aiProvider,
+        {
+          model: settingsStore.aiModel,
+          apiKey: settingsStore.apiKey,
+          baseUrl: settingsStore.baseUrl,
+          temperature: settingsStore.qualitySettings.temperature,
+          maxTokens: settingsStore.qualitySettings.maxTokens
+        }
+      )
       
       progress.value = 0
-      const batchSize = 10
+      const batchSize = settingsStore.qualitySettings.batchSize || 10
       const batches = Math.ceil(untranslated.length / batchSize)
 
       for (let i = 0; i < batches && !shouldCancel.value; i++) {
@@ -65,12 +98,33 @@ export const useTranslationStore = defineStore('translation', () => {
         const result = await aiStore.translateBatch(batch)
         
         if (result.translations.length > 0) {
-          translatedTexts.value.push(...result.translations)
+          const completeTranslations = result.translations.map((translation: any) => {
+            const sourceText = batch.find(text => text.resourceId === translation.resourceId)
+            if (!sourceText) return null
+            
+            return {
+              ...translation,
+              field: sourceText.field,
+              file: sourceText.file,
+              resourceId: sourceText.resourceId,
+              section: sourceText.section
+            } as ResourceTranslation
+          }).filter(Boolean) as ResourceTranslation[]
+          
+          translatedTexts.value.push(...completeTranslations)
+          
+          // Update translation statistics
+          if (result.stats) {
+            translationStats.stats.value = {
+              ...translationStats.stats.value,
+              ...result.stats
+            }
+          }
         }
 
         // Add any AI errors to translation errors
         if ('errors' in result && result.errors?.length) {
-          errors.value.push(...result.errors.map(e => e.error))
+          errors.value.push(...result.errors.map((e: { error: string }) => e.error))
         }
 
         progress.value = Math.round(((i + 1) / batches) * 100)
@@ -90,14 +144,20 @@ export const useTranslationStore = defineStore('translation', () => {
     }
   }
 
-  function cancelTranslation() {
+  /**
+   * Cancel the current translation process
+   */
+  function cancelTranslation(): void {
     if (isTranslating.value) {
       shouldCancel.value = true
     }
   }
 
-  // File Operations
-  async function saveTranslations() {
+  /**
+   * Save translated files to the specified directory
+   * @returns {Promise<boolean>} True if successful, false otherwise
+   */
+  async function saveTranslations(): Promise<boolean> {
     try {
       if (!projectStore.projectPath || !projectStore.projectFiles.length) {
         throw new Error('No project files loaded')
@@ -117,7 +177,11 @@ export const useTranslationStore = defineStore('translation', () => {
         throw new Error('No directory selected')
       }
 
-      const updatedFiles = await engineStore.applyTranslations(projectStore.projectFiles, translatedTexts.value)
+      const updatedFiles = await engineStore.applyTranslations(
+        projectStore.projectFiles, 
+        translatedTexts.value,
+        settingsStore.engineType
+      )
       
       const savedFiles: string[] = []
       const failedFiles: string[] = []
@@ -148,13 +212,21 @@ export const useTranslationStore = defineStore('translation', () => {
     }
   }
 
-  async function exportTranslations() {
+  /**
+   * Export translations as a ZIP archive
+   * @returns {Promise<boolean>} True if successful, false otherwise
+   */
+  async function exportTranslations(): Promise<boolean> {
     try {
       if (!translatedTexts.value.length) {
         throw new Error('No translations to export')
       }
 
-      const updatedFiles = await engineStore.applyTranslations(projectStore.projectFiles, translatedTexts.value)
+      const updatedFiles = await engineStore.applyTranslations(
+        projectStore.projectFiles, 
+        translatedTexts.value,
+        settingsStore.engineType
+      )
       
       const files: Record<string, Uint8Array> = {}
 
@@ -164,9 +236,13 @@ export const useTranslationStore = defineStore('translation', () => {
           sourceLanguage: settingsStore.sourceLanguage,
           targetLanguage: settingsStore.targetLanguage,
           provider: settingsStore.aiProvider,
+          model: settingsStore.aiModel,
           stats: {
             total: translatedTexts.value.length,
-            totalTokens: aiStore.stats.totalTokens
+            ...Object.fromEntries(
+              Object.entries(translationStats.stats.value)
+                .filter(([key]) => key !== 'totalTokens')
+            )
           }
         },
         translations: translatedTexts.value
@@ -212,12 +288,16 @@ export const useTranslationStore = defineStore('translation', () => {
     }
   }
 
-  function reset() {
+  /**
+   * Reset the translation store
+   */
+  function reset(): void {
     translatedTexts.value = []
     currentFile.value = ''
     progress.value = 0
     errors.value = []
     aiStore.reset()
+    translationStats.reset()
   }
 
   return {
@@ -226,6 +306,7 @@ export const useTranslationStore = defineStore('translation', () => {
     currentFile,
     progress,
     errors,
+    stats: translationStats.stats,
 
     // Computed
     isTranslating,
@@ -236,6 +317,8 @@ export const useTranslationStore = defineStore('translation', () => {
     cancelTranslation,
     saveTranslations,
     exportTranslations,
-    reset
+    reset,
+    findTranslationByResourceId,
+    findTranslationsByResourceId
   }
 }) 

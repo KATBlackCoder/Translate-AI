@@ -1,5 +1,29 @@
 // src/types/shared/translation.ts
 
+// ------- CORE TRANSLATION TYPES ----------
+
+/**
+ * Content rating classification for translated content
+ */
+export type ContentRating = 'general' | 'teen' | 'mature' | 'adult'
+
+/**
+ * Types of content requiring specialized translation approaches
+ */
+export type PromptType = 'general' | 'dialogue' | 'menu' | 'items' | 'skills' | 'name' | 'adult'
+
+/**
+ * Token usage statistics for billing and monitoring
+ */
+export interface TokenUsage {
+  /** Tokens used in the prompt */
+  prompt: number
+  /** Tokens generated in the completion */
+  completion: number
+  /** Total tokens used */
+  total: number
+}
+
 // ------- BASE TRANSLATION TYPES ----------
 
 /**
@@ -25,7 +49,7 @@ export interface TextPair {
 export interface TranslationMeta {
   processingTime: number
   qualityScore?: number
-  contentRating?: 'general' | 'teen' | 'mature' | 'adult'
+  contentRating?: ContentRating
 }
 
 /**
@@ -53,14 +77,23 @@ export interface TranslationStats {
  * @extends TextPair
  * @property field - The specific field within the resource being translated
  * @property file - Path to the file containing the resource
- * @property resourceId - Optional identifier for the specific resource
- * @property section - Optional section within the file
+ * @property resourceId - Identifier for the specific resource
+ * @property section - Section within the file
  */
-export interface ResourceTranslation extends TextPair {
+export interface ResourceTranslation extends Omit<TextPair, 'id'> {
+  resourceId: string
   field: string
   file: string
-  resourceId?: string
   section?: string
+}
+
+/**
+ * A translated game resource with token information
+ * @extends ResourceTranslation
+ * @property tokens - Token usage information from the translation
+ */
+export interface TranslatedResource extends ResourceTranslation {
+  tokens?: TokenUsage
 }
 
 /**
@@ -78,12 +111,6 @@ export interface ResourceTranslationResult {
 // ------- AI TRANSLATION TYPES ----------
 
 /**
- * Types of prompts for different content
- * Specifies the category of content being translated to optimize the translation process
- */
-export type ContentType = 'general' | 'dialogue' | 'menu' | 'items' | 'skills' | 'name' | 'adult'
-
-/**
  * Prompt for AI translation with system and user instructions
  * @property system - System-level instructions for the AI model
  * @property user - User-provided instructions or context
@@ -95,22 +122,10 @@ export interface TranslationPrompt {
 
 /**
  * Configuration for different content type prompts
- * @property general - Prompt configuration for general content
- * @property dialogue - Prompt configuration for dialogue content
- * @property menu - Prompt configuration for menu items
- * @property items - Prompt configuration for game items
- * @property skills - Prompt configuration for character skills
- * @property name - Prompt configuration for character/location names
- * @property adult - Prompt configuration for adult content
  */
-export interface PromptConfig {
-  general: TranslationPrompt
-  dialogue: TranslationPrompt
-  menu: TranslationPrompt
-  items: TranslationPrompt
-  skills: TranslationPrompt
-  name: TranslationPrompt
-  adult: TranslationPrompt
+export type PromptConfig = {
+  /** Prompt configuration for each content type */
+  [key in PromptType]: TranslationPrompt
 }
 
 /**
@@ -126,7 +141,7 @@ export interface TranslationRequest {
   sourceLanguage: string
   targetLanguage: string
   context?: string
-  contentType?: ContentType
+  contentType?: PromptType
 }
 
 /**
@@ -140,11 +155,7 @@ export interface TranslationRequest {
 export interface TranslationResponse {
   translatedText: string
   confidence?: number
-  tokens?: {
-    prompt: number
-    completion: number
-    total: number
-  }
+  tokens?: TokenUsage
   cost?: number
   meta?: TranslationMeta
 }

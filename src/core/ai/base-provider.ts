@@ -1,5 +1,14 @@
-import type { AIProvider, AIConfig, PromptType } from '@/types/ai/base'
-import type { TranslationTarget, TranslationRequest, TranslationResponse, BatchTranslationResult, TranslationPrompt } from '@/core/shared/translation'
+import type { AIProvider, AIProviderConfig, AIBaseConfig } from '@/types/ai/base'
+import type { 
+  ResourceTranslation,
+  TranslationRequest, 
+  TranslationResponse, 
+  BatchTranslationResult, 
+  TranslationPrompt,
+  ContentRating,
+  PromptType,
+  TextPair
+} from '@/types/shared/translation'
 import { RetryManager } from '@/utils/ai/retry'
 import { RateLimiter } from '@/utils/ai/rate-limiter'
 import { CacheManager } from '@/utils/ai/cache'
@@ -32,9 +41,9 @@ export abstract class BaseProvider implements AIProvider {
   protected readonly retryManager: typeof RetryManager
   protected readonly rateLimiter: RateLimiter
   protected readonly cache: CacheManager
-  protected readonly config: AIConfig
+  readonly config: AIBaseConfig
 
-  constructor(config: AIConfig) {
+  constructor(config: AIProviderConfig) {
     this.config = config
     this.retryManager = RetryManager
     this.rateLimiter = new RateLimiter()
@@ -48,7 +57,7 @@ export abstract class BaseProvider implements AIProvider {
   abstract readonly costPerToken: number
   readonly supportedPromptTypes = BaseProvider.SUPPORTED_PROMPT_TYPES
   abstract readonly supportsAdultContent: boolean
-  abstract readonly contentRating?: 'general' | 'teen' | 'mature' | 'adult'
+  abstract readonly contentRating?: ContentRating
 
   protected abstract buildPrompt(request: TranslationRequest): string
 
@@ -69,16 +78,13 @@ export abstract class BaseProvider implements AIProvider {
   protected abstract performTranslation(request: TranslationRequest): Promise<TranslationResponse>
 
   async translateBatch(
-    targets: TranslationTarget[], 
+    targets: ResourceTranslation[], 
     sourceLanguage: string, 
     targetLanguage: string,
-    options?: {
-      promptType?: PromptType
+    options?: AIBaseConfig & {
       batchSize?: number
       retryCount?: number
       timeout?: number
-      isAdult?: boolean
-      contentRating?: 'general' | 'teen' | 'mature' | 'adult'
     }
   ): Promise<BatchTranslationResult> {
     if (options?.isAdult && !this.supportsAdultContent) {
@@ -89,7 +95,7 @@ export abstract class BaseProvider implements AIProvider {
       throw new Error(`Content rating mismatch. Provider supports ${this.contentRating} but requested ${options.contentRating}`)
     }
 
-    const results: TranslationTarget[] = []
+    const results: ResourceTranslation[] = []
     const errors: Array<{ text: string; error: string; retryCount?: number }> = []
     let totalTokens = 0
     let successfulTranslations = 0
@@ -110,7 +116,7 @@ export abstract class BaseProvider implements AIProvider {
                 context: target.context,
                 sourceLanguage,
                 targetLanguage,
-                promptType: options?.promptType || (options?.isAdult ? 'adult' : 'general')
+                contentType: options?.promptType || (options?.isAdult ? 'adult' : 'general')
               })
               
               totalTokens += response.tokens?.total || 0
@@ -141,20 +147,20 @@ export abstract class BaseProvider implements AIProvider {
     }
     
     return {
-      translations: results,
+      translations: results as unknown as TextPair[],
       stats: {
         totalTokens,
         totalCost: totalTokens * this.costPerToken,
         averageConfidence: 0.85,
-        failedTranslations,
-        successfulTranslations,
+        failedCount: failedTranslations,
+        successCount: successfulTranslations,
         totalProcessingTime: Date.now() - startTime
       },
       errors: errors.length > 0 ? errors : undefined
     }
   }
 
-  abstract validateConfig(config: AIConfig): Promise<boolean>
+  abstract validateConfig(config: AIProviderConfig): Promise<boolean>
 
   estimateCost(text: string): { tokens: number; cost: number } {
     const estimatedTokens = Math.ceil(text.length / 4)

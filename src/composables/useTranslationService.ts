@@ -1,9 +1,7 @@
 import { type Ref } from 'vue'
 import type { AIProvider } from '@/types/ai/base'
-import type { TranslationTarget, TranslatedText } from '@/core/shared/translation'
-import type { StoreState } from '@/types/store/stores'
+import type { ResourceTranslation, TranslatedResource } from '@/types/shared/translation'
 import { createStoreError } from '@/types/store/stores'
-import { useSettingsStore } from '@/stores/settings'
 import { useRateLimit } from './useRateLimit'
 import { useTranslationStats } from './useTranslationStats'
 
@@ -17,25 +15,34 @@ const ERROR_CODES = {
 
 /**
  * Composable for managing translation services
- * @param {StoreState} state - Application state
  * @param {Ref<AIProvider | null>} provider - AI provider reference
+ * @param {Object} settings - Settings store with error handling and translation config
  * @returns {Object} Translation service methods
- * @returns {(text: TranslationTarget) => Promise<TranslatedText | null>} translate - Single text translation
- * @returns {(texts: TranslationTarget[]) => Promise<{translations: TranslatedText[], stats: any}>} translateBatch - Batch translation
+ * @returns {(text: ResourceTranslation) => Promise<TranslatedResource | null>} translate - Single text translation
+ * @returns {(texts: ResourceTranslation[]) => Promise<{translations: TranslatedResource[], stats: any}>} translateBatch - Batch translation
  */
-export function useTranslationService(state: StoreState, provider: Ref<AIProvider | null>) {
-  const settings = useSettingsStore()
+export function useTranslationService(
+  provider: Ref<AIProvider | null>,
+  settings: {
+    addError: (error: any) => void,
+    setLoading: (loading: boolean) => void,
+    updateLastModified: () => void,
+    sourceLanguage: string,
+    targetLanguage: string,
+    isTranslationConfigValid: boolean
+  }
+) {
   const { rateLimit, canMakeRequest } = useRateLimit()
   const { updateStats } = useTranslationStats()
 
   /**
    * Translates a single text using the AI provider
-   * @param {TranslationTarget} text - Text to translate
-   * @returns {Promise<TranslatedText | null>} Translated text or null if failed
+   * @param {ResourceTranslation} text - Text to translate
+   * @returns {Promise<TranslatedResource | null>} Translated text or null if failed
    */
-  async function translate(text: TranslationTarget): Promise<TranslatedText | null> {
+  async function translate(text: ResourceTranslation): Promise<TranslatedResource | null> {
     if (!text.source?.trim()) {
-      state.errors.push(createStoreError(
+      settings.addError(createStoreError(
         ERROR_CODES.TRANSLATION_FAILED,
         'Source text cannot be empty'
       ))
@@ -43,7 +50,7 @@ export function useTranslationService(state: StoreState, provider: Ref<AIProvide
     }
 
     if (!canMakeRequest.value) {
-      state.errors.push(createStoreError(
+      settings.addError(createStoreError(
         ERROR_CODES.RATE_LIMIT,
         'Rate limit exceeded. Please wait before making more requests.'
       ))
@@ -51,7 +58,7 @@ export function useTranslationService(state: StoreState, provider: Ref<AIProvide
     }
 
     if (!provider.value) {
-      state.errors.push(createStoreError(
+      settings.addError(createStoreError(
         ERROR_CODES.NO_PROVIDER,
         'AI provider not initialized'
       ))
@@ -59,7 +66,7 @@ export function useTranslationService(state: StoreState, provider: Ref<AIProvide
     }
 
     if (!settings.isTranslationConfigValid) {
-      state.errors.push(createStoreError(
+      settings.addError(createStoreError(
         ERROR_CODES.INVALID_CONFIG,
         'Source and target languages must be set'
       ))
@@ -67,7 +74,7 @@ export function useTranslationService(state: StoreState, provider: Ref<AIProvide
     }
 
     try {
-      state.isLoading = true
+      settings.setLoading(true)
       const startTime = Date.now()
       
       const response = await provider.value.translate({
@@ -77,7 +84,7 @@ export function useTranslationService(state: StoreState, provider: Ref<AIProvide
         targetLanguage: settings.targetLanguage
       })
 
-      const translatedText: TranslatedText = {
+      const translatedText: TranslatedResource = {
         ...text,
         target: response.translatedText,
         tokens: response.tokens
@@ -89,30 +96,30 @@ export function useTranslationService(state: StoreState, provider: Ref<AIProvide
 
       // Update rate limit
       rateLimit.value.requests++
-      state.lastUpdated = Date.now()
+      settings.updateLastModified()
       return translatedText
 
     } catch (error) {
       updateStats(0, 0, false)
-      state.errors.push(createStoreError(
+      settings.addError(createStoreError(
         ERROR_CODES.TRANSLATION_FAILED,
         error instanceof Error ? error.message : 'Translation failed',
         { textLength: text.source.length }
       ))
       return null
     } finally {
-      state.isLoading = false
+      settings.setLoading(false)
     }
   }
 
   /**
    * Translates multiple texts in a batch
-   * @param {TranslationTarget[]} texts - Array of texts to translate
-   * @returns {Promise<{translations: TranslatedText[], stats: any}>} Translation results and stats
+   * @param {ResourceTranslation[]} texts - Array of texts to translate
+   * @returns {Promise<{translations: TranslatedResource[], stats: any}>} Translation results and stats
    */
-  async function translateBatch(texts: TranslationTarget[]) {
+  async function translateBatch(texts: ResourceTranslation[]) {
     if (!texts.length) {
-      state.errors.push(createStoreError(
+      settings.addError(createStoreError(
         ERROR_CODES.BATCH_FAILED,
         'Batch cannot be empty'
       ))
@@ -120,7 +127,7 @@ export function useTranslationService(state: StoreState, provider: Ref<AIProvide
     }
 
     if (!canMakeRequest.value) {
-      state.errors.push(createStoreError(
+      settings.addError(createStoreError(
         ERROR_CODES.RATE_LIMIT,
         'Rate limit exceeded. Please wait before making more requests.'
       ))
@@ -128,7 +135,7 @@ export function useTranslationService(state: StoreState, provider: Ref<AIProvide
     }
 
     if (!provider.value) {
-      state.errors.push(createStoreError(
+      settings.addError(createStoreError(
         ERROR_CODES.NO_PROVIDER,
         'AI provider not initialized'
       ))
@@ -136,7 +143,7 @@ export function useTranslationService(state: StoreState, provider: Ref<AIProvide
     }
 
     if (!settings.isTranslationConfigValid) {
-      state.errors.push(createStoreError(
+      settings.addError(createStoreError(
         ERROR_CODES.INVALID_CONFIG,
         'Source and target languages must be set'
       ))
@@ -144,7 +151,7 @@ export function useTranslationService(state: StoreState, provider: Ref<AIProvide
     }
 
     try {
-      state.isLoading = true
+      settings.setLoading(true)
       const startTime = Date.now()
       
       const result = await provider.value.translateBatch(
@@ -159,19 +166,19 @@ export function useTranslationService(state: StoreState, provider: Ref<AIProvide
 
       // Update rate limit
       rateLimit.value.requests++
-      state.lastUpdated = Date.now()
+      settings.updateLastModified()
       return result
 
     } catch (error) {
       updateStats(0, 0, false, texts.length)
-      state.errors.push(createStoreError(
+      settings.addError(createStoreError(
         ERROR_CODES.BATCH_FAILED,
         error instanceof Error ? error.message : 'Batch translation failed',
         { batchSize: texts.length }
       ))
       return { translations: [], stats: null }
     } finally {
-      state.isLoading = false
+      settings.setLoading(false)
     }
   }
 

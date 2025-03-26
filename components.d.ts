@@ -8,6 +8,8 @@ export {}
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
+    Accordion: typeof import('primevue/accordion')['default']
+    AccordionTab: typeof import('primevue/accordiontab')['default']
     AppFooter: typeof import('./src/components/common/AppFooter.vue')['default']
     AppHeader: typeof import('./src/components/common/AppHeader.vue')['default']
     AppSidebar: typeof import('./src/components/common/AppSidebar.vue')['default']
@@ -19,6 +21,7 @@ declare module 'vue' {
     DataTable: typeof import('primevue/datatable')['default']
     Dropdown: typeof import('primevue/dropdown')['default']
     FileUpload: typeof import('primevue/fileupload')['default']
+    InputNumber: typeof import('primevue/inputnumber')['default']
     InputSwitch: typeof import('primevue/inputswitch')['default']
     InputText: typeof import('primevue/inputtext')['default']
     MainLayout: typeof import('./src/components/layout/MainLayout.vue')['default']
@@ -29,13 +32,18 @@ declare module 'vue' {
     ProgressSpinner: typeof import('primevue/progressspinner')['default']
     ProjectImport: typeof import('./src/components/project/ProjectImport.vue')['default']
     ProjectSelector: typeof import('./src/components/project/ProjectSelector.vue')['default']
+    ProviderSettings: typeof import('./src/components/project/ProviderSettings.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
+    Slider: typeof import('primevue/slider')['default']
     Tag: typeof import('primevue/tag')['default']
+    Textarea: typeof import('primevue/textarea')['default']
     ThemeSwitch: typeof import('./src/components/common/ThemeSwitch.vue')['default']
+    TranslatedList: typeof import('./src/components/project/TranslatedList.vue')['default']
     TranslationList: typeof import('./src/components/project/TranslationList.vue')['default']
     TranslationProgress: typeof import('./src/components/project/TranslationProgress.vue')['default']
     TranslationSettings: typeof import('./src/components/project/TranslationSettings.vue')['default']
     Tree: typeof import('primevue/tree')['default']
+    UntranslatedList: typeof import('./src/components/project/UntranslatedList.vue')['default']
   }
 }

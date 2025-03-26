@@ -1,5 +1,11 @@
-import type { PromptType } from '@/types/ai/base'
-import type { TranslationRequest, TranslationResponse, TranslationPrompt } from '@/core/shared/translation'
+import type { AIProviderConfig, AIBaseConfig } from '@/types/ai/base'
+import type { 
+  TranslationRequest, 
+  TranslationResponse, 
+  TranslationPrompt,
+  ContentRating,
+  PromptType
+} from '@/types/shared/translation'
 import OpenAI from 'openai'
 import { BaseProvider } from './base-provider'
 
@@ -10,9 +16,9 @@ import { BaseProvider } from './base-provider'
 export abstract class OpenAIBaseProvider extends BaseProvider {
   protected readonly client: OpenAI
   abstract readonly supportsAdultContent: boolean
-  abstract readonly contentRating?: 'general' | 'teen' | 'mature' | 'adult'
+  abstract readonly contentRating?: ContentRating
 
-  constructor(config: BaseProvider['config']) {
+  constructor(config: AIProviderConfig) {
     super(config)
     this.client = new OpenAI({
       apiKey: config.apiKey,
@@ -60,18 +66,19 @@ export abstract class OpenAIBaseProvider extends BaseProvider {
   protected async performTranslation(request: TranslationRequest): Promise<TranslationResponse> {
     const startTime = Date.now()
     const formattedPrompt = this.getFormattedPrompt(request)
-    const model = this.config.model || this.getDefaultModel()
+    const openaiConfig = this.config as AIProviderConfig
+    const model = openaiConfig.model || this.getDefaultModel()
     
     if (!this.isModelSupported(model)) {
       throw new Error(`Model ${model} is not supported by ${this.name}`)
     }
 
-    if (request.promptType === 'adult' && !this.supportsAdultContent) {
+    if (request.contentType === 'adult' && !this.supportsAdultContent) {
       throw new Error('This provider does not support adult content')
     }
 
-    if (request.contentRating && this.contentRating && request.contentRating !== this.contentRating) {
-      throw new Error(`Content rating mismatch. Provider supports ${this.contentRating} but requested ${request.contentRating}`)
+    if (this.contentRating && request.contentType === 'adult' && this.contentRating !== 'adult') {
+      throw new Error(`Content rating mismatch. Provider supports ${this.contentRating} but requested adult content`)
     }
     
     const completion = await this.client.chat.completions.create({
@@ -86,8 +93,8 @@ export abstract class OpenAIBaseProvider extends BaseProvider {
           content: formattedPrompt.user
         }
       ],
-      temperature: this.config.temperature || this.getDefaultTemperature(),
-      max_tokens: this.config.maxTokens || 1000
+      temperature: openaiConfig.temperature || this.getDefaultTemperature(),
+      max_tokens: openaiConfig.maxTokens || 1000
     })
 
     const response = completion.choices[0]?.message?.content || ''
@@ -101,12 +108,10 @@ export abstract class OpenAIBaseProvider extends BaseProvider {
         total: completion.usage?.total_tokens || 0
       },
       cost: (completion.usage?.total_tokens || 0) * this.costPerToken,
-      metadata: {
-        promptType: request.promptType || 'general',
-        modelUsed: model,
+      meta: {
         processingTime,
         qualityScore: this.getQualityScore(),
-        contentRating: request.contentRating || this.contentRating
+        contentRating: request.contentType === 'adult' ? 'adult' : this.contentRating
       }
     }
   }
@@ -117,8 +122,8 @@ export abstract class OpenAIBaseProvider extends BaseProvider {
    * @returns Formatted prompt with system and user messages
    */
   protected getFormattedPrompt(request: TranslationRequest): TranslationPrompt {
-    const promptType = (request.promptType || 'general') as PromptType
-    const defaultPrompt = this.getDefaultPrompt(promptType)
+    const contentType = (request.contentType || 'general') as PromptType
+    const defaultPrompt = this.getDefaultPrompt(contentType)
     const userPrompt = defaultPrompt.user
       .replace('{source}', request.sourceLanguage)
       .replace('{target}', request.targetLanguage)

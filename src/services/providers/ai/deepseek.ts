@@ -1,6 +1,7 @@
 import { OpenAIBaseProvider } from '@/core/ai/openai-base-provider'
-import { BaseProvider } from '@/core/ai/base-provider'
-import type { TranslationRequest } from '@/core/shared/translation'
+import type { AIProviderConfig } from '@/types/ai/base'
+import type { TranslationRequest } from '@/types/shared/translation'
+import { aiModelPresets, getDefaultModelForProvider, getDefaultBaseUrlForProvider } from '@/config/aiModelPresets'
 
 /**
  * DeepSeek AI provider implementation for translation services.
@@ -15,22 +16,18 @@ export class DeepSeekProvider extends OpenAIBaseProvider {
   readonly supportsAdultContent: boolean = true
   readonly contentRating: 'general' | 'teen' | 'mature' | 'adult' = 'mature'
 
-  private readonly supportedModels = [
-    'deepseek-chat',
-    'deepseek-coder',
-    'deepseek-math'
-  ]
-
   protected getBaseUrl(baseUrl?: string): string {
-    return baseUrl || 'https://api.deepseek.com/v1'
+    return baseUrl || getDefaultBaseUrlForProvider('deepseek')
   }
 
   protected getDefaultModel(): string {
-    return 'deepseek-chat'
+    return getDefaultModelForProvider('deepseek')
   }
 
   protected getDefaultTemperature(): number {
-    return 0.3
+    const defaultModel = this.getDefaultModel()
+    const preset = aiModelPresets.deepseek[defaultModel]
+    return preset?.defaultTemperature || 0.3
   }
 
   protected getQualityScore(): number {
@@ -38,7 +35,7 @@ export class DeepSeekProvider extends OpenAIBaseProvider {
   }
 
   protected isModelSupported(model: string): boolean {
-    return this.supportedModels.includes(model)
+    return Object.keys(aiModelPresets.deepseek).includes(model)
   }
 
   protected buildPrompt(request: TranslationRequest): string {
@@ -65,7 +62,7 @@ export class DeepSeekProvider extends OpenAIBaseProvider {
    * @param config - The configuration to validate
    * @returns Promise resolving to true if config is valid
    */
-  async validateConfig(config: BaseProvider['config']): Promise<boolean> {
+  async validateConfig(config: AIProviderConfig): Promise<boolean> {
     if (!config.apiKey || !config.baseUrl) return false
     if (config.model && !this.isModelSupported(config.model)) return false
     if (config.temperature && (config.temperature < 0 || config.temperature > 2)) {
@@ -74,7 +71,7 @@ export class DeepSeekProvider extends OpenAIBaseProvider {
     if (config.promptType && !this.supportedPromptTypes.includes(config.promptType)) {
       return false
     }
-    if (config.contentRating && config.contentRating !== this.contentRating) {
+    if (config.promptType === 'adult' && !this.supportsAdultContent) {
       return false
     }
     return true

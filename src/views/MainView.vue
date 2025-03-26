@@ -8,7 +8,7 @@
     <!-- Translation Progress & List -->
     <div v-if="projectStore.extractedTexts.length > 0" class="space-y-4">
       
-      <TranslationSettings />
+      <UntranslatedList />
     </div>
 
     <!-- Initial State -->
@@ -28,7 +28,7 @@
 <script setup lang="ts">
 import { useProjectStore } from '@/stores/project'
 import ProjectSelector from '@/components/project/ProjectSelector.vue'
-import TranslationSettings from '@/components/project/TranslationSettings.vue'
+import UntranslatedList from '@/components/project/UntranslatedList.vue'
 
 const projectStore = useProjectStore()
 

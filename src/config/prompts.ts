@@ -1,12 +1,9 @@
-// src/config/prompts.ts
 import type { 
-    PromptConfig,
+    TranslationPrompt, 
+    PromptConfig 
   } from '@/types/shared/translation'
   
-  /**
-   * Default translation prompts for different content types
-   */
-  export const defaultPrompts: PromptConfig = {
+  export const prompts: PromptConfig = {
     general: {
       system: `You are a professional game translator. Your task is to translate the given text while:
   - Maintaining the original meaning and nuance
@@ -82,3 +79,28 @@ import type {
       user: 'Translate this adult content from {source} to {target}. Context: {context}\nText: "{text}"'
     }
   }
+  
+  export function getPrompt(type: keyof PromptConfig = 'general'): TranslationPrompt {
+    return prompts[type]
+  }
+  
+  export function formatPrompt(
+    prompt: TranslationPrompt,
+    params: {
+      source: string
+      target: string
+      text: string
+      context?: string
+      isAdult?: boolean
+    }
+  ): { system: string; user: string } {
+    const { source, target, text, context = '', isAdult = true } = params
+    return {
+      system: isAdult ? prompts.adult.system : prompt.system,
+      user: (isAdult ? prompts.adult.user : prompt.user)
+        .replace('{source}', source)
+        .replace('{target}', target)
+        .replace('{text}', text)
+        .replace('{context}', context)
+    }
+  } 

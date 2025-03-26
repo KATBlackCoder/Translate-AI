@@ -1,13 +1,13 @@
-import type { StoreState } from '@/types/store/stores'
 import { useAIConnection } from './useAIConnection'
+import { getDefaultModelForProvider, getErrorMessagesForProvider } from '@/config/aiModelPresets'
+import type { AIConnectionConfig } from '@/types/ai/base'
 
 /**
  * Composable for managing ChatGPT API connection
- * @param state - Store state for error handling and loading state
  * @returns ChatGPT connection state and methods
  */
-export function useChatGPTConnection(state: StoreState) {
-  const { isConnected, checkConnection, reset } = useAIConnection(state)
+export function useChatGPTConnection() {
+  const { isConnected, errors, checkConnection, reset } = useAIConnection()
 
   /**
    * Check connection to ChatGPT API
@@ -15,22 +15,18 @@ export function useChatGPTConnection(state: StoreState) {
    * @param baseUrl - Optional custom OpenAI API endpoint (e.g. Azure OpenAI)
    */
   async function checkChatGPTConnection(apiKey?: string, baseUrl?: string) {
-    return checkConnection({
-      provider: 'chatgpt',
+    const config: AIConnectionConfig = {
+      model: getDefaultModelForProvider('chatgpt'),
       apiKey,
       baseUrl,
-      errorMessages: {
-        connectionFailed: 'Cannot connect to ChatGPT API.',
-        apiNotFound: 'ChatGPT API endpoint not found.',
-        authFailed: 'Invalid API key. Please check your OpenAI API key.',
-        rateLimit: 'Rate limit exceeded. Please try again later.',
-        default: 'ChatGPT connection error'
-      }
-    })
+      errorMessages: getErrorMessagesForProvider('chatgpt')
+    }
+    return checkConnection(config)
   }
 
   return {
     isConnected,
+    errors,
     checkConnection: checkChatGPTConnection,
     reset
   }

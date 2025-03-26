@@ -1,26 +1,13 @@
 import { ref, computed } from 'vue'
 import type { RPGMVActor } from '@/types/engines/rpgmv'
 import type { EngineSettings } from '@/types/engines/base'
+import { RPGMakerMVEngine } from '@/services/engines/rpgmv/rpgmv'
 
 /**
  * Settings for the RPG Maker MV engine
+ * Imported from the RPGMakerMVEngine which is the single source of truth
  */
-export const settings: EngineSettings = {
-  name: 'RPG Maker MV',
-  version: '1.6.2',
-  dataDir: {
-    dir: 'www',
-    path: 'data',
-    translatableFileTypes: [],
-    content: null,
-    required: {
-      isValid: true,
-      requiredFiles: [],
-      errors: []
-    }
-  },
-  encoding: 'utf8'
-}
+export const settings: EngineSettings = new RPGMakerMVEngine().settings;
 
 /**
  * State and computed properties for RPGMV store
@@ -51,7 +38,7 @@ export function useRPGMVState() {
   const errors = ref<string[]>([])
 
   // Computed
-  const dataDir = computed(() => settings.dataDir)
+  const pathConfig = computed(() => settings.pathConfig)
   const encoding = computed(() => settings.encoding)
   const hasActors = computed(() => actors.value.length > 0)
   
@@ -102,7 +89,7 @@ export function useRPGMVState() {
     errors,
 
     // Computed
-    dataDir,
+    pathConfig,
     encoding,
     hasActors,
     // hasItems,

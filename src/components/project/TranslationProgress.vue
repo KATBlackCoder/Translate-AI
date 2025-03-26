@@ -104,7 +104,7 @@ const progressPercentage = computed(() => {
 })
 
 const totalTokens = computed(() => {
-  return translationStore.translatedTexts.reduce((sum, t) => sum + (t.tokens?.total || 0), 0)
+  return translationStore.stats?.totalTokens || 0
 })
 
 const estimatedCost = computed(() => {

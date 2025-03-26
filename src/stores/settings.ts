@@ -1,11 +1,14 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import type { AIProviderType } from '@/services/providers/factory'
-import type { GameEngineType } from './engines/engine'
-import type { PromptType, PromptSettings, TranslationQualitySettings } from '@/types/ai/base'
+import type { 
+  AIProviderType,
+  TranslationQualitySettings
+} from '@/types/ai/base'
+import type { EngineType } from '@/types/engines/base'
 import { usePreferredDark } from '@vueuse/core'
 import { useRPGMVStore } from './engines/rpgmv'
-// TODO: Import new engine store when adding
+import { aiModelPresets, getDefaultModelForProvider, getDefaultBaseUrlForProvider } from '@/config/aiModelPresets'
+// TODO: Add new engine store when adding
 // import { useNewEngineStore } from './engines/newengine'
 
 /**
@@ -36,25 +39,12 @@ export const useSettingsStore = defineStore('settings', () => {
     timeout: 30000
   })
 
-  // Prompt Settings
-  const promptSettings = ref<PromptSettings>({
-    customPrompts: {
-      general: {},
-      dialogue: {},
-      menu: {},
-      items: {},
-      skills: {},
-      name: {},
-      adult: {}
-    }
-  })
-
   // Engine Settings
   // To add a new engine:
-  // 1. Add the engine type to GameEngineType in ./engine.ts
+  // 1. Add the engine type to EngineType in types/engines/base.ts
   // 2. Create new engine store in src/stores/engines/[engine].ts
   // 3. Create engine-specific handlers in src/services/engines/[engine]/
-  const engineType = ref<GameEngineType>('rpgmv')
+  const engineType = ref<EngineType>('rpgmv')
 
   // Theme
   const isDark = ref(false)
@@ -63,12 +53,12 @@ export const useSettingsStore = defineStore('settings', () => {
   // Validation
   const isAIConfigValid = computed(() => {
     if (aiProvider.value === 'ollama') {
-      return Boolean(aiModel.value)
+      return Boolean(aiModel.value) && Boolean(baseUrl.value)
     }
     if (aiProvider.value === 'deepseek' || aiProvider.value === 'chatgpt') {
-      return Boolean(apiKey.value && baseUrl.value)
+      return Boolean(apiKey.value && baseUrl.value && aiModel.value)
     }
-    return Boolean(apiKey.value)
+    return Boolean(apiKey.value && aiModel.value)
   })
 
   const isTranslationConfigValid = computed(() => {
@@ -125,56 +115,64 @@ export const useSettingsStore = defineStore('settings', () => {
   }
 
   /**
-   * Gets custom prompt for a specific type
-   * @param {PromptType} type - Prompt type
-   * @returns {Object} Custom prompt settings
+   * Gets available AI models for the selected provider
+   * @returns {Record<string, AIModelPreset>} Dictionary of available models
    */
-  function getCustomPrompt(type: PromptType) {
-    return promptSettings.value.customPrompts[type]
+  function getAvailableModels() {
+    return aiModelPresets[aiProvider.value] || {}
   }
 
   /**
-   * Sets custom prompt for a specific type
-   * @param {PromptType} type - Prompt type
-   * @param {string} [system] - System prompt
-   * @param {string} [user] - User prompt
+   * Gets current model preset
+   * @returns {AIModelPreset | undefined} The current model preset or undefined
    */
-  function setCustomPrompt(type: PromptType, system?: string, user?: string) {
-    if (!type || !(type in promptSettings.value.customPrompts)) {
-      throw new Error(`Invalid prompt type: ${type}`)
+  function getCurrentModelPreset() {
+    const models = aiModelPresets[aiProvider.value]
+    return models?.[aiModel.value]
+  }
+
+  /**
+   * Updates quality settings based on the selected model
+   */
+  function applyModelPresetDefaults(): void {
+    const preset = getCurrentModelPreset()
+    if (preset) {
+      qualitySettings.value.temperature = preset.defaultTemperature
+      qualitySettings.value.maxTokens = preset.defaultMaxTokens
     }
-    promptSettings.value.customPrompts[type] = { system, user }
+  }
+
+  /**
+   * Checks if the current language pair is supported by the selected model
+   * @returns {boolean} True if the language pair is supported
+   */
+  function isLanguagePairSupported(): boolean {
+    const preset = getCurrentModelPreset()
+    if (!preset || !preset.supportedLanguages) return true // Assume supported if not specified
+    
+    return preset.supportedLanguages.includes(sourceLanguage.value) && 
+           preset.supportedLanguages.includes(targetLanguage.value)
   }
 
   /**
    * Resets all settings to default values
    */
   function reset() {
-    sourceLanguage.value = ''
-    targetLanguage.value = ''
+    sourceLanguage.value = 'ja'
+    targetLanguage.value = 'en'
     aiProvider.value = 'ollama'
-    aiModel.value = ''
+    aiModel.value = getDefaultModelForProvider('ollama')
     apiKey.value = ''
-    baseUrl.value = ''
+    baseUrl.value = getDefaultBaseUrlForProvider('ollama')
     
+    // Use default values from the mistral preset
+    const defaultPreset = aiModelPresets.ollama.mistral
     qualitySettings.value = {
-      temperature: 0.3,
-      maxTokens: 1000,
+      temperature: defaultPreset.defaultTemperature,
+      maxTokens: defaultPreset.defaultMaxTokens,
       retryCount: 3,
       batchSize: 10,
       timeout: 30000
-    }
-
-    promptSettings.value = {
-      customPrompts: {
-        general: {},
-        dialogue: {},
-        menu: {},
-        items: {},
-        skills: {},
-        name: {},
-        adult: {}
-      }
     }
 
     engineType.value = 'rpgmv'
@@ -219,13 +217,15 @@ export const useSettingsStore = defineStore('settings', () => {
     apiKey,
     baseUrl,
     
+    // AI Model Presets
+    modelPresets: aiModelPresets,
+    getAvailableModels,
+    getCurrentModelPreset,
+    applyModelPresetDefaults,
+    isLanguagePairSupported,
+    
     // Quality Settings
     qualitySettings,
-    
-    // Prompt Settings
-    promptSettings,
-    getCustomPrompt,
-    setCustomPrompt,
     
     // Engine Settings
     engineType,

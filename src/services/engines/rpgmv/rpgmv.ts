@@ -13,10 +13,11 @@ import * as actorHandler from './data/actors'
 export class RPGMakerMVEngine extends RPGMakerBaseEngine {
   /**
    * Engine settings for RPG Maker MV
+   * This is the single source of truth for RPG Maker MV engine settings
    */
   readonly settings: EngineSettings = {
     name: 'RPG Maker MV',
-    version: '1.0.0',
+    version: '1.6.2',
     engineType: 'rpgmv',
     pathConfig: {
       rootDir: '',
@@ -26,8 +27,12 @@ export class RPGMakerMVEngine extends RPGMakerBaseEngine {
       scriptsDir: 'js'
     },
     encoding: 'utf8',
-    requiredFiles: ['www/data/Actors.json'],
-    translatableFileTypes: ['actors']
+    requiredFiles: [
+      'www/data/Actors.json',
+    ],
+    translatableFileTypes: [
+      'Actors'
+    ]
   }
 
   /**

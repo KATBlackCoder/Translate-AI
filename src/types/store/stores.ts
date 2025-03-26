@@ -1,13 +1,4 @@
 /**
- * Base state interface for all stores
- */
-/*export interface StoreState {
-  isLoading: boolean
-  errors: StoreError[]
-  lastUpdated: number
-}
-*/
-/**
  * Error tracking interface
  */
 export interface StoreError {
@@ -15,17 +6,6 @@ export interface StoreError {
   message: string
   timestamp: number
   metadata?: Record<string, unknown>
-}
-
-/**
- * Translation statistics interface
- */
-export interface TranslationStats {
-  totalTokens: number
-  totalCost: number
-  successCount: number
-  failureCount: number
-  averageTime: number
 }
 
 /**
@@ -42,21 +22,6 @@ export function isStoreError(error: unknown): error is StoreError {
 }
 
 /**
- * Type guard for TranslationStats
- */
-export function isValidStats(stats: unknown): stats is TranslationStats {
-  return (
-    typeof stats === 'object' &&
-    stats !== null &&
-    'totalTokens' in stats &&
-    'totalCost' in stats &&
-    'successCount' in stats &&
-    'failureCount' in stats &&
-    'averageTime' in stats
-  )
-}
-
-/**
  * Helper to create a new StoreError
  */
 export function createStoreError(
@@ -69,18 +34,5 @@ export function createStoreError(
     message,
     timestamp: Date.now(),
     metadata
-  }
-}
-
-/**
- * Helper to create initial TranslationStats
- */
-export function createInitialStats(): TranslationStats {
-  return {
-    totalTokens: 0,
-    totalCost: 0,
-    successCount: 0,
-    failureCount: 0,
-    averageTime: 0
   }
 } 

@@ -1,12 +1,7 @@
-import type { AIProvider, AIConfig } from '@/types/ai/base'
+import type { AIProvider, AIProviderConfig, AIProviderType } from '@/types/ai/base'
 import { ChatGPTProvider } from './ai/chatgpt'
 import { OllamaProvider } from './ai/ollama'
 import { DeepSeekProvider } from './ai/deepseek'
-
-/**
- * Supported AI provider types
- */
-export type AIProviderType = 'chatgpt' | 'ollama' | 'deepseek'
 
 /**
  * Factory class for creating and managing AI providers.
@@ -23,7 +18,7 @@ export class AIProviderFactory {
    * @param config - The provider configuration
    * @returns A unique key string
    */
-  private static getProviderKey(type: AIProviderType, config: AIConfig): string {
+  private static getProviderKey(type: AIProviderType, config: AIProviderConfig): string {
     return `${type}-${config.model}-${config.apiKey || 'local'}`
   }
 
@@ -34,7 +29,7 @@ export class AIProviderFactory {
    * @returns An AI provider instance
    * @throws {Error} If provider type is unknown or configuration is invalid
    */
-  static async createProvider(type: AIProviderType, config: AIConfig): Promise<AIProvider> {
+  static async createProvider(type: AIProviderType, config: AIProviderConfig): Promise<AIProvider> {
     const key = this.getProviderKey(type, config)
     
     // Check if provider exists and is not expired
@@ -92,7 +87,7 @@ export class AIProviderFactory {
    * @returns An AI provider instance
    * @throws {Error} If provider is not found
    */
-  static getProvider(type: AIProviderType, config: AIConfig): AIProvider {
+  static getProvider(type: AIProviderType, config: AIProviderConfig): AIProvider {
     const key = this.getProviderKey(type, config)
     const provider = this.providers.get(key)
     
@@ -110,7 +105,7 @@ export class AIProviderFactory {
    * @param type - The type of provider
    * @param config - The provider configuration
    */
-  static removeProvider(type: AIProviderType, config: AIConfig): void {
+  static removeProvider(type: AIProviderType, config: AIProviderConfig): void {
     const key = this.getProviderKey(type, config)
     this.providers.delete(key)
     this.lastAccess.delete(key)
