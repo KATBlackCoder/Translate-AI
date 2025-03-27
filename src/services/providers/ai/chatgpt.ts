@@ -1,7 +1,12 @@
 import { OpenAIBaseProvider } from '@/core/ai/openai-base-provider'
 import type { AIProviderConfig } from '@/types/ai/base'
-import type { TranslationRequest } from '@/types/shared/translation'
-import { aiModelPresets, getDefaultModelForProvider, getDefaultBaseUrlForProvider } from '@/config/aiModelPresets'
+import type { TranslationRequest, ContentRating, PromptType } from '@/types/shared/translation'
+import { 
+  AI_MODEL_PRESETS, 
+  getDefaultModelForProvider,
+  isModelSupported as isModelSupportedByProvider,
+  CHATGPT_CONFIG
+} from '@/config/provider/ai'
 
 /**
  * ChatGPT AI provider implementation for translation services.
@@ -14,10 +19,10 @@ export class ChatGPTProvider extends OpenAIBaseProvider {
   /** Cost per token in USD ($0.0001 per token) */
   readonly costPerToken: number = 0.0001
   readonly supportsAdultContent: boolean = false
-  readonly contentRating: 'general' | 'teen' | 'mature' | 'adult' = 'general'
+  readonly qualityScore: number = 0.9
 
   protected getBaseUrl(baseUrl?: string): string {
-    return baseUrl || getDefaultBaseUrlForProvider('chatgpt')
+    return baseUrl || CHATGPT_CONFIG.baseUrl
   }
 
   protected getDefaultModel(): string {
@@ -26,21 +31,12 @@ export class ChatGPTProvider extends OpenAIBaseProvider {
 
   protected getDefaultTemperature(): number {
     const defaultModel = this.getDefaultModel()
-    const preset = aiModelPresets.chatgpt[defaultModel]
+    const preset = AI_MODEL_PRESETS.chatgpt[defaultModel]
     return preset?.defaultTemperature || 0.7
   }
 
-  protected getQualityScore(): number {
-    return 0.9
-  }
-
   protected isModelSupported(model: string): boolean {
-    return Object.keys(aiModelPresets.chatgpt).includes(model)
-  }
-
-  protected buildPrompt(request: TranslationRequest): string {
-    const formattedPrompt = this.getFormattedPrompt(request)
-    return `${formattedPrompt.system}\n\n${formattedPrompt.user}`
+    return isModelSupportedByProvider('chatgpt', model)
   }
 
   /**
@@ -57,7 +53,7 @@ export class ChatGPTProvider extends OpenAIBaseProvider {
     if (config.promptType && !this.supportedPromptTypes.includes(config.promptType)) {
       return false
     }
-    if (config.promptType === 'adult' && !this.supportsAdultContent) {
+    if (config.promptType === 'nsfw' && !this.supportsAdultContent) {
       return false
     }
     return true

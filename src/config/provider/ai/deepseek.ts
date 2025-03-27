@@ -1,16 +1,22 @@
-import type { ContentRating } from '@/types/shared/translation'
-import type { AIErrorMessages, AIModelPreset } from '@/types/ai/base'
-import { AI_SUPPORTED_LANGUAGES } from '../languages'
+import type { ContentRating, PromptType } from '@/types/shared/translation'
+import type { AIErrorMessages, AIModelPreset, CommonProviderConfig } from '@/types/ai/base'
+import { AI_SUPPORTED_LANGUAGES } from '@/config/provider/languages'
+import { SUPPORTED_PROMPT_TYPES } from '@/config/provider/prompts'
 
-// DeepSeek only supports a subset of languages
-const DEEPSEEK_SUPPORTED_LANGUAGES = AI_SUPPORTED_LANGUAGES.filter(lang => 
+// DeepSeek language support - limited to English, Chinese, and Japanese
+const DEEPSEEK_LANGUAGES = AI_SUPPORTED_LANGUAGES.filter(lang => 
   ['en', 'zh', 'ja'].includes(lang)
+)
+
+// DeepSeek supports a subset of prompt types (no adult content)
+const DEEPSEEK_PROMPT_TYPES = SUPPORTED_PROMPT_TYPES.filter(type => 
+  type !== 'nsfw'
 )
 
 /**
  * DeepSeek provider configuration
  */
-export const DEEPSEEK_CONFIG = {
+export const DEEPSEEK_CONFIG: CommonProviderConfig = {
   name: 'DeepSeek',
   version: '1.0.0',
   costPerToken: 0.000001, // $0.001 per 1000 tokens
@@ -20,12 +26,15 @@ export const DEEPSEEK_CONFIG = {
   defaultMaxTokens: 1000,
   qualityScore: 0.90,
   supportsAdultContent: false,
-  contentRating: 'general' as ContentRating,
+  contentRating: 'sfw' as ContentRating,
   supportedModels: [
     'deepseek-chat',
     'deepseek-coder'
   ],
-  baseUrl: 'https://api.deepseek.com/v1'
+  baseUrl: 'https://api.deepseek.com/v1',
+  // Added required fields from updated CommonProviderConfig interface
+  supportedPromptTypes: DEEPSEEK_PROMPT_TYPES as PromptType[],
+  supportedLanguages: DEEPSEEK_LANGUAGES
 }
 
 /**
@@ -37,14 +46,14 @@ export const DEEPSEEK_MODEL_PRESETS: Record<string, AIModelPreset> = {
     description: 'General purpose model with good multilingual capabilities',
     defaultTemperature: 0.3,
     defaultMaxTokens: 1000,
-    supportedLanguages: DEEPSEEK_SUPPORTED_LANGUAGES
+    supportedLanguages: DEEPSEEK_LANGUAGES
   },
   'deepseek-coder': {
     name: 'DeepSeek Coder',
     description: 'Specialized for technical content and programming',
     defaultTemperature: 0.2,
     defaultMaxTokens: 1200,
-    supportedLanguages: DEEPSEEK_SUPPORTED_LANGUAGES
+    supportedLanguages: DEEPSEEK_LANGUAGES
   }
 }
 

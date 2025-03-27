@@ -2,6 +2,11 @@ import type { AIProvider, AIProviderConfig, AIProviderType } from '@/types/ai/ba
 import { ChatGPTProvider } from './ai/chatgpt'
 import { OllamaProvider } from './ai/ollama'
 import { DeepSeekProvider } from './ai/deepseek'
+import { 
+  isModelSupported, 
+  getModelError,
+  getDefaultModelForProvider
+} from '@/config/provider/ai'
 
 /**
  * Factory class for creating and managing AI providers.
@@ -19,7 +24,9 @@ export class AIProviderFactory {
    * @returns A unique key string
    */
   private static getProviderKey(type: AIProviderType, config: AIProviderConfig): string {
-    return `${type}-${config.model}-${config.apiKey || 'local'}`
+    const modelKey = config.model || getDefaultModelForProvider(type)
+    const apiKey = config.apiKey ? config.apiKey.substring(0, 8) : 'local'
+    return `${type}-${modelKey}-${apiKey}`
   }
 
   /**
@@ -30,6 +37,12 @@ export class AIProviderFactory {
    * @throws {Error} If provider type is unknown or configuration is invalid
    */
   static async createProvider(type: AIProviderType, config: AIProviderConfig): Promise<AIProvider> {
+    // Validate model before creating provider
+    const model = config.model || getDefaultModelForProvider(type)
+    if (!isModelSupported(type, model)) {
+      throw new Error(getModelError(type, model))
+    }
+    
     const key = this.getProviderKey(type, config)
     
     // Check if provider exists and is not expired
@@ -62,10 +75,7 @@ export class AIProviderFactory {
       }
       
       // Validate provider configuration
-      const isValid = await provider.validateConfig(config)
-      if (!isValid) {
-        throw new Error(`Invalid configuration for provider ${type}`)
-      }
+      await provider.validateConfig(config)
       
       // Cache the provider
       this.providers.set(key, provider)

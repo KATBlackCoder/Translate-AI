@@ -1,107 +1,114 @@
 // Export all provider configurations
-export * from './chatgpt'
-export * from './ollama'
-export * from './deepseek'
+export * from '@/config/provider/ai/chatgpt'
+export * from '@/config/provider/ai/ollama'
+export * from '@/config/provider/ai/deepseek'
 
+import type { AIModelPreset, AIModelPresets, AIProviderType, AIErrorMessages } from '@/types/ai/base'
+
+// Import all provider configurations
 import { 
   CHATGPT_CONFIG, 
-  CHATGPT_ERROR_MESSAGES, 
-  CHATGPT_MODEL_ERROR_MESSAGES, 
   CHATGPT_MODEL_PRESETS,
+  CHATGPT_ERROR_MESSAGES,
+  CHATGPT_MODEL_ERROR_MESSAGES,
+  CHATGPT_MODEL_COSTS,
+  getChatGPTModelCost,
   getChatGPTModelError,
-  getChatGPTModelPreset
-} from './chatgpt'
+  getChatGPTModelPreset,
+  isChatGPTModelSupported
+} from '@/config/provider/ai/chatgpt'
 
 import { 
   OLLAMA_CONFIG, 
-  OLLAMA_ERROR_MESSAGES, 
-  OLLAMA_MODEL_ERROR_MESSAGES, 
   OLLAMA_MODEL_PRESETS,
+  OLLAMA_ERROR_MESSAGES,
+  OLLAMA_MODEL_ERROR_MESSAGES,
   getOllamaModelError,
-  getOllamaModelPreset
-} from './ollama'
+  getOllamaModelPreset,
+  isOllamaModelSupported
+} from '@/config/provider/ai/ollama'
 
 import { 
   DEEPSEEK_CONFIG, 
-  DEEPSEEK_ERROR_MESSAGES, 
-  DEEPSEEK_MODEL_ERROR_MESSAGES, 
   DEEPSEEK_MODEL_PRESETS,
+  DEEPSEEK_ERROR_MESSAGES,
+  DEEPSEEK_MODEL_ERROR_MESSAGES,
   getDeepSeekModelError,
-  getDeepSeekModelPreset
-} from './deepseek'
+  getDeepSeekModelPreset,
+  isDeepSeekModelSupported
+} from '@/config/provider/ai/deepseek'
 
-import type { AIErrorMessages, AIModelPreset, AIProviderType } from '@/types/ai/base'
+// Consolidated model presets for all providers
+export const AI_MODEL_PRESETS: AIModelPresets = {
+  'chatgpt': CHATGPT_MODEL_PRESETS,
+  'ollama': OLLAMA_MODEL_PRESETS,
+  'deepseek': DEEPSEEK_MODEL_PRESETS
+}
 
-/**
- * Map of provider names to their configurations
- */
-export const PROVIDER_CONFIGS = {
-  chatgpt: CHATGPT_CONFIG,
-  ollama: OLLAMA_CONFIG,
-  deepseek: DEEPSEEK_CONFIG
+// Default error messages for when provider is unknown
+export const DEFAULT_ERROR_MESSAGES: AIErrorMessages = {
+  connectionFailed: 'Cannot connect to API. Check your internet connection.',
+  apiNotFound: 'API endpoint not found. The API may have changed or be temporarily unavailable.',
+  authFailed: 'Authentication failed. Please check your credentials.',
+  rateLimit: 'Rate limit exceeded. Please try again later.',
+  default: 'An error occurred connecting to the API.'
+}
+
+// Individual provider exports
+export {
+  // ChatGPT
+  CHATGPT_CONFIG,
+  CHATGPT_MODEL_PRESETS,
+  CHATGPT_ERROR_MESSAGES,
+  CHATGPT_MODEL_ERROR_MESSAGES,
+  CHATGPT_MODEL_COSTS,
+  getChatGPTModelCost,
+  getChatGPTModelError,
+  getChatGPTModelPreset,
+  isChatGPTModelSupported,
+  
+  // Ollama
+  OLLAMA_CONFIG,
+  OLLAMA_MODEL_PRESETS,
+  OLLAMA_ERROR_MESSAGES,
+  OLLAMA_MODEL_ERROR_MESSAGES,
+  getOllamaModelError,
+  getOllamaModelPreset,
+  isOllamaModelSupported,
+  
+  // DeepSeek
+  DEEPSEEK_CONFIG,
+  DEEPSEEK_MODEL_PRESETS,
+  DEEPSEEK_ERROR_MESSAGES,
+  DEEPSEEK_MODEL_ERROR_MESSAGES,
+  getDeepSeekModelError,
+  getDeepSeekModelPreset,
+  isDeepSeekModelSupported
 }
 
 /**
- * Map of provider names to their error messages
+ * Get the default model for a specific provider
  */
-export const PROVIDER_ERROR_MESSAGES = {
-  chatgpt: CHATGPT_ERROR_MESSAGES,
-  ollama: OLLAMA_ERROR_MESSAGES,
-  deepseek: DEEPSEEK_ERROR_MESSAGES
-}
-
-/**
- * Map of provider names to their model-specific error messages
- */
-export const PROVIDER_MODEL_ERROR_MESSAGES = {
-  chatgpt: CHATGPT_MODEL_ERROR_MESSAGES,
-  ollama: OLLAMA_MODEL_ERROR_MESSAGES,
-  deepseek: DEEPSEEK_MODEL_ERROR_MESSAGES
-}
-
-/**
- * Map of provider names to their model presets
- */
-export const PROVIDER_MODEL_PRESETS = {
-  chatgpt: CHATGPT_MODEL_PRESETS,
-  ollama: OLLAMA_MODEL_PRESETS,
-  deepseek: DEEPSEEK_MODEL_PRESETS
-}
-
-/**
- * Get provider configuration by name
- */
-export function getProviderConfigByName(name: AIProviderType) {
-  return PROVIDER_CONFIGS[name]
-}
-
-/**
- * Get error messages for a provider
- */
-export function getErrorMessagesForProvider(name: AIProviderType): AIErrorMessages {
-  return PROVIDER_ERROR_MESSAGES[name] || CHATGPT_ERROR_MESSAGES
-}
-
-/**
- * Get model-specific error message
- */
-export function getModelErrorMessage(provider: AIProviderType, model: string): string {
+export function getDefaultModelForProvider(provider: AIProviderType): string {
   switch (provider) {
     case 'chatgpt':
-      return getChatGPTModelError(model)
+      return CHATGPT_CONFIG.defaultModel
     case 'ollama':
-      return getOllamaModelError(model)
+      return OLLAMA_CONFIG.defaultModel
     case 'deepseek':
-      return getDeepSeekModelError(model)
+      return DEEPSEEK_CONFIG.defaultModel
     default:
-      return 'Unknown model error'
+      return 'gpt-3.5-turbo'
   }
 }
 
 /**
- * Get model preset for a specific provider and model
+ * Get model preset by provider and model ID
  */
-export function getModelPreset(provider: AIProviderType, model: string): AIModelPreset | undefined {
+export function getModelPreset(
+  provider: AIProviderType,
+  model: string
+): AIModelPreset | undefined {
   switch (provider) {
     case 'chatgpt':
       return getChatGPTModelPreset(model)
@@ -115,16 +122,55 @@ export function getModelPreset(provider: AIProviderType, model: string): AIModel
 }
 
 /**
- * Get default model for a provider
+ * Get error messages for a specific provider
  */
-export function getDefaultModelForProvider(provider: AIProviderType): string {
-  const config = PROVIDER_CONFIGS[provider]
-  return config?.defaultModel || Object.keys(PROVIDER_MODEL_PRESETS[provider])[0] || ''
+export function getErrorMessages(provider: AIProviderType): AIErrorMessages {
+  switch (provider) {
+    case 'chatgpt':
+      return CHATGPT_ERROR_MESSAGES
+    case 'ollama':
+      return OLLAMA_ERROR_MESSAGES
+    case 'deepseek':
+      return DEEPSEEK_ERROR_MESSAGES
+    default:
+      return DEFAULT_ERROR_MESSAGES
+  }
 }
 
 /**
- * Check if a model is supported by a specific provider
+ * Check if a model is supported by a given provider
  */
-export function isModelSupported(provider: AIProviderType, model: string): boolean {
-  return PROVIDER_CONFIGS[provider]?.supportedModels.includes(model) || false
+export function isModelSupported(
+  provider: AIProviderType,
+  model: string
+): boolean {
+  switch (provider) {
+    case 'chatgpt':
+      return isChatGPTModelSupported(model)
+    case 'ollama':
+      return isOllamaModelSupported(model)
+    case 'deepseek':
+      return isDeepSeekModelSupported(model)
+    default:
+      return false
+  }
+}
+
+/**
+ * Get an error message for a specific model
+ */
+export function getModelError(
+  provider: AIProviderType,
+  model: string
+): string {
+  switch (provider) {
+    case 'chatgpt':
+      return getChatGPTModelError(model)
+    case 'ollama':
+      return getOllamaModelError(model)
+    case 'deepseek':
+      return getDeepSeekModelError(model)
+    default:
+      return 'Unknown provider or model'
+  }
 } 

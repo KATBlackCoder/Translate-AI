@@ -11,6 +11,8 @@ import { useDeepSeekConnection } from './providers/useDeepSeekConnection'
 export function useAIProvider() {
   /** Current AI provider instance */
   const provider = ref<AIProvider | null>(null)
+  /** Current provider type */
+  const providerType = ref<AIProviderType | null>(null)
   /** Whether provider is being initialized */
   const isVerifying = ref(false)
   /** Last error message if any */
@@ -22,46 +24,55 @@ export function useAIProvider() {
 
   /**
    * Initializes the AI provider
-   * @param providerType The AI provider type
+   * @param type The AI provider type
    * @param config The provider configuration
    */
-  async function initialize(providerType: AIProviderType, config: AIProviderConfig) {
+  async function initialize(type: AIProviderType, config: AIProviderConfig) {
     try {
       error.value = null
       isVerifying.value = true
       
       // Check provider-specific connection
       let isConnected = true
-      switch (providerType) {
+      switch (type) {
         case 'ollama':
-          isConnected = await checkOllamaConnection(config.baseUrl)
+          isConnected = await checkOllamaConnection(config.baseUrl || '')
           break
         case 'chatgpt':
-          isConnected = await checkChatGPTConnection(config.apiKey)
+          if (!config.apiKey) {
+            error.value = 'API key is required for ChatGPT'
+            return false;
+          }
+          isConnected = await checkChatGPTConnection(config.apiKey, config.baseUrl)
           break
         case 'deepseek':
-          isConnected = await checkDeepSeekConnection(config.baseUrl)
+          if (!config.apiKey) {
+            error.value = 'API key is required for DeepSeek'
+            return false;
+          }
+          isConnected = await checkDeepSeekConnection(config.apiKey, config.baseUrl)
           break
       }
       
       if (!isConnected) {
-        error.value = `Failed to connect to ${providerType} service`
+        error.value = `Failed to connect to ${type} service`
         return false
       }
 
-      const newProvider = await AIProviderFactory.createProvider(providerType, config)
+      const newProvider = await AIProviderFactory.createProvider(type, config)
       if (!newProvider) {
-        error.value = `Failed to create ${providerType} provider`
+        error.value = `Failed to create ${type} provider`
         return false
       }
 
       const isValid = await newProvider.validateConfig(config)
       if (!isValid) {
-        error.value = `Invalid configuration for ${providerType}`
+        error.value = `Invalid configuration for ${type}`
         return false
       }
 
       provider.value = newProvider
+      providerType.value = type
       return true
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Unknown error occurred'
@@ -76,11 +87,13 @@ export function useAIProvider() {
    */
   function reset() {
     provider.value = null
+    providerType.value = null
     error.value = null
   }
 
   return {
     provider,
+    providerType,
     isVerifying,
     error,
     initialize,

@@ -76,11 +76,6 @@ export interface AIModelPreset {
 }
 
 /**
- * Collection of AI model presets organized by provider and model ID
- */
-export type AIModelPresets = Record<AIProviderType, Record<string, AIModelPreset>>
-
-/**
  * Base configuration for translation AI operations
  */
 export interface AIBaseConfig {
@@ -88,7 +83,7 @@ export interface AIBaseConfig {
   promptType?: PromptType
   /** Whether the content contains adult themes */
   isAdult?: boolean
-  /** Content rating classification */
+  /** Content rating classification (sfw/nsfw) */
   contentRating?: ContentRating
   /** Model temperature (randomness) setting */
   temperature?: number
@@ -97,15 +92,70 @@ export interface AIBaseConfig {
 }
 
 /**
- * Complete AI provider configuration including connection details
+ * Standard provider metadata
  */
-export interface AIProviderConfig extends AIBaseConfig {
-  /** API key for authenticated providers */
-  apiKey?: string
+export interface ProviderMetadata {
+  /** Provider display name */
+  name: string
+  /** Provider implementation version */
+  version: string
+  /** Cost per token in USD */
+  costPerToken: number
+  /** Maximum number of translations to process in parallel */
+  maxBatchSize: number
+  /** Quality score for this provider (0-1) */
+  qualityScore: number
+  /** Whether this provider allows adult content */
+  supportsAdultContent: boolean
+  /** Prompt types supported by this provider */
+  supportedPromptTypes: PromptType[]
+  /** Languages supported by this provider */
+  supportedLanguages: string[]
+}
+
+/**
+ * Common provider configuration shared across all AI providers
+ */
+export interface CommonProviderConfig extends ProviderMetadata {
+  /** Default model for this provider */
+  defaultModel: string
+  /** Default temperature setting */
+  defaultTemperature: number
+  /** Default max tokens setting */
+  defaultMaxTokens: number
+  /** Default content rating this provider can handle (sfw/nsfw) */
+  contentRating: ContentRating
+  /** List of supported model IDs */
+  supportedModels: string[]
+  /** Base URL for the API */
+  baseUrl: string
+}
+
+/**
+ * Collection of AI model presets organized by provider and model ID
+ */
+export type AIModelPresets = Record<AIProviderType, Record<string, AIModelPreset>>
+
+/**
+ * Runtime AI provider configuration for translation operations
+ */
+export interface AIProviderConfig {
   /** The specific model to use */
   model: string
+  /** API key for authenticated providers */
+  apiKey?: string
   /** Base URL for the API */
   baseUrl?: string
+  /** The type of content being translated, affects prompt selection */
+  promptType?: PromptType
+  /** Whether the content contains adult themes */
+  isAdult?: boolean
+  /** Content rating classification (sfw/nsfw) */
+  contentRating?: ContentRating
+  /** Model temperature (randomness) setting */
+  temperature?: number
+  /** Maximum tokens to generate */
+  maxTokens?: number
 }
 
 /**
@@ -125,11 +175,13 @@ export interface TranslationQualitySettings {
 }
 
 /**
- * Connection configuration including error message templates
+ * Connection configuration for testing AI provider connections
  */
-export interface AIConnectionConfig extends AIProviderConfig {
-  /** Error messages for different failure scenarios */
-  errorMessages: AIErrorMessages
+export interface AIConnectionConfig extends Omit<AIProviderConfig, 'apiKey'> {
+  /** API key for authenticated providers */
+  apiKey: string
+  /** Error messages for different failure scenarios - if not provided, defaults will be used */
+  errorMessages?: AIErrorMessages
 }
 
 // ============================================================
@@ -139,21 +191,7 @@ export interface AIConnectionConfig extends AIProviderConfig {
 /**
  * Core interface that all AI providers must implement
  */
-export interface AIProvider {
-  /** Name of the provider service */
-  readonly name: string
-  /** Version of the provider implementation */
-  readonly version: string
-  /** Languages supported by this provider */
-  readonly supportedLanguages: string[]
-  /** Maximum number of translations to process in parallel */
-  readonly maxBatchSize: number
-  /** Cost per token in USD */
-  readonly costPerToken: number
-  /** Prompt types supported by this provider */
-  readonly supportedPromptTypes: PromptType[]
-  /** Whether this provider allows adult content */
-  readonly supportsAdultContent: boolean
+export interface AIProvider extends ProviderMetadata {
   /** Current configuration for this provider */
   readonly config: AIBaseConfig
 

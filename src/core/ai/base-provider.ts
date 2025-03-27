@@ -5,44 +5,48 @@ import type {
   TranslationResponse, 
   BatchTranslationResult, 
   TranslationPrompt,
-  ContentRating,
   PromptType,
   TextPair
 } from '@/types/shared/translation'
 import { RetryManager } from '@/utils/ai/retry'
 import { RateLimiter } from '@/utils/ai/rate-limiter'
 import { CacheManager } from '@/utils/ai/cache'
-import { prompts } from '@/utils/ai/prompts' 
+import { 
+  getPrompt,
+  SUPPORTED_PROMPT_TYPES,
+  AI_SUPPORTED_LANGUAGES
+} from '@/config'
 
+/**
+ * Abstract base class for AI provider implementations
+ * Handles common functionality like caching, rate limiting, and retry logic
+ */
 export abstract class BaseProvider implements AIProvider {
-  protected static SUPPORTED_LANGUAGES: string[] = [
-    'en', // English
-    'ja', // Japanese
-    'zh', // Chinese
-    'ko', // Korean
-    'fr', // French
-    'de', // German
-    'es', // Spanish
-    'it', // Italian
-    'pt', // Portuguese
-    'ru'  // Russian
-  ]
+  // Default values from the configuration
+  readonly supportedLanguages: string[] = AI_SUPPORTED_LANGUAGES
+  readonly supportedPromptTypes: PromptType[] = SUPPORTED_PROMPT_TYPES
 
-  protected static SUPPORTED_PROMPT_TYPES: PromptType[] = [
-    'general',
-    'dialogue',
-    'menu',
-    'items',
-    'skills',
-    'name',
-    'adult'
-  ]
+  // Required properties that must be implemented by subclasses
+  abstract readonly name: string
+  abstract readonly version: string
+  abstract readonly maxBatchSize: number
+  abstract readonly costPerToken: number
+  abstract readonly supportsAdultContent: boolean
+  // New required property from AIProvider interface
+  abstract readonly qualityScore: number
 
+  // Configuration for the provider
+  readonly config: AIBaseConfig
+
+  // Utility managers
   protected readonly retryManager: typeof RetryManager
   protected readonly rateLimiter: RateLimiter
   protected readonly cache: CacheManager
-  readonly config: AIBaseConfig
 
+  /**
+   * Create a new BaseProvider instance
+   * @param config Provider configuration
+   */
   constructor(config: AIProviderConfig) {
     this.config = config
     this.retryManager = RetryManager
@@ -50,17 +54,18 @@ export abstract class BaseProvider implements AIProvider {
     this.cache = new CacheManager()
   }
 
-  abstract readonly name: string
-  abstract readonly version: string
-  readonly supportedLanguages = BaseProvider.SUPPORTED_LANGUAGES
-  abstract readonly maxBatchSize: number
-  abstract readonly costPerToken: number
-  readonly supportedPromptTypes = BaseProvider.SUPPORTED_PROMPT_TYPES
-  abstract readonly supportsAdultContent: boolean
-  abstract readonly contentRating?: ContentRating
-
+  /**
+   * Build a prompt string for the provider
+   * @param request Translation request
+   */
   protected abstract buildPrompt(request: TranslationRequest): string
 
+  /**
+   * Translate a single text using this provider
+   * Implements caching and rate limiting
+   * @param request Translation request details
+   * @returns Promise with translation response
+   */
   async translate(request: TranslationRequest): Promise<TranslationResponse> {
     const cacheKey = this.getCacheKey(request)
     const cached = await this.cache.get<TranslationResponse>(cacheKey)
@@ -75,8 +80,20 @@ export abstract class BaseProvider implements AIProvider {
     })
   }
 
+  /**
+   * Implemented by subclasses to perform the actual translation
+   * @param request Translation request details
+   */
   protected abstract performTranslation(request: TranslationRequest): Promise<TranslationResponse>
 
+  /**
+   * Batch translate multiple texts
+   * Handles error collection, parallelization, and statistics
+   * @param targets Resource translations to process
+   * @param sourceLanguage Source language code
+   * @param targetLanguage Target language code
+   * @param options Additional options for batch processing
+   */
   async translateBatch(
     targets: ResourceTranslation[], 
     sourceLanguage: string, 
@@ -87,12 +104,13 @@ export abstract class BaseProvider implements AIProvider {
       timeout?: number
     }
   ): Promise<BatchTranslationResult> {
+    // Check content suitability
     if (options?.isAdult && !this.supportsAdultContent) {
       throw new Error('This provider does not support adult content')
     }
 
-    if (options?.contentRating && this.contentRating && options.contentRating !== this.contentRating) {
-      throw new Error(`Content rating mismatch. Provider supports ${this.contentRating} but requested ${options.contentRating}`)
+    if (options?.contentRating === 'nsfw' && !this.supportsAdultContent) {
+      throw new Error(`This provider does not support NSFW content`)
     }
 
     const results: ResourceTranslation[] = []
@@ -105,18 +123,27 @@ export abstract class BaseProvider implements AIProvider {
     const batchSize = options?.batchSize || this.maxBatchSize
     const maxRetries = options?.retryCount || 3
     
+    // Process in batches to avoid overwhelming the provider
     for (let i = 0; i < targets.length; i += batchSize) {
       const batch = targets.slice(i, i + batchSize)
       const batchResults = await Promise.allSettled(
         batch.map(target => 
           this.retryManager.withRetry(
             async () => {
+              // Determine content type based on options and provider capabilities
+              let contentType: PromptType = 'general'
+              if (options?.promptType && this.supportedPromptTypes.includes(options.promptType)) {
+                contentType = options.promptType
+              } else if (options?.isAdult && this.supportsAdultContent) {
+                contentType = 'nsfw'
+              }
+
               const response = await this.translate({
                 text: target.source,
                 context: target.context,
                 sourceLanguage,
                 targetLanguage,
-                contentType: options?.promptType || (options?.isAdult ? 'adult' : 'general')
+                contentType
               })
               
               totalTokens += response.tokens?.total || 0
@@ -132,6 +159,7 @@ export abstract class BaseProvider implements AIProvider {
         )
       )
 
+      // Collect results and errors
       batchResults.forEach((result, index) => {
         if (result.status === 'fulfilled') {
           results.push(result.value)
@@ -146,6 +174,7 @@ export abstract class BaseProvider implements AIProvider {
       })
     }
     
+    // Return combined results with statistics
     return {
       translations: results as unknown as TextPair[],
       stats: {
@@ -160,8 +189,18 @@ export abstract class BaseProvider implements AIProvider {
     }
   }
 
+  /**
+   * Validate provider configuration
+   * Implemented by subclasses for provider-specific validation
+   * @param config Configuration to validate
+   */
   abstract validateConfig(config: AIProviderConfig): Promise<boolean>
 
+  /**
+   * Estimate cost for translating text
+   * @param text Text to estimate
+   * @returns Object with token count and cost
+   */
   estimateCost(text: string): { tokens: number; cost: number } {
     const estimatedTokens = Math.ceil(text.length / 4)
     return {
@@ -170,10 +209,20 @@ export abstract class BaseProvider implements AIProvider {
     }
   }
 
+  /**
+   * Get the default prompt for a content type
+   * @param type The prompt type to get
+   * @returns The default translation prompt
+   */
   getDefaultPrompt(type: PromptType): TranslationPrompt {
-    return prompts[type as keyof typeof prompts] || prompts.general
+    return getPrompt(type)
   }
 
+  /**
+   * Validate if a prompt is properly formed
+   * @param prompt The prompt to validate
+   * @returns True if the prompt is valid
+   */
   validatePrompt(prompt: TranslationPrompt): boolean {
     return (
       typeof prompt.system === 'string' &&
@@ -183,6 +232,11 @@ export abstract class BaseProvider implements AIProvider {
     )
   }
 
+  /**
+   * Generate a cache key for translation requests
+   * @param request Translation request
+   * @returns Cache key string
+   */
   private getCacheKey(request: TranslationRequest): string {
     return `${request.sourceLanguage}-${request.targetLanguage}-${request.text}`
   }

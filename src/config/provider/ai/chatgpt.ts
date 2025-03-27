@@ -1,6 +1,7 @@
-import type { ContentRating } from '@/types/shared/translation'
-import type { AIErrorMessages, AIModelPreset } from '@/types/ai/base'
-import { AI_SUPPORTED_LANGUAGES } from '../languages'
+import type { ContentRating, PromptType } from '@/types/shared/translation'
+import type { AIErrorMessages, AIModelPreset, CommonProviderConfig } from '@/types/ai/base'
+import { AI_SUPPORTED_LANGUAGES } from '@/config/provider/languages'
+import { SUPPORTED_PROMPT_TYPES } from '@/config/provider/prompts'
 
 // GPT model language support
 const GPT35_LANGUAGES = AI_SUPPORTED_LANGUAGES.filter(lang => 
@@ -14,7 +15,7 @@ const GPT4_LANGUAGES = AI_SUPPORTED_LANGUAGES.filter(lang =>
 /**
  * ChatGPT provider configuration
  */
-export const CHATGPT_CONFIG = {
+export const CHATGPT_CONFIG: CommonProviderConfig = {
   name: 'ChatGPT',
   version: '1.0.0',
   costPerToken: 0.000002, // $0.002 per 1000 tokens
@@ -24,7 +25,7 @@ export const CHATGPT_CONFIG = {
   defaultMaxTokens: 1000,
   qualityScore: 0.95,
   supportsAdultContent: true,
-  contentRating: 'adult' as ContentRating,
+  contentRating: 'nsfw' as ContentRating,
   supportedModels: [
     'gpt-3.5-turbo',
     'gpt-3.5-turbo-16k',
@@ -32,14 +33,20 @@ export const CHATGPT_CONFIG = {
     'gpt-4-turbo',
     'gpt-4-32k'
   ],
-  modelCosts: {
-    'gpt-3.5-turbo': 0.000002, // $0.002 per 1000 tokens
-    'gpt-3.5-turbo-16k': 0.000004, // $0.004 per 1000 tokens
-    'gpt-4': 0.00003, // $0.03 per 1000 tokens
-    'gpt-4-turbo': 0.00001, // $0.01 per 1000 tokens
-    'gpt-4-32k': 0.00006 // $0.06 per 1000 tokens
-  } as Record<string, number>,
-  baseUrl: 'https://api.openai.com/v1'
+  baseUrl: 'https://api.openai.com/v1',
+  supportedPromptTypes: SUPPORTED_PROMPT_TYPES as PromptType[],
+  supportedLanguages: GPT4_LANGUAGES
+}
+
+/**
+ * Model-specific costs per token
+ */
+export const CHATGPT_MODEL_COSTS: Record<string, number> = {
+  'gpt-3.5-turbo': 0.000002, // $0.002 per 1000 tokens
+  'gpt-3.5-turbo-16k': 0.000004, // $0.004 per 1000 tokens
+  'gpt-4': 0.00003, // $0.03 per 1000 tokens
+  'gpt-4-turbo': 0.00001, // $0.01 per 1000 tokens
+  'gpt-4-32k': 0.00006 // $0.06 per 1000 tokens
 }
 
 /**
@@ -103,7 +110,7 @@ export function isChatGPTModelSupported(model: string): boolean {
  * Get cost per token for a specific ChatGPT model
  */
 export function getChatGPTModelCost(model: string): number {
-  return CHATGPT_CONFIG.modelCosts[model] || CHATGPT_CONFIG.costPerToken
+  return CHATGPT_MODEL_COSTS[model] || CHATGPT_CONFIG.costPerToken
 }
 
 /**

@@ -1,80 +1,78 @@
-import type { ContentRating } from '@/types/shared/translation'
-import type { AIErrorMessages, AIModelPreset } from '@/types/ai/base'
-import { AI_SUPPORTED_LANGUAGES } from '../languages'
+import type { ContentRating, PromptType } from '@/types/shared/translation'
+import type { AIErrorMessages, AIModelPreset, CommonProviderConfig } from '@/types/ai/base'
+import { AI_SUPPORTED_LANGUAGES } from '@/config/provider/languages'
+import { SUPPORTED_PROMPT_TYPES } from '@/config/provider/prompts'
 
-// Language support varies by model
-const MISTRAL_LANGUAGES = AI_SUPPORTED_LANGUAGES.filter(lang => 
-  ['en', 'fr', 'de', 'es', 'it', 'ja', 'ko', 'zh'].includes(lang)
+// Ollama language support - varies by model
+const OLLAMA_BASIC_LANGUAGES = AI_SUPPORTED_LANGUAGES.filter(lang => 
+  ['en', 'es', 'fr', 'de', 'it'].includes(lang)
 )
 
-const LLAMA2_LANGUAGES = AI_SUPPORTED_LANGUAGES.filter(lang => 
-  ['en', 'fr', 'de', 'es', 'it', 'ja', 'zh'].includes(lang)
-)
-
-const LLAMA3_LANGUAGES = AI_SUPPORTED_LANGUAGES.filter(lang => 
-  ['en', 'fr', 'de', 'es', 'it', 'ja', 'ko', 'zh', 'ru'].includes(lang)
-)
-
-const CODELLAMA_LANGUAGES = AI_SUPPORTED_LANGUAGES.filter(lang => 
-  ['en', 'fr', 'de', 'es', 'ja', 'zh'].includes(lang)
+const OLLAMA_EXTENDED_LANGUAGES = AI_SUPPORTED_LANGUAGES.filter(lang => 
+  ['en', 'es', 'fr', 'de', 'it', 'pt', 'nl', 'ru', 'zh', 'ja'].includes(lang)
 )
 
 /**
  * Ollama provider configuration
  */
-export const OLLAMA_CONFIG = {
+export const OLLAMA_CONFIG: CommonProviderConfig = {
   name: 'Ollama',
   version: '1.0.0',
-  costPerToken: 0, // Free for local models
+  costPerToken: 0, // Free, local inference
   maxBatchSize: 5,
-  defaultModel: 'llama3',
-  defaultTemperature: 0.3,
-  defaultMaxTokens: 1000,
+  defaultModel: 'llama2',
+  defaultTemperature: 0.7,
+  defaultMaxTokens: 2000,
   qualityScore: 0.85,
   supportsAdultContent: true,
-  contentRating: 'adult' as ContentRating,
+  contentRating: 'nsfw' as ContentRating,
   supportedModels: [
-    'llama3',
     'llama2',
+    'llama2:13b',
+    'llama2-uncensored',
     'mistral',
     'mixtral',
     'phi',
-    'qwen'
+    'dolphin-phi',
+    'neural-chat',
+    'starling-lm'
   ],
-  baseUrl: 'http://localhost:11434'
+  baseUrl: 'http://localhost:11434/api',
+  supportedPromptTypes: SUPPORTED_PROMPT_TYPES as PromptType[],
+  supportedLanguages: OLLAMA_EXTENDED_LANGUAGES
 }
 
 /**
  * Model presets with UI metadata and defaults
  */
 export const OLLAMA_MODEL_PRESETS: Record<string, AIModelPreset> = {
-  'mistral': {
-    name: 'Mistral',
-    description: 'Efficient open source 7B parameter model with good multilingual support',
-    defaultTemperature: 0.3,
-    defaultMaxTokens: 1000,
-    supportedLanguages: MISTRAL_LANGUAGES
-  },
   'llama2': {
-    name: 'Llama 2',
-    description: 'Meta\'s open source LLM, good for general translation tasks',
-    defaultTemperature: 0.4,
-    defaultMaxTokens: 1000,
-    supportedLanguages: LLAMA2_LANGUAGES
+    name: 'Llama 2 (7B)',
+    description: 'Meta\'s Llama 2 model, good general performance with language constraints',
+    defaultTemperature: 0.7,
+    defaultMaxTokens: 2000,
+    supportedLanguages: OLLAMA_BASIC_LANGUAGES
   },
-  'llama3': {
-    name: 'Llama 3',
-    description: 'Latest Meta LLM with improved multilingual capabilities',
-    defaultTemperature: 0.3,
-    defaultMaxTokens: 1000,
-    supportedLanguages: LLAMA3_LANGUAGES
+  'llama2:13b': {
+    name: 'Llama 2 (13B)',
+    description: 'Larger version of Llama 2 with better comprehension and accuracy',
+    defaultTemperature: 0.7,
+    defaultMaxTokens: 2000,
+    supportedLanguages: OLLAMA_BASIC_LANGUAGES
   },
-  'codellama': {
-    name: 'Code Llama',
-    description: 'Specialized for code generation, good for translating technical content',
-    defaultTemperature: 0.2,
-    defaultMaxTokens: 1200,
-    supportedLanguages: CODELLAMA_LANGUAGES
+  'mistral': {
+    name: 'Mistral (7B)',
+    description: 'High-quality open model with strong multilingual capabilities',
+    defaultTemperature: 0.7,
+    defaultMaxTokens: 2000,
+    supportedLanguages: OLLAMA_EXTENDED_LANGUAGES
+  },
+  'mixtral': {
+    name: 'Mixtral (8x7B)',
+    description: 'Powerful mixture of experts model with excellent translation quality',
+    defaultTemperature: 0.7,
+    defaultMaxTokens: 2000,
+    supportedLanguages: OLLAMA_EXTENDED_LANGUAGES
   }
 }
 
@@ -82,10 +80,8 @@ export const OLLAMA_MODEL_PRESETS: Record<string, AIModelPreset> = {
  * Ollama error messages
  */
 export const OLLAMA_ERROR_MESSAGES: AIErrorMessages = {
-  connectionFailed: 'Cannot connect to Ollama. Make sure Ollama is running locally.',
-  apiNotFound: 'Ollama API endpoint not found. Check if Ollama is installed correctly.',
-  authFailed: 'Authentication error. This is unusual for Ollama which doesn\'t require auth.',
-  rateLimit: 'Ollama is processing too many requests. Please wait a moment and try again.',
+  connectionFailed: 'Cannot connect to local Ollama server. Make sure Ollama is running on your system.',
+  apiNotFound: 'Ollama API endpoint not found. Check your Ollama installation.',
   default: 'An error occurred connecting to Ollama.'
 }
 
@@ -93,13 +89,11 @@ export const OLLAMA_ERROR_MESSAGES: AIErrorMessages = {
  * Model-specific error messages
  */
 export const OLLAMA_MODEL_ERROR_MESSAGES: Record<string, string> = {
-  'llama3': 'Error loading Llama 3 model. Check if you have pulled this model with "ollama pull llama3".',
-  'llama2': 'Error loading Llama 2 model. Check if you have pulled this model with "ollama pull llama2".',
-  'mistral': 'Error loading Mistral model. Check if you have pulled this model with "ollama pull mistral".',
-  'mixtral': 'Error loading Mixtral model. Check if you have pulled this model and have sufficient RAM (requires >16GB).',
-  'phi': 'Error loading Phi model. Check if you have pulled this model with "ollama pull phi".',
-  'qwen': 'Error loading Qwen model. Check if you have pulled this model with "ollama pull qwen".',
-  'default': 'The requested model is unavailable. Run "ollama list" to see available models or pull this model first.'
+  'llama2': 'Error accessing Llama 2 model. Make sure you\'ve pulled this model with "ollama pull llama2".',
+  'llama2:13b': 'Error accessing Llama 2 (13B) model. This larger model requires more RAM and may need to be pulled first.',
+  'mistral': 'Error accessing Mistral model. Make sure you\'ve pulled this model with "ollama pull mistral".',
+  'mixtral': 'Error accessing Mixtral model. This is a large model requiring significant RAM (16GB+).',
+  'default': 'The requested Ollama model is unavailable. Make sure you\'ve pulled the model or check Ollama logs.'
 }
 
 /**

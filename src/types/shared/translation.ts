@@ -5,12 +5,12 @@
 /**
  * Content rating classification for translated content
  */
-export type ContentRating = 'general' | 'teen' | 'mature' | 'adult'
+export type ContentRating = 'sfw' | 'nsfw'
 
 /**
  * Types of content requiring specialized translation approaches
  */
-export type PromptType = 'general' | 'dialogue' | 'menu' | 'items' | 'skills' | 'name' | 'adult'
+export type PromptType = 'general' | 'dialogue' | 'menu' | 'items' | 'skills' | 'name' | 'nsfw'
 
 /**
  * Token usage statistics for billing and monitoring
@@ -28,16 +28,23 @@ export interface TokenUsage {
 
 /**
  * Base interface for a translatable text pair
- * @property id - Unique identifier for the text pair
  * @property source - Original text in source language
  * @property target - Translated text in target language
  * @property context - Optional context information to aid translation
  */
-export interface TextPair {
-  id: string
+export interface BaseTextPair {
   source: string
   target: string
   context?: string
+}
+
+/**
+ * A text pair with an identifier
+ * @extends BaseTextPair
+ * @property id - Unique identifier for the text pair
+ */
+export interface TextPair extends BaseTextPair {
+  id: string
 }
 
 /**
@@ -74,13 +81,13 @@ export interface TranslationStats {
 
 /**
  * A game resource translation target
- * @extends TextPair
+ * @extends BaseTextPair
+ * @property resourceId - Identifier for the specific resource
  * @property field - The specific field within the resource being translated
  * @property file - Path to the file containing the resource
- * @property resourceId - Identifier for the specific resource
  * @property section - Section within the file
  */
-export interface ResourceTranslation extends Omit<TextPair, 'id'> {
+export interface ResourceTranslation extends BaseTextPair {
   resourceId: string
   field: string
   file: string

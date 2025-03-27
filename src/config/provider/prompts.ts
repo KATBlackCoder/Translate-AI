@@ -1,8 +1,70 @@
 import type { 
     TranslationPrompt, 
-    PromptConfig 
+    PromptConfig,
+    PromptType,
+    ContentRating
   } from '@/types/shared/translation'
   
+  // ============================================================
+  // PROMPT TYPES CONSTANTS
+  // ============================================================
+  
+  /**
+   * Supported prompt types for translation
+   */
+  export const SUPPORTED_PROMPT_TYPES: PromptType[] = [
+    'general',
+    'dialogue',
+    'menu',
+    'items',
+    'skills',
+    'name',
+    'nsfw'
+  ]
+  
+  /**
+   * Content ratings for providers
+   */
+  export const CONTENT_RATINGS: ContentRating[] = [
+    'sfw',
+    'nsfw'
+  ]
+  
+  /**
+   * Display names for prompt types
+   */
+  export const PROMPT_TYPE_DISPLAY_NAMES: Record<PromptType, string> = {
+    general: 'General',
+    dialogue: 'Dialogue',
+    menu: 'Menu/UI',
+    items: 'Items',
+    skills: 'Skills/Abilities',
+    name: 'Names',
+    nsfw: 'Adult Content'
+  }
+  
+  /**
+   * Check if a prompt type is supported
+   */
+  export function isPromptTypeSupported(type: string): boolean {
+    return SUPPORTED_PROMPT_TYPES.includes(type as PromptType)
+  }
+  
+  /**
+   * Get the appropriate content rating based on prompt type
+   */
+  export function getContentRatingForPromptType(type: PromptType): ContentRating {
+    if (type === 'nsfw') return 'nsfw'
+    return 'sfw'
+  }
+  
+  // ============================================================
+  // PROMPT TEMPLATES
+  // ============================================================
+  
+  /**
+   * Prompt templates for different content types
+   */
   export const prompts: PromptConfig = {
     general: {
       system: `You are a professional game translator. Your task is to translate the given text while:
@@ -67,7 +129,7 @@ import type {
       user: 'Translate this skill text from {source} to {target}. Type: {context}\nText: "{text}"'
     },
   
-    adult: {
+    nsfw: {
       system: `You are a professional adult game translator. Your task is to:
   - Maintain the original meaning and nuance
   - Preserve any special characters or formatting
@@ -80,10 +142,16 @@ import type {
     }
   }
   
-  export function getPrompt(type: keyof PromptConfig = 'general'): TranslationPrompt {
+  /**
+   * Get prompt template by type
+   */
+  export function getPrompt(type: PromptType = 'general'): TranslationPrompt {
     return prompts[type]
   }
   
+  /**
+   * Format prompt with parameters
+   */
   export function formatPrompt(
     prompt: TranslationPrompt,
     params: {
@@ -94,10 +162,10 @@ import type {
       isAdult?: boolean
     }
   ): { system: string; user: string } {
-    const { source, target, text, context = '', isAdult = true } = params
+    const { source, target, text, context = '', isAdult = false } = params
     return {
-      system: isAdult ? prompts.adult.system : prompt.system,
-      user: (isAdult ? prompts.adult.user : prompt.user)
+      system: isAdult ? prompts.nsfw.system : prompt.system,
+      user: (isAdult ? prompts.nsfw.user : prompt.user)
         .replace('{source}', source)
         .replace('{target}', target)
         .replace('{text}', text)

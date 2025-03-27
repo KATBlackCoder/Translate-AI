@@ -7,7 +7,7 @@ import type {
 import type { EngineType } from '@/types/engines/base'
 import { usePreferredDark } from '@vueuse/core'
 import { useRPGMVStore } from './engines/rpgmv'
-import { aiModelPresets, getDefaultModelForProvider, getDefaultBaseUrlForProvider } from '@/config/aiModelPresets'
+import { AI_MODEL_PRESETS, getDefaultModelForProvider } from '@/config/provider/ai'
 // TODO: Add new engine store when adding
 // import { useNewEngineStore } from './engines/newengine'
 
@@ -23,6 +23,7 @@ export const useSettingsStore = defineStore('settings', () => {
   // Translation Settings
   const sourceLanguage = ref('ja')
   const targetLanguage = ref('en')
+  const allowNSFWContent = ref(false)
 
   // AI Provider Settings
   const aiProvider = ref<AIProviderType>('ollama')
@@ -119,7 +120,7 @@ export const useSettingsStore = defineStore('settings', () => {
    * @returns {Record<string, AIModelPreset>} Dictionary of available models
    */
   function getAvailableModels() {
-    return aiModelPresets[aiProvider.value] || {}
+    return AI_MODEL_PRESETS[aiProvider.value] || {}
   }
 
   /**
@@ -127,7 +128,7 @@ export const useSettingsStore = defineStore('settings', () => {
    * @returns {AIModelPreset | undefined} The current model preset or undefined
    */
   function getCurrentModelPreset() {
-    const models = aiModelPresets[aiProvider.value]
+    const models = AI_MODEL_PRESETS[aiProvider.value]
     return models?.[aiModel.value]
   }
 
@@ -160,13 +161,14 @@ export const useSettingsStore = defineStore('settings', () => {
   function reset() {
     sourceLanguage.value = 'ja'
     targetLanguage.value = 'en'
+    allowNSFWContent.value = false
     aiProvider.value = 'ollama'
     aiModel.value = getDefaultModelForProvider('ollama')
     apiKey.value = ''
-    baseUrl.value = getDefaultBaseUrlForProvider('ollama')
+    baseUrl.value = ''
     
     // Use default values from the mistral preset
-    const defaultPreset = aiModelPresets.ollama.mistral
+    const defaultPreset = AI_MODEL_PRESETS.ollama.mistral
     qualitySettings.value = {
       temperature: defaultPreset.defaultTemperature,
       maxTokens: defaultPreset.defaultMaxTokens,
@@ -210,6 +212,7 @@ export const useSettingsStore = defineStore('settings', () => {
     // Translation Settings
     sourceLanguage,
     targetLanguage,
+    allowNSFWContent,
     
     // AI Settings
     aiProvider,
@@ -218,7 +221,7 @@ export const useSettingsStore = defineStore('settings', () => {
     baseUrl,
     
     // AI Model Presets
-    modelPresets: aiModelPresets,
+    modelPresets: AI_MODEL_PRESETS,
     getAvailableModels,
     getCurrentModelPreset,
     applyModelPresetDefaults,

@@ -1,26 +1,29 @@
 // Export base configurations
-export * from './languages'
-export * from './prompt-types'
+export * from '@/config/provider/languages'
+export * from '@/config/provider/prompts'
+export * from '@/config/provider/ai/index'
 
-// Re-export provider utilities to avoid conflicts
-import * as providersModule from './providers'
+import { 
+  AI_MODEL_PRESETS,
+  getDefaultModelForProvider,
+  getModelPreset,
+  isModelSupported,
+  getModelError
+} from './ai/index'
+
 export {
-  BASE_PROVIDER_CONFIG,
-  OPENAI_PROVIDER_CONFIG,
-  OLLAMA_PROVIDER_CONFIG,
-  DEEPSEEK_PROVIDER_CONFIG
-} from './providers'
+  AI_MODEL_PRESETS,
+  getDefaultModelForProvider,
+  getModelPreset,
+  isModelSupported,
+  getModelError
+}
 
-// Export AI provider-specific configurations with their own namespace
-import * as aiProviders from './ai'
-export { aiProviders }
+// Re-export constants for convenience at the config level
+import { SUPPORTED_PROMPT_TYPES } from '@/config/provider/prompts'
+import { AI_SUPPORTED_LANGUAGES } from '@/config/provider/languages'
 
-// Use the legacy provider functions unless specifically importing from AI namespace
-export const isModelSupported = providersModule.isModelSupported
-export const getProviderConfigByName = providersModule.getProviderConfigByName
-
-// Re-export helper functions from AI providers
-export const getModelErrorMessage = aiProviders.getModelErrorMessage
-export const getModelPreset = aiProviders.getModelPreset
-export const getDefaultModelForProvider = aiProviders.getDefaultModelForProvider
-export const getErrorMessagesForProvider = aiProviders.getErrorMessagesForProvider 
+export {
+  SUPPORTED_PROMPT_TYPES,
+  AI_SUPPORTED_LANGUAGES
+} 

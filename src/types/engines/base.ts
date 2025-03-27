@@ -5,6 +5,10 @@ import type { ResourceTranslation } from '@/types/shared/translation'
  */
 export type EngineType = 'rpgmv' // | 'rpgmz' | 'renpy' | 'unity'
 
+// ============================================================
+// PATH AND FILE CONFIGURATION
+// ============================================================
+
 /**
  * Configuration for engine file paths and directories
  * 
@@ -47,6 +51,10 @@ export interface GameResourceFile {
   content: unknown                // The actual file content
 }
 
+// ============================================================
+// VALIDATION AND RESULTS
+// ============================================================
+
 /**
  * Represents the validation result for a game engine project.
  */
@@ -57,6 +65,10 @@ export interface EngineValidation {
   errors: string[]               // Validation error messages
   warnings?: string[]            // Non-critical issues
 }
+
+// ============================================================
+// ENGINE INTERFACE
+// ============================================================
 
 /**
  * Base interface for all game engine implementations.

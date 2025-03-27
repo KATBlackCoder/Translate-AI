@@ -1,7 +1,12 @@
 import { OpenAIBaseProvider } from '@/core/ai/openai-base-provider'
 import type { AIProviderConfig } from '@/types/ai/base'
-import type { TranslationRequest } from '@/types/shared/translation'
-import { aiModelPresets, getDefaultModelForProvider, getDefaultBaseUrlForProvider } from '@/config/aiModelPresets'
+import type { TranslationRequest, ContentRating, PromptType } from '@/types/shared/translation'
+import { 
+  AI_MODEL_PRESETS, 
+  getDefaultModelForProvider,
+  isModelSupported as isModelSupportedByProvider,
+  OLLAMA_CONFIG
+} from '@/config/provider/ai'
 
 /**
  * Ollama AI provider implementation for translation services.
@@ -14,10 +19,10 @@ export class OllamaProvider extends OpenAIBaseProvider {
   /** Cost per token in USD (free, runs locally) */
   readonly costPerToken: number = 0
   readonly supportsAdultContent: boolean = true
-  readonly contentRating: 'general' | 'teen' | 'mature' | 'adult' = 'adult'
+  readonly qualityScore: number = 0.85
 
   protected getBaseUrl(baseUrl?: string): string {
-    return `${baseUrl || getDefaultBaseUrlForProvider('ollama')}/v1`
+    return `${baseUrl || OLLAMA_CONFIG.baseUrl}/v1`
   }
 
   protected getDefaultModel(): string {
@@ -26,21 +31,12 @@ export class OllamaProvider extends OpenAIBaseProvider {
 
   protected getDefaultTemperature(): number {
     const defaultModel = this.getDefaultModel()
-    const preset = aiModelPresets.ollama[defaultModel]
+    const preset = AI_MODEL_PRESETS.ollama[defaultModel]
     return preset?.defaultTemperature || 0.3
   }
 
-  protected getQualityScore(): number {
-    return 0.85
-  }
-
   protected isModelSupported(model: string): boolean {
-    return Object.keys(aiModelPresets.ollama).includes(model)
-  }
-
-  protected buildPrompt(request: TranslationRequest): string {
-    const formattedPrompt = this.getFormattedPrompt(request)
-    return `${formattedPrompt.system}\n\n${formattedPrompt.user}`
+    return isModelSupportedByProvider('ollama', model)
   }
 
   /**
@@ -71,7 +67,7 @@ export class OllamaProvider extends OpenAIBaseProvider {
     if (config.promptType && !this.supportedPromptTypes.includes(config.promptType)) {
       return false
     }
-    if (config.promptType === 'adult' && !this.supportsAdultContent) {
+    if (config.promptType === 'nsfw' && !this.supportsAdultContent) {
       return false
     }
     return true

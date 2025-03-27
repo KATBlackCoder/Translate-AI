@@ -8,6 +8,7 @@ import { useOllamaConnection } from '@/composables/providers/useOllamaConnection
 import { useChatGPTConnection } from '@/composables/providers/useChatGPTConnection'
 import { useDeepSeekConnection } from '@/composables/providers/useDeepSeekConnection'
 import { useSettingsStore } from '@/stores/settings'
+import type { ContentRating } from '@/types/shared/translation'
 
 export const useAIStore = defineStore('ai', () => {
   // State
@@ -27,7 +28,13 @@ export const useAIStore = defineStore('ai', () => {
   const { isConnected: isOllamaConnected } = useOllamaConnection()
   const { isConnected: isChatGPTConnected } = useChatGPTConnection()
   const { isConnected: isDeepSeekConnected } = useDeepSeekConnection()
-  const { provider, isVerifying, initialize, reset: resetProvider } = useAIProvider()
+  const { 
+    provider, 
+    providerType, 
+    isVerifying, 
+    initialize, 
+    reset: resetProvider 
+  } = useAIProvider()
   
   // Create reactive settings configuration with computed properties
   const translationSettings = {
@@ -36,10 +43,17 @@ export const useAIStore = defineStore('ai', () => {
     updateLastModified: () => lastUpdated.value = Date.now(),
     get sourceLanguage() { return settings.sourceLanguage },
     get targetLanguage() { return settings.targetLanguage },
+    get contentRating(): ContentRating { 
+      return settings.allowNSFWContent ? 'nsfw' : 'sfw' 
+    },
     get isTranslationConfigValid() { return settings.isTranslationConfigValid }
   }
   
-  const { translate, translateBatch } = useTranslationService(provider, translationSettings)
+  const { translate, translateBatch } = useTranslationService(
+    provider, 
+    providerType,
+    translationSettings
+  )
 
   // Computed
   const estimatedCost = computed(() => stats.value.totalCost)
@@ -56,6 +70,7 @@ export const useAIStore = defineStore('ai', () => {
   return {
     // State
     provider,
+    providerType,
     isLoading,
     errors,
     lastUpdated,

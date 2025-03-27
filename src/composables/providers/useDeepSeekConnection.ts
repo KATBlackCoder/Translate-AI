@@ -1,5 +1,7 @@
 import { useAIConnection } from './useAIConnection'
-import { getDefaultModelForProvider, getErrorMessagesForProvider } from '@/config/aiModelPresets'
+import {
+  DEEPSEEK_CONFIG
+} from '@/config/provider/ai'
 import type { AIConnectionConfig } from '@/types/ai/base'
 
 /**
@@ -7,25 +9,30 @@ import type { AIConnectionConfig } from '@/types/ai/base'
  * @returns DeepSeek connection state and methods
  */
 export function useDeepSeekConnection() {
-  const { isConnected, errors, checkConnection, reset } = useAIConnection()
+  const { isConnected, isChecking, errors, checkConnection, reset } = useAIConnection()
 
   /**
    * Check connection to DeepSeek API
-   * @param baseUrl - Optional base URL for DeepSeek API
    * @param apiKey - DeepSeek API key
+   * @param baseUrl - Optional base URL for DeepSeek API
+   * @param model - Optional model to test connection with
    */
-  async function checkDeepSeekConnection(baseUrl?: string, apiKey?: string) {
+  async function checkDeepSeekConnection(
+    apiKey: string,
+    baseUrl?: string,
+    model?: string
+  ) {
     const config: AIConnectionConfig = {
-      model: getDefaultModelForProvider('deepseek'),
-      baseUrl,
-      apiKey,
-      errorMessages: getErrorMessagesForProvider('deepseek')
+      model: model || DEEPSEEK_CONFIG.defaultModel,
+      baseUrl: baseUrl || DEEPSEEK_CONFIG.baseUrl,
+      apiKey
     }
-    return checkConnection(config)
+    return checkConnection(config, 'deepseek')
   }
 
   return {
     isConnected,
+    isChecking,
     errors,
     checkConnection: checkDeepSeekConnection,
     reset

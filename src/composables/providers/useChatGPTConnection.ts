@@ -1,5 +1,7 @@
 import { useAIConnection } from './useAIConnection'
-import { getDefaultModelForProvider, getErrorMessagesForProvider } from '@/config/aiModelPresets'
+import { 
+  CHATGPT_CONFIG
+} from '@/config/provider/ai'
 import type { AIConnectionConfig } from '@/types/ai/base'
 
 /**
@@ -7,25 +9,30 @@ import type { AIConnectionConfig } from '@/types/ai/base'
  * @returns ChatGPT connection state and methods
  */
 export function useChatGPTConnection() {
-  const { isConnected, errors, checkConnection, reset } = useAIConnection()
+  const { isConnected, isChecking, errors, checkConnection, reset } = useAIConnection()
 
   /**
    * Check connection to ChatGPT API
    * @param apiKey - OpenAI API key
    * @param baseUrl - Optional custom OpenAI API endpoint (e.g. Azure OpenAI)
+   * @param model - Optional model to test connection with
    */
-  async function checkChatGPTConnection(apiKey?: string, baseUrl?: string) {
+  async function checkChatGPTConnection(
+    apiKey: string,
+    baseUrl?: string,
+    model?: string
+  ) {
     const config: AIConnectionConfig = {
-      model: getDefaultModelForProvider('chatgpt'),
+      model: model || CHATGPT_CONFIG.defaultModel,
       apiKey,
-      baseUrl,
-      errorMessages: getErrorMessagesForProvider('chatgpt')
+      baseUrl: baseUrl || CHATGPT_CONFIG.baseUrl
     }
-    return checkConnection(config)
+    return checkConnection(config, 'chatgpt')
   }
 
   return {
     isConnected,
+    isChecking,
     errors,
     checkConnection: checkChatGPTConnection,
     reset

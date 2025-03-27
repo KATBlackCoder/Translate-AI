@@ -1,4 +1,4 @@
-import type { AIProviderConfig, AIBaseConfig } from '@/types/ai/base'
+import type { AIProviderConfig } from '@/types/ai/base'
 import type { 
   TranslationRequest, 
   TranslationResponse, 
@@ -16,7 +16,7 @@ import { BaseProvider } from './base-provider'
 export abstract class OpenAIBaseProvider extends BaseProvider {
   protected readonly client: OpenAI
   abstract readonly supportsAdultContent: boolean
-  abstract readonly contentRating?: ContentRating
+  abstract readonly qualityScore: number
 
   constructor(config: AIProviderConfig) {
     super(config)
@@ -46,12 +46,6 @@ export abstract class OpenAIBaseProvider extends BaseProvider {
   protected abstract getDefaultTemperature(): number
 
   /**
-   * Gets the quality score for the provider.
-   * @returns The quality score (0-1)
-   */
-  protected abstract getQualityScore(): number
-
-  /**
    * Validates if a model is supported by the provider.
    * @param model - The model name to validate
    * @returns True if the model is supported
@@ -73,14 +67,10 @@ export abstract class OpenAIBaseProvider extends BaseProvider {
       throw new Error(`Model ${model} is not supported by ${this.name}`)
     }
 
-    if (request.contentType === 'adult' && !this.supportsAdultContent) {
-      throw new Error('This provider does not support adult content')
+    if (request.contentType === 'nsfw' && !this.supportsAdultContent) {
+      throw new Error('This provider does not support NSFW content')
     }
 
-    if (this.contentRating && request.contentType === 'adult' && this.contentRating !== 'adult') {
-      throw new Error(`Content rating mismatch. Provider supports ${this.contentRating} but requested adult content`)
-    }
-    
     const completion = await this.client.chat.completions.create({
       model,
       messages: [
@@ -110,10 +100,20 @@ export abstract class OpenAIBaseProvider extends BaseProvider {
       cost: (completion.usage?.total_tokens || 0) * this.costPerToken,
       meta: {
         processingTime,
-        qualityScore: this.getQualityScore(),
-        contentRating: request.contentType === 'adult' ? 'adult' : this.contentRating
+        qualityScore: this.qualityScore,
+        contentRating: request.contentType === 'nsfw' ? 'nsfw' as ContentRating : 'sfw' as ContentRating
       }
     }
+  }
+
+  /**
+   * Builds the prompt for the OpenAI provider.
+   * @param request - The translation request
+   * @returns Formatted prompt string
+   */
+  protected buildPrompt(request: TranslationRequest): string {
+    const formattedPrompt = this.getFormattedPrompt(request)
+    return `${formattedPrompt.system}\n\n${formattedPrompt.user}`
   }
 
   /**
@@ -134,5 +134,21 @@ export abstract class OpenAIBaseProvider extends BaseProvider {
       system: defaultPrompt.system,
       user: userPrompt
     }
+  }
+
+  /**
+   * Validate the configuration for OpenAI providers
+   * @param config - The configuration to validate
+   */
+  async validateConfig(config: AIProviderConfig): Promise<boolean> {
+    if (!config.apiKey) {
+      throw new Error('API key is required')
+    }
+    
+    if (config.model && !this.isModelSupported(config.model)) {
+      throw new Error(`Model ${config.model} is not supported`)
+    }
+    
+    return true
   }
 } 

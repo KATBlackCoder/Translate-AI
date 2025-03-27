@@ -84,7 +84,8 @@ export const useTranslationStore = defineStore('translation', () => {
           apiKey: settingsStore.apiKey,
           baseUrl: settingsStore.baseUrl,
           temperature: settingsStore.qualitySettings.temperature,
-          maxTokens: settingsStore.qualitySettings.maxTokens
+          maxTokens: settingsStore.qualitySettings.maxTokens,
+          contentRating: settingsStore.allowNSFWContent ? 'nsfw' : 'sfw'
         }
       )
       

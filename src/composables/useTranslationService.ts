@@ -1,21 +1,33 @@
 import { type Ref } from 'vue'
-import type { AIProvider } from '@/types/ai/base'
-import type { ResourceTranslation, TranslatedResource } from '@/types/shared/translation'
+import type { AIProvider, AIProviderType, AIBaseConfig } from '@/types/ai/base'
+import type { ResourceTranslation, TranslatedResource, ContentRating, PromptType } from '@/types/shared/translation'
 import { createStoreError } from '@/types/store/stores'
 import { useRateLimit } from './useRateLimit'
 import { useTranslationStats } from './useTranslationStats'
+import { getErrorMessages } from '@/config/provider/ai'
 
 const ERROR_CODES = {
   RATE_LIMIT: 'RATE_LIMIT_EXCEEDED',
   NO_PROVIDER: 'NO_PROVIDER',
   INVALID_CONFIG: 'INVALID_TRANSLATION_CONFIG',
   TRANSLATION_FAILED: 'TRANSLATION_FAILED',
-  BATCH_FAILED: 'BATCH_TRANSLATION_FAILED'
+  BATCH_FAILED: 'BATCH_TRANSLATION_FAILED',
+  CONTENT_RATING: 'CONTENT_RATING_MISMATCH'
 } as const
+
+/**
+ * Maps content rating to PromptType for AI request
+ * @param rating - Content rating from settings
+ * @returns PromptType to use in the translation request
+ */
+function mapContentRatingToPromptType(rating: ContentRating): PromptType {
+  return rating === 'nsfw' ? 'nsfw' : 'general';
+}
 
 /**
  * Composable for managing translation services
  * @param {Ref<AIProvider | null>} provider - AI provider reference
+ * @param {Ref<AIProviderType | null>} providerType - AI provider type
  * @param {Object} settings - Settings store with error handling and translation config
  * @returns {Object} Translation service methods
  * @returns {(text: ResourceTranslation) => Promise<TranslatedResource | null>} translate - Single text translation
@@ -23,17 +35,64 @@ const ERROR_CODES = {
  */
 export function useTranslationService(
   provider: Ref<AIProvider | null>,
+  providerType: Ref<AIProviderType | null>,
   settings: {
     addError: (error: any) => void,
     setLoading: (loading: boolean) => void,
     updateLastModified: () => void,
     sourceLanguage: string,
     targetLanguage: string,
+    contentRating: ContentRating,
     isTranslationConfigValid: boolean
   }
 ) {
   const { rateLimit, canMakeRequest } = useRateLimit()
   const { updateStats } = useTranslationStats()
+
+  /**
+   * Validates provider and settings before making a translation request
+   * @returns {boolean} True if validation passes
+   */
+  function validateRequest(): boolean {
+    if (!canMakeRequest.value) {
+      const errorMessages = providerType.value 
+        ? getErrorMessages(providerType.value)
+        : getErrorMessages('chatgpt');
+      
+      settings.addError(createStoreError(
+        ERROR_CODES.RATE_LIMIT,
+        errorMessages.rateLimit || 'Rate limit exceeded. Please wait before making more requests.'
+      ));
+      return false;
+    }
+
+    if (!provider.value) {
+      settings.addError(createStoreError(
+        ERROR_CODES.NO_PROVIDER,
+        'AI provider not initialized'
+      ));
+      return false;
+    }
+
+    if (!settings.isTranslationConfigValid) {
+      settings.addError(createStoreError(
+        ERROR_CODES.INVALID_CONFIG,
+        'Source and target languages must be set'
+      ));
+      return false;
+    }
+
+    // Content rating validation
+    if (settings.contentRating === 'nsfw' && !provider.value.supportsAdultContent) {
+      settings.addError(createStoreError(
+        ERROR_CODES.CONTENT_RATING,
+        `The selected provider does not support NSFW content`
+      ));
+      return false;
+    }
+
+    return true;
+  }
 
   /**
    * Translates a single text using the AI provider
@@ -49,39 +108,21 @@ export function useTranslationService(
       return null
     }
 
-    if (!canMakeRequest.value) {
-      settings.addError(createStoreError(
-        ERROR_CODES.RATE_LIMIT,
-        'Rate limit exceeded. Please wait before making more requests.'
-      ))
-      return null
-    }
-
-    if (!provider.value) {
-      settings.addError(createStoreError(
-        ERROR_CODES.NO_PROVIDER,
-        'AI provider not initialized'
-      ))
-      return null
-    }
-
-    if (!settings.isTranslationConfigValid) {
-      settings.addError(createStoreError(
-        ERROR_CODES.INVALID_CONFIG,
-        'Source and target languages must be set'
-      ))
-      return null
+    if (!validateRequest()) {
+      return null;
     }
 
     try {
       settings.setLoading(true)
       const startTime = Date.now()
       
-      const response = await provider.value.translate({
+      const promptType = mapContentRatingToPromptType(settings.contentRating);
+      const response = await provider.value!.translate({
         text: text.source,
         context: text.context,
         sourceLanguage: settings.sourceLanguage,
-        targetLanguage: settings.targetLanguage
+        targetLanguage: settings.targetLanguage,
+        contentType: promptType
       })
 
       const translatedText: TranslatedResource = {
@@ -126,38 +167,29 @@ export function useTranslationService(
       return { translations: [], stats: null }
     }
 
-    if (!canMakeRequest.value) {
-      settings.addError(createStoreError(
-        ERROR_CODES.RATE_LIMIT,
-        'Rate limit exceeded. Please wait before making more requests.'
-      ))
-      return { translations: [], stats: null }
-    }
-
-    if (!provider.value) {
-      settings.addError(createStoreError(
-        ERROR_CODES.NO_PROVIDER,
-        'AI provider not initialized'
-      ))
-      return { translations: [], stats: null }
-    }
-
-    if (!settings.isTranslationConfigValid) {
-      settings.addError(createStoreError(
-        ERROR_CODES.INVALID_CONFIG,
-        'Source and target languages must be set'
-      ))
-      return { translations: [], stats: null }
+    if (!validateRequest()) {
+      return { translations: [], stats: null };
     }
 
     try {
       settings.setLoading(true)
       const startTime = Date.now()
       
-      const result = await provider.value.translateBatch(
+      // Configure batch options
+      const batchOptions: AIBaseConfig & {
+        batchSize?: number;
+        retryCount?: number;
+        timeout?: number;
+      } = {
+        promptType: mapContentRatingToPromptType(settings.contentRating),
+        contentRating: settings.contentRating
+      };
+      
+      const result = await provider.value!.translateBatch(
         texts,
         settings.sourceLanguage,
-        settings.targetLanguage
+        settings.targetLanguage,
+        batchOptions
       )
 
       // Update stats

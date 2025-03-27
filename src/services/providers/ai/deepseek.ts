@@ -1,7 +1,12 @@
 import { OpenAIBaseProvider } from '@/core/ai/openai-base-provider'
 import type { AIProviderConfig } from '@/types/ai/base'
-import type { TranslationRequest } from '@/types/shared/translation'
-import { aiModelPresets, getDefaultModelForProvider, getDefaultBaseUrlForProvider } from '@/config/aiModelPresets'
+import type { TranslationRequest, ContentRating, PromptType } from '@/types/shared/translation'
+import { 
+  AI_MODEL_PRESETS, 
+  getDefaultModelForProvider,
+  isModelSupported as isModelSupportedByProvider,
+  DEEPSEEK_CONFIG
+} from '@/config/provider/ai'
 
 /**
  * DeepSeek AI provider implementation for translation services.
@@ -14,10 +19,10 @@ export class DeepSeekProvider extends OpenAIBaseProvider {
   /** Cost per token in USD (approximately $0.02 per 1K tokens) */
   readonly costPerToken: number = 0.00002
   readonly supportsAdultContent: boolean = true
-  readonly contentRating: 'general' | 'teen' | 'mature' | 'adult' = 'mature'
+  readonly qualityScore: number = 0.92
 
   protected getBaseUrl(baseUrl?: string): string {
-    return baseUrl || getDefaultBaseUrlForProvider('deepseek')
+    return baseUrl || DEEPSEEK_CONFIG.baseUrl
   }
 
   protected getDefaultModel(): string {
@@ -26,21 +31,12 @@ export class DeepSeekProvider extends OpenAIBaseProvider {
 
   protected getDefaultTemperature(): number {
     const defaultModel = this.getDefaultModel()
-    const preset = aiModelPresets.deepseek[defaultModel]
+    const preset = AI_MODEL_PRESETS.deepseek[defaultModel]
     return preset?.defaultTemperature || 0.3
   }
 
-  protected getQualityScore(): number {
-    return 0.92
-  }
-
   protected isModelSupported(model: string): boolean {
-    return Object.keys(aiModelPresets.deepseek).includes(model)
-  }
-
-  protected buildPrompt(request: TranslationRequest): string {
-    const formattedPrompt = this.getFormattedPrompt(request)
-    return `${formattedPrompt.system}\n\n${formattedPrompt.user}`
+    return isModelSupportedByProvider('deepseek', model)
   }
 
   /**
@@ -71,7 +67,7 @@ export class DeepSeekProvider extends OpenAIBaseProvider {
     if (config.promptType && !this.supportedPromptTypes.includes(config.promptType)) {
       return false
     }
-    if (config.promptType === 'adult' && !this.supportsAdultContent) {
+    if (config.promptType === 'nsfw' && !this.supportsAdultContent) {
       return false
     }
     return true
