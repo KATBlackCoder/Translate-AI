@@ -1,4 +1,4 @@
-# Game Translation Desktop App MVP
+# Game Translation Desktop App TODO
 
 ## Project Overview
 Desktop application for translating game content from various game engines (initially RPG Maker MV) using AI tools (Ollama + Mistral).
@@ -12,240 +12,184 @@ Desktop application for translating game content from various game engines (init
 - Desktop: Tauri (file system access)
 - AI: Ollama + Mistral (local)
 
-## MVP Features (Priority Levels: P0, P1, P2)
+## Current Sprint Focus
 
-### 1. Project Setup (P0)
+### 1. AI Configuration System (Priority: High)
+- [x] Review and document existing types
+- [x] Create AIServiceConfig interface
+- [x] Create configuration factory
+- [x] Update AI store
+- [x] Create settings connector
+- [x] Update translation store
+- [ ] Testing
+  - [ ] Config factory tests
+  - [ ] AIServiceConfig interface tests
+  - [ ] Store tests
+  - [ ] Settings connector tests
+- [ ] Migration
+  - [ ] Update components
+  - [ ] Test updated components
+  - [ ] Remove deprecated code
+- [ ] Performance optimization
+  - [ ] Profile configuration updates
+  - [ ] Optimize settings watching
+  - [ ] Add debouncing if needed
+
+### 2. Engine Configuration System (Priority: High)
+- [ ] Review and document existing types
+- [ ] Create EngineServiceConfig interface
+- [ ] Create engine configuration factory
+- [ ] Update engine store
+- [ ] Create engine settings connector
+- [ ] Update project store
+- [ ] Testing
+- [ ] Migration
+- [ ] Performance optimization
+
+### 3. Core Features (Priority: High)
+- [ ] Translation Memory System
+  - [ ] Database setup
+  - [ ] CRUD operations
+  - [ ] Search functionality
+  - [ ] Import/Export
+- [ ] Quality Checks
+  - [ ] Confidence scoring
+  - [ ] Length validation
+  - [ ] Format preservation
+  - [ ] Named entity preservation
+- [ ] Backup System
+  - [ ] Automatic backups
+  - [ ] Backup restoration
+  - [ ] Backup management
+
+### 4. UI/UX Improvements (Priority: Medium)
+- [ ] Drag & drop support
+  - [ ] Project import
+  - [ ] File upload
+- [ ] Keyboard shortcuts
+  - [ ] Navigation
+  - [ ] Actions
+  - [ ] Settings
+- [ ] Progress indicators
+  - [ ] Detailed progress
+  - [ ] ETA calculation
+  - [ ] Resource usage
+
+## MVP Features Status
+
+### 1. Project Setup ✅
 - [x] Initialize Tauri + Vue project
 - [x] Configure Tailwind CSS
 - [x] Set up PrimeVue components
 - [x] Configure Pinia
 - [x] Set up Vue Router
 
-### 2. Core UI Components (P0)
+### 2. Core UI Components ⏳
 - [x] Main layout with sidebar navigation
-  - [x] Responsive sidebar
-  - [x] Dark mode support
-  - [x] Theme persistence
 - [x] Project selection/creation screen
 - [x] Game file import interface
-  - [x] Folder picker
-  - [x] Project validation
-  - [x] Import progress
-  - [ ] Drag & drop zone
 - [x] Translation workspace
-  - [x] Translation progress view
-  - [x] Translation list
-  - [x] Cancel functionality
 - [x] Settings panel
-  - [x] Theme settings
-  - [x] Translation settings
-  - [x] AI provider settings
+- [ ] Drag & drop zone
 
-### 3. RPG Maker MV Support (P0)
-- [x] File parser for RPG Maker MV projects
-  - [x] JSON file reader
-  - [x] Content extractor
-  - [x] Translation manager
+### 3. RPG Maker MV Support ⏳
+- [x] File parser
 - [x] JSON data extraction
 - [x] Text content identification
 - [ ] Translation memory system
 
-### 4. AI Integration (P0)
-- [x] Ollama setup and configuration
-  - [x] Base provider interface
-  - [x] Ollama API integration
-  - [x] Error handling
-  - [x] Batch processing
+### 4. AI Integration ⏳
+- [x] Ollama setup
 - [x] Translation API wrapper
-  - [x] Request/Response types
-  - [x] Axios configuration
-  - [x] Rate limiting
-  - [x] Retry mechanism
 - [x] Prompt management
-  - [x] Context-aware prompts
-  - [x] Type-specific instructions
-  - [x] Formatting preservation
+- [x] Multi-provider support
 - [ ] Translation quality checks
-  - [ ] Confidence scoring
-  - [ ] Length validation
-  - [ ] Format preservation
-  - [ ] Named entity preservation
 
-### 5. State Management (P0)
+### 5. State Management ⏳
 - [x] Project store
-  - [x] Project data
-  - [x] File tree
-  - [x] Import state
 - [x] Translation store
-  - [x] Source text
-  - [x] Target text
-  - [x] Translation status
-  - [x] Progress tracking
 - [x] Settings store
-  - [x] Theme settings
-  - [x] Translation settings
-  - [x] AI settings
-  - [ ] Settings persistence
-    - [ ] Local storage for all settings
-    - [ ] Settings migration system
-    - [ ] Version control for settings
-  - [ ] Advanced validation
-    - [ ] Prompt validation
-    - [ ] Settings integrity checks
-    - [ ] Cross-setting validation
 - [x] UI state store
+- [ ] Settings persistence
 
-### 6. File Operations (P0)
+### 6. File Operations ⏳
 - [x] Project file reading
-  - [x] JSON file reader
-  - [x] Content parser
-  - [x] Error handling
 - [x] Translation file generation
-  - [x] JSON structure
-  - [x] Export format
 - [ ] Backup system
 - [x] Export functionality
 
-### 7. User Experience (P1)
-- [x] Progress indicators
-  - [x] Translation progress bar
-  - [x] File processing status
-  - [x] AI model loading state
-- [x] Error handling
-- [x] Success notifications
-- [ ] Keyboard shortcuts
-
-## Next Steps (In Priority Order)
-1. Add drag & drop support for project import
-2. Implement translation memory system
-3. Add translation quality checks
-4. Implement backup system
-5. Add keyboard shortcuts
-
 ## Future Improvements
 
-### Phase 1 (P1)
-- Support for RPG Maker MZ
-- Support for RPG Maker ACE
-- Support for WolfRPG
-- Support for Bakin
-- File System Enhancements
-  - File watching for auto-updates
-  - Concurrent file operations
-  - Progress tracking for large files
-  - File operation queuing
-  - Automatic backup creation
-  - File change history
-  - File comparison tools
-  - File integrity checks
-- Engine System Improvements
-  - Hot-reload engine support
-  - Custom engine creation UI
-  - Engine validation rules editor
-  - Engine performance metrics
-  - Engine compatibility checks
-  - Project structure templates
-- AI Provider Improvements
-  - OpenAI integration with token management
-  - Custom model selection UI
-  - Model performance metrics
-  - Cost estimation and budgeting
-  - Translation caching
-  - Parallel processing optimization
-- Translation memory sharing
-- Collaborative features
-- SQLite database for advanced features
-- Settings System Improvements
-  - Settings persistence across sessions
-  - Settings migration system
-  - Settings version control
-  - Advanced settings validation
-  - Settings backup/restore
-  - Settings import/export
-  - Settings sync across devices
-  - Settings conflict resolution
+### Phase 1 (Next Release)
+- [ ] Additional Game Engine Support
+  - [ ] RPG Maker MZ
+  - [ ] RPG Maker ACE
+  - [ ] WolfRPG
+  - [ ] Bakin
+- [ ] File System Enhancements
+  - [ ] File watching
+  - [ ] Concurrent operations
+  - [ ] Progress tracking
+  - [ ] Operation queuing
+- [ ] Engine System Improvements
+  - [ ] Hot-reload support
+  - [ ] Custom engine UI
+  - [ ] Validation rules editor
+- [ ] AI Provider Improvements
+  - [ ] OpenAI token management
+  - [ ] Custom model selection
+  - [ ] Performance metrics
+  - [ ] Cost estimation
 
-### Phase 2 (P2)
-- Advanced translation memory features
-  - Context-aware suggestions
-  - Fuzzy matching
-  - Terminology management
-- File System Advanced Features
-  - Distributed file operations
-  - File system events
-  - File system hooks
-  - Custom file watchers
-  - File operation retry strategies
-  - File operation rollback
-  - File operation transactions
-  - File operation batching
-- Engine System Advanced Features
-  - Custom file type handlers
-  - Custom validation rules
-  - Custom extraction rules
-  - Custom translation rules
-  - Engine plugin system
-  - Engine version management
-  - Engine migration tools
-- AI Enhancements
-  - Custom model fine-tuning
-  - Domain adaptation
-  - Quality scoring system
-  - Automated post-editing
-  - Context preservation checks
-  - Style consistency validation
-- Batch processing optimization
-  - Smart batching based on content
-  - Priority queuing
-  - Resource management
-- Cloud sync capabilities
-- Team collaboration tools
-- Advanced project management
-- Custom translation rules
-- Quality assurance tools
+### Phase 2 (Future)
+- [ ] Advanced Translation Memory
+  - [ ] Context-aware suggestions
+  - [ ] Fuzzy matching
+  - [ ] Terminology management
+- [ ] Advanced File System
+  - [ ] Distributed operations
+  - [ ] System events
+  - [ ] Operation hooks
+- [ ] Advanced Engine Features
+  - [ ] Custom handlers
+  - [ ] Plugin system
+  - [ ] Version management
+- [ ] AI Enhancements
+  - [ ] Model fine-tuning
+  - [ ] Domain adaptation
+  - [ ] Quality scoring
+  - [ ] Post-editing
 
-### Phase 3 (P2)
-- API integrations with translation services
-  - DeepL integration
-  - Google Translate fallback
-  - Custom API support
-- Custom plugin system
-  - Provider plugins
-  - Quality check plugins
-  - Format plugins
-  - File system plugins
-  - Engine plugins
-- Advanced file format support
-  - Binary file support
-  - Custom format support
-  - Format conversion tools
-  - Format validation tools
-- Automated testing suite
-  - File system tests
-  - Engine tests
-  - Translation tests
-  - Performance tests
-- Performance optimization
-  - Memory usage optimization
-  - Caching strategies
-  - Background processing
-  - File system optimization
-  - Engine optimization
-- Offline mode
-  - Local model management
-  - Cache management
-  - Sync queue
-  - Offline file operations
-  - Offline translation
-- Multi-language support
-- Analytics dashboard
-  - Translation metrics
-  - Quality metrics
-  - Cost tracking
-  - Performance monitoring
-  - File system metrics
-  - Engine metrics
-  - Resource usage metrics
+### Phase 3 (Long-term)
+- [ ] API Integrations
+  - [ ] DeepL
+  - [ ] Google Translate
+  - [ ] Custom APIs
+- [ ] Plugin System
+  - [ ] Provider plugins
+  - [ ] Quality check plugins
+  - [ ] Format plugins
+- [ ] Advanced Features
+  - [ ] Binary file support
+  - [ ] Custom formats
+  - [ ] Format conversion
+- [ ] Testing Suite
+  - [ ] File system tests
+  - [ ] Engine tests
+  - [ ] Translation tests
+- [ ] Performance
+  - [ ] Memory optimization
+  - [ ] Caching strategies
+  - [ ] Background processing
+- [ ] Offline Mode
+  - [ ] Local models
+  - [ ] Cache management
+  - [ ] Sync queue
+- [ ] Analytics
+  - [ ] Translation metrics
+  - [ ] Quality metrics
+  - [ ] Cost tracking
+  - [ ] Performance monitoring
 
 ## Development Guidelines
 1. Follow TypeScript best practices
@@ -261,30 +205,17 @@ src/
 ├── assets/
 ├── components/
 │   ├── common/
-│   │   ├── AppHeader.vue
-│   │   ├── AppSidebar.vue
-│   │   └── AppFooter.vue
 │   ├── layout/
-│   │   └── MainLayout.vue
 │   ├── project/
-│   │   ├── ProjectImport.vue
-│   │   └── ProjectTree.vue
 │   └── translation/
 ├── stores/
-│   ├── project.ts
-│   ├── translation.ts
-│   └── settings.ts
+│   ├── ai/
+│   ├── engines/
+│   └── settings/
 ├── views/
-│   ├── HomeView.vue
-│   ├── TranslationView.vue
-│   ├── SettingsView.vue
-│   └── AboutView.vue
 ├── router/
-│   └── index.ts
 ├── types/
-│   └── project.ts
 └── utils/
-    └── projectParser.ts
 ```
 
 ## Getting Started
@@ -294,6 +225,6 @@ src/
 4. Build for production: `npm run tauri build`
 
 ## Priority Levels
-- P0: Critical for MVP, must be completed first
-- P1: Important features for first release
-- P2: Nice to have features for future releases 
+- High: Critical for current sprint
+- Medium: Important but not blocking
+- Low: Nice to have 

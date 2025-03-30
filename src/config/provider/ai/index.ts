@@ -3,15 +3,18 @@ export * from '@/config/provider/ai/chatgpt'
 export * from '@/config/provider/ai/ollama'
 export * from '@/config/provider/ai/deepseek'
 
-import type { AIModelPreset, AIModelPresets, AIProviderType, AIErrorMessages } from '@/types/ai/base'
+import type { AIProviderType, AIErrorMessages } from '@/types/ai/base'
+import type { AIModelPreset, AIModelPresets } from '@/types/ai/metadata'
 
 // Import all provider configurations
 import { 
   CHATGPT_CONFIG, 
+  CHATGPT_DEFAULTS,
   CHATGPT_MODEL_PRESETS,
   CHATGPT_ERROR_MESSAGES,
   CHATGPT_MODEL_ERROR_MESSAGES,
   CHATGPT_MODEL_COSTS,
+  createChatGPTProviderConfig,
   getChatGPTModelCost,
   getChatGPTModelError,
   getChatGPTModelPreset,
@@ -20,9 +23,11 @@ import {
 
 import { 
   OLLAMA_CONFIG, 
+  OLLAMA_DEFAULTS,
   OLLAMA_MODEL_PRESETS,
   OLLAMA_ERROR_MESSAGES,
   OLLAMA_MODEL_ERROR_MESSAGES,
+  createOllamaProviderConfig,
   getOllamaModelError,
   getOllamaModelPreset,
   isOllamaModelSupported
@@ -30,9 +35,11 @@ import {
 
 import { 
   DEEPSEEK_CONFIG, 
+  DEEPSEEK_DEFAULTS,
   DEEPSEEK_MODEL_PRESETS,
   DEEPSEEK_ERROR_MESSAGES,
   DEEPSEEK_MODEL_ERROR_MESSAGES,
+  createDeepSeekProviderConfig,
   getDeepSeekModelError,
   getDeepSeekModelPreset,
   isDeepSeekModelSupported
@@ -58,10 +65,12 @@ export const DEFAULT_ERROR_MESSAGES: AIErrorMessages = {
 export {
   // ChatGPT
   CHATGPT_CONFIG,
+  CHATGPT_DEFAULTS,
   CHATGPT_MODEL_PRESETS,
   CHATGPT_ERROR_MESSAGES,
   CHATGPT_MODEL_ERROR_MESSAGES,
   CHATGPT_MODEL_COSTS,
+  createChatGPTProviderConfig,
   getChatGPTModelCost,
   getChatGPTModelError,
   getChatGPTModelPreset,
@@ -69,18 +78,22 @@ export {
   
   // Ollama
   OLLAMA_CONFIG,
+  OLLAMA_DEFAULTS,
   OLLAMA_MODEL_PRESETS,
   OLLAMA_ERROR_MESSAGES,
   OLLAMA_MODEL_ERROR_MESSAGES,
+  createOllamaProviderConfig,
   getOllamaModelError,
   getOllamaModelPreset,
   isOllamaModelSupported,
   
   // DeepSeek
   DEEPSEEK_CONFIG,
+  DEEPSEEK_DEFAULTS,
   DEEPSEEK_MODEL_PRESETS,
   DEEPSEEK_ERROR_MESSAGES,
   DEEPSEEK_MODEL_ERROR_MESSAGES,
+  createDeepSeekProviderConfig,
   getDeepSeekModelError,
   getDeepSeekModelPreset,
   isDeepSeekModelSupported
@@ -92,11 +105,11 @@ export {
 export function getDefaultModelForProvider(provider: AIProviderType): string {
   switch (provider) {
     case 'chatgpt':
-      return CHATGPT_CONFIG.defaultModel
+      return CHATGPT_DEFAULTS.defaultModel
     case 'ollama':
-      return OLLAMA_CONFIG.defaultModel
+      return OLLAMA_DEFAULTS.defaultModel
     case 'deepseek':
-      return DEEPSEEK_CONFIG.defaultModel
+      return DEEPSEEK_DEFAULTS.defaultModel
     default:
       return 'gpt-3.5-turbo'
   }

@@ -1,20 +1,116 @@
-# Tauri + Vue + TypeScript
+# Translation AI
 
-This template should help get you started developing with Vue 3 and TypeScript in Vite. The template uses Vue 3 `<script setup>` SFCs, check out the [script setup docs](https://v3.vuejs.org/api/sfc-script-setup.html#sfc-script-setup) to learn more.
+A powerful AI-powered translation tool for game localization, built with Vue 3, TypeScript, and Pinia.
 
-## Recommended IDE Setup
+## Features
 
-- [VS Code](https://code.visualstudio.com/) + [Volar](https://marketplace.visualstudio.com/items?itemName=Vue.volar) + [Tauri](https://marketplace.visualstudio.com/items?itemName=tauri-apps.tauri-vscode) + [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer)
+- 🎮 **Game Engine Support**
+  - RPGMV support out of the box
+  - Extensible architecture for adding more engines
+  - Automatic engine detection
 
-## Type Support For `.vue` Imports in TS
+- 🤖 **AI Translation**
+  - Multiple AI provider support
+  - Batch translation capabilities
+  - Quality settings control
+  - Cost estimation
 
-Since TypeScript cannot handle type information for `.vue` imports, they are shimmed to be a generic Vue component type by default. In most cases this is fine if you don't really care about component prop types outside of templates. However, if you wish to get actual prop types in `.vue` imports (for example to get props validation when using manual `h(...)` calls), you can enable Volar's Take Over mode by following these steps:
+- ⚙️ **Smart Configuration**
+  - User-friendly settings
+  - Default configurations
+  - Persistent preferences
+  - Type-safe configuration
 
-1. Run `Extensions: Show Built-in Extensions` from VS Code's command palette, look for `TypeScript and JavaScript Language Features`, then right click and select `Disable (Workspace)`. By default, Take Over mode will enable itself if the default TypeScript extension is disabled.
-2. Reload the VS Code window by running `Developer: Reload Window` from the command palette.
+- 🎯 **Project Management**
+  - File pattern detection
+  - Resource file handling
+  - Translation progress tracking
+  - Error handling and recovery
 
-You can learn more about Take Over mode [here](https://github.com/johnsoncodehk/volar/discussions/471).
+## Tech Stack
 
-YAGNI : You Aren't Gonna Need It
-DRY : Don't Repeat Yourself
-MVP : Model Viable Product
+- **Frontend**: Vue 3 + TypeScript
+- **State Management**: Pinia
+- **UI Framework**: Vue 3 + TailwindCSS
+- **Build Tool**: Vite
+- **Package Manager**: npm
+
+## Project Structure
+
+```
+src/
+├── components/     # Vue components
+├── composables/    # Vue composables
+├── config/        # Configuration files
+├── core/          # Core functionality
+├── services/      # Service implementations
+├── stores/        # Pinia stores
+├── types/         # TypeScript types
+└── views/         # Page components
+```
+
+## Getting Started
+
+1. **Install Dependencies**
+   ```bash
+   npm install
+   ```
+
+2. **Start Development Server**
+   ```bash
+   npm run dev
+   ```
+
+3. **Build for Production**
+   ```bash
+   npm run build
+   ```
+
+## Usage
+
+1. **Select Game Folder**
+   - Click "Select Game Folder"
+   - Choose your game's root directory
+   - The app will automatically detect the game engine
+
+2. **Configure Translation**
+   - Select source and target languages
+   - Choose AI provider and model
+   - Adjust quality settings
+   - Review cost estimation
+
+3. **Start Translation**
+   - Review detected files
+   - Start batch translation
+   - Monitor progress
+   - Review results
+
+## Architecture
+
+The application follows a clean architecture pattern with:
+
+- **Modular Stores**: Split into state, getters, and actions
+- **Dependency Injection**: For better testability
+- **Configuration System**: Centralized settings management
+- **Type Safety**: Full TypeScript coverage
+- **Unidirectional Data Flow**: Clear data movement patterns
+
+See [ARCHITECTURE.md](ARCHITECTURE.md) for detailed architecture documentation.
+
+## Contributing
+
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Acknowledgments
+
+- Vue.js team for the amazing framework
+- Pinia team for state management
+- All contributors and users

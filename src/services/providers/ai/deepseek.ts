@@ -1,11 +1,11 @@
 import { OpenAIBaseProvider } from '@/core/ai/openai-base-provider'
-import type { AIProviderConfig } from '@/types/ai/base'
-import type { TranslationRequest, ContentRating, PromptType } from '@/types/shared/translation'
+import type { AIProviderConfig } from '@/types/ai/config'
 import { 
   AI_MODEL_PRESETS, 
   getDefaultModelForProvider,
   isModelSupported as isModelSupportedByProvider,
-  DEEPSEEK_CONFIG
+  DEEPSEEK_CONFIG,
+  DEEPSEEK_DEFAULTS
 } from '@/config/provider/ai'
 
 /**
@@ -13,16 +13,16 @@ import {
  * Uses DeepSeek's chat completion API for high-quality translations.
  */
 export class DeepSeekProvider extends OpenAIBaseProvider {
-  readonly name: string = 'DeepSeek'
-  readonly version: string = '1.0.0'
-  readonly maxBatchSize: number = 10
-  /** Cost per token in USD (approximately $0.02 per 1K tokens) */
-  readonly costPerToken: number = 0.00002
-  readonly supportsAdultContent: boolean = true
-  readonly qualityScore: number = 0.92
+  readonly name: string = DEEPSEEK_CONFIG.name
+  readonly version: string = DEEPSEEK_CONFIG.version
+  readonly maxBatchSize: number = DEEPSEEK_CONFIG.maxBatchSize
+  /** Cost per token in USD (approximately $0.001 per 1K tokens) */
+  readonly costPerToken: number = DEEPSEEK_CONFIG.costPerToken
+  readonly supportsAdultContent: boolean = DEEPSEEK_CONFIG.supportsAdultContent
+  readonly qualityScore: number = DEEPSEEK_CONFIG.qualityScore
 
   protected getBaseUrl(baseUrl?: string): string {
-    return baseUrl || DEEPSEEK_CONFIG.baseUrl
+    return baseUrl || DEEPSEEK_DEFAULTS.baseUrl
   }
 
   protected getDefaultModel(): string {
@@ -32,7 +32,7 @@ export class DeepSeekProvider extends OpenAIBaseProvider {
   protected getDefaultTemperature(): number {
     const defaultModel = this.getDefaultModel()
     const preset = AI_MODEL_PRESETS.deepseek[defaultModel]
-    return preset?.defaultTemperature || 0.3
+    return preset?.defaultTemperature || DEEPSEEK_DEFAULTS.defaultTemperature
   }
 
   protected isModelSupported(model: string): boolean {
@@ -64,12 +64,22 @@ export class DeepSeekProvider extends OpenAIBaseProvider {
     if (config.temperature && (config.temperature < 0 || config.temperature > 2)) {
       return false
     }
+    
+    // Check for correct provider type to prevent misconfiguration
+    if (config.providerType !== 'deepseek') {
+      return false
+    }
+    
+    // Check prompt type compatibility
     if (config.promptType && !this.supportedPromptTypes.includes(config.promptType)) {
       return false
     }
-    if (config.promptType === 'nsfw' && !this.supportsAdultContent) {
+    
+    // DeepSeek doesn't support NSFW content
+    if (config.promptType === 'nsfw' || config.contentRating === 'nsfw') {
       return false
     }
+    
     return true
   }
 } 

@@ -1,4 +1,5 @@
-import type { AIProviderConfig } from '@/types/ai/base'
+import type { AIBaseConfig } from '@/types/ai/base'
+import type { AIProviderConfig } from '@/types/ai/config'
 import type { 
   TranslationRequest, 
   TranslationResponse, 
@@ -8,6 +9,7 @@ import type {
 } from '@/types/shared/translation'
 import OpenAI from 'openai'
 import { BaseProvider } from './base-provider'
+import { formatPrompt } from '@/config/provider/prompts'
 
 /**
  * Base class for OpenAI-compatible AI providers.
@@ -124,16 +126,19 @@ export abstract class OpenAIBaseProvider extends BaseProvider {
   protected getFormattedPrompt(request: TranslationRequest): TranslationPrompt {
     const contentType = (request.contentType || 'general') as PromptType
     const defaultPrompt = this.getDefaultPrompt(contentType)
-    const userPrompt = defaultPrompt.user
-      .replace('{source}', request.sourceLanguage)
-      .replace('{target}', request.targetLanguage)
-      .replace('{text}', request.text)
-      .replace('{context}', request.context || '')
     
-    return {
-      system: defaultPrompt.system,
-      user: userPrompt
-    }
+    // Use the provider's config to ensure content rating compatibility
+    return formatPrompt(
+      defaultPrompt,
+      {
+        source: request.sourceLanguage,
+        target: request.targetLanguage,
+        text: request.text,
+        context: request.context || '',
+        isAdult: contentType === 'nsfw'
+      },
+      this.config as AIProviderConfig
+    )
   }
 
   /**

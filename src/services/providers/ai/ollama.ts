@@ -1,11 +1,11 @@
 import { OpenAIBaseProvider } from '@/core/ai/openai-base-provider'
-import type { AIProviderConfig } from '@/types/ai/base'
-import type { TranslationRequest, ContentRating, PromptType } from '@/types/shared/translation'
+import type { AIProviderConfig } from '@/types/ai/config'
 import { 
   AI_MODEL_PRESETS, 
   getDefaultModelForProvider,
   isModelSupported as isModelSupportedByProvider,
-  OLLAMA_CONFIG
+  OLLAMA_CONFIG,
+  OLLAMA_DEFAULTS
 } from '@/config/provider/ai'
 
 /**
@@ -13,16 +13,17 @@ import {
  * Uses local Ollama models for free, offline translations.
  */
 export class OllamaProvider extends OpenAIBaseProvider {
-  readonly name: string = 'Ollama'
-  readonly version: string = '1.0.0'
-  readonly maxBatchSize: number = 5
+  readonly name: string = OLLAMA_CONFIG.name
+  readonly version: string = OLLAMA_CONFIG.version
+  readonly maxBatchSize: number = OLLAMA_CONFIG.maxBatchSize
   /** Cost per token in USD (free, runs locally) */
-  readonly costPerToken: number = 0
-  readonly supportsAdultContent: boolean = true
-  readonly qualityScore: number = 0.85
+  readonly costPerToken: number = OLLAMA_CONFIG.costPerToken
+  readonly supportsAdultContent: boolean = OLLAMA_CONFIG.supportsAdultContent
+  readonly qualityScore: number = OLLAMA_CONFIG.qualityScore
 
   protected getBaseUrl(baseUrl?: string): string {
-    return `${baseUrl || OLLAMA_CONFIG.baseUrl}/v1`
+    // Add /v1 to the base URL for OpenAI compatibility
+    return `${baseUrl || OLLAMA_DEFAULTS.baseUrl}`
   }
 
   protected getDefaultModel(): string {
@@ -32,7 +33,7 @@ export class OllamaProvider extends OpenAIBaseProvider {
   protected getDefaultTemperature(): number {
     const defaultModel = this.getDefaultModel()
     const preset = AI_MODEL_PRESETS.ollama[defaultModel]
-    return preset?.defaultTemperature || 0.3
+    return preset?.defaultTemperature || OLLAMA_DEFAULTS.defaultTemperature
   }
 
   protected isModelSupported(model: string): boolean {
@@ -60,16 +61,27 @@ export class OllamaProvider extends OpenAIBaseProvider {
    * @returns Promise resolving to true if config is valid
    */
   async validateConfig(config: AIProviderConfig): Promise<boolean> {
+    if (!config.baseUrl) return false
     if (config.model && !this.isModelSupported(config.model)) return false
     if (config.temperature && (config.temperature < 0 || config.temperature > 2)) {
       return false
     }
+    
+    // Check for correct provider type to prevent misconfiguration
+    if (config.providerType !== 'ollama') {
+      return false
+    }
+    
+    // Check prompt type compatibility
     if (config.promptType && !this.supportedPromptTypes.includes(config.promptType)) {
       return false
     }
-    if (config.promptType === 'nsfw' && !this.supportsAdultContent) {
+    
+    // Content rating check
+    if (config.contentRating === 'nsfw' && !this.supportsAdultContent) {
       return false
     }
+    
     return true
   }
 } 

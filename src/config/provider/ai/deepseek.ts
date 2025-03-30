@@ -1,5 +1,6 @@
 import type { ContentRating, PromptType } from '@/types/shared/translation'
-import type { AIErrorMessages, AIModelPreset, CommonProviderConfig } from '@/types/ai/base'
+import type { AIErrorMessages, AIProviderType } from '@/types/ai/base'
+import type { AIModelPreset, ProviderMetadata } from '@/types/ai/metadata'
 import { AI_SUPPORTED_LANGUAGES } from '@/config/provider/languages'
 import { SUPPORTED_PROMPT_TYPES } from '@/config/provider/prompts'
 
@@ -16,26 +17,35 @@ const DEEPSEEK_PROMPT_TYPES = SUPPORTED_PROMPT_TYPES.filter(type =>
 /**
  * DeepSeek provider configuration
  */
-export const DEEPSEEK_CONFIG: CommonProviderConfig = {
+export const DEEPSEEK_CONFIG: ProviderMetadata = {
   name: 'DeepSeek',
   version: '1.0.0',
   costPerToken: 0.000001, // $0.001 per 1000 tokens
   maxBatchSize: 8,
-  defaultModel: 'deepseek-chat',
-  defaultTemperature: 0.3,
-  defaultMaxTokens: 1000,
   qualityScore: 0.90,
   supportsAdultContent: false,
-  contentRating: 'sfw' as ContentRating,
-  supportedModels: [
-    'deepseek-chat',
-    'deepseek-coder'
-  ],
-  baseUrl: 'https://api.deepseek.com/v1',
-  // Added required fields from updated CommonProviderConfig interface
   supportedPromptTypes: DEEPSEEK_PROMPT_TYPES as PromptType[],
   supportedLanguages: DEEPSEEK_LANGUAGES
 }
+
+/**
+ * DeepSeek provider default settings
+ */
+export const DEEPSEEK_DEFAULTS = {
+  providerType: 'deepseek' as AIProviderType, // Explicit provider identification
+  baseUrl: 'https://api.deepseek.com/v1', // API endpoint (verify against latest docs)
+  defaultModel: 'deepseek-chat', // Default conversational model
+  defaultTemperature: 0.3, // Balanced creativity/focus (0-1 scale)
+  defaultMaxTokens: 1000, // Response length limit (adjust per use case)
+  retryCount: 3, // Resilient retries for transient errors
+  batchSize: 5, // API requests per batch (align with rate limits)
+  timeout: 30000, // 30s timeout (balance UX and API reliability)
+  contentRating: 'sfw' as ContentRating, // Safety filter default
+  supportedModels: [ // Approved model variants
+    'deepseek-chat', // General-purpose conversations
+    'deepseek-coder' // Code-specific model
+  ]
+};
 
 /**
  * Model presets with UI metadata and defaults
@@ -78,10 +88,26 @@ export const DEEPSEEK_MODEL_ERROR_MESSAGES: Record<string, string> = {
 }
 
 /**
+ * Creates a default provider configuration for DeepSeek
+ */
+export function createDeepSeekProviderConfig(model?: string, apiKey?: string, options?: Record<string, unknown>) {
+  return {
+    providerType: DEEPSEEK_DEFAULTS.providerType,
+    model: model || DEEPSEEK_DEFAULTS.defaultModel,
+    baseUrl: DEEPSEEK_DEFAULTS.baseUrl,
+    apiKey,
+    temperature: DEEPSEEK_DEFAULTS.defaultTemperature,
+    maxTokens: DEEPSEEK_DEFAULTS.defaultMaxTokens,
+    contentRating: DEEPSEEK_DEFAULTS.contentRating,
+    options
+  };
+}
+
+/**
  * Check if a model is supported by DeepSeek
  */
 export function isDeepSeekModelSupported(model: string): boolean {
-  return DEEPSEEK_CONFIG.supportedModels.includes(model)
+  return DEEPSEEK_DEFAULTS.supportedModels.includes(model)
 }
 
 /**

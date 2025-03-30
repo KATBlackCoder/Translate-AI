@@ -1,5 +1,6 @@
 import type { ContentRating, PromptType } from '@/types/shared/translation'
-import type { AIErrorMessages, AIModelPreset, CommonProviderConfig } from '@/types/ai/base'
+import type { AIErrorMessages, AIProviderType } from '@/types/ai/base'
+import type { AIModelPreset, ProviderMetadata } from '@/types/ai/metadata'
 import { AI_SUPPORTED_LANGUAGES } from '@/config/provider/languages'
 import { SUPPORTED_PROMPT_TYPES } from '@/config/provider/prompts'
 
@@ -15,16 +16,29 @@ const OLLAMA_EXTENDED_LANGUAGES = AI_SUPPORTED_LANGUAGES.filter(lang =>
 /**
  * Ollama provider configuration
  */
-export const OLLAMA_CONFIG: CommonProviderConfig = {
+export const OLLAMA_CONFIG: ProviderMetadata = {
   name: 'Ollama',
   version: '1.0.0',
   costPerToken: 0, // Free, local inference
   maxBatchSize: 5,
-  defaultModel: 'llama2',
-  defaultTemperature: 0.7,
-  defaultMaxTokens: 2000,
   qualityScore: 0.85,
   supportsAdultContent: true,
+  supportedPromptTypes: SUPPORTED_PROMPT_TYPES as PromptType[],
+  supportedLanguages: OLLAMA_EXTENDED_LANGUAGES
+}
+
+/**
+ * Ollama provider default settings
+ */
+export const OLLAMA_DEFAULTS = {
+  providerType: 'ollama' as AIProviderType,
+  baseUrl: 'http://localhost:11434/v1',
+  defaultModel: 'mistral',
+  defaultTemperature: 0.7,
+  defaultMaxTokens: 2000,
+  retryCount: 3,
+  batchSize: 5,
+  timeout: 30000,
   contentRating: 'nsfw' as ContentRating,
   supportedModels: [
     'llama2',
@@ -36,10 +50,7 @@ export const OLLAMA_CONFIG: CommonProviderConfig = {
     'dolphin-phi',
     'neural-chat',
     'starling-lm'
-  ],
-  baseUrl: 'http://localhost:11434/api',
-  supportedPromptTypes: SUPPORTED_PROMPT_TYPES as PromptType[],
-  supportedLanguages: OLLAMA_EXTENDED_LANGUAGES
+  ]
 }
 
 /**
@@ -97,10 +108,25 @@ export const OLLAMA_MODEL_ERROR_MESSAGES: Record<string, string> = {
 }
 
 /**
+ * Creates a default provider configuration for Ollama
+ */
+export function createOllamaProviderConfig(model?: string, options?: Record<string, unknown>) {
+  return {
+    providerType: OLLAMA_DEFAULTS.providerType,
+    model: model || OLLAMA_DEFAULTS.defaultModel,
+    baseUrl: OLLAMA_DEFAULTS.baseUrl,
+    temperature: OLLAMA_DEFAULTS.defaultTemperature,
+    maxTokens: OLLAMA_DEFAULTS.defaultMaxTokens,
+    contentRating: OLLAMA_DEFAULTS.contentRating,
+    options
+  };
+}
+
+/**
  * Check if a model is supported by Ollama
  */
 export function isOllamaModelSupported(model: string): boolean {
-  return OLLAMA_CONFIG.supportedModels.includes(model)
+  return OLLAMA_DEFAULTS.supportedModels.includes(model)
 }
 
 /**

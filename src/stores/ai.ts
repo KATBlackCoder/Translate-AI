@@ -1,90 +1,108 @@
+// src/stores/ai/ai.ts
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { useAIProvider } from '@/composables/useAIProvider'
-import { useTranslationService } from '@/composables/useTranslationService'
-import { useTranslationStats } from '@/composables/useTranslationStats'
-import { useRateLimit } from '@/composables/useRateLimit'
-import { useOllamaConnection } from '@/composables/providers/useOllamaConnection'
-import { useChatGPTConnection } from '@/composables/providers/useChatGPTConnection'
-import { useDeepSeekConnection } from '@/composables/providers/useDeepSeekConnection'
-import { useSettingsStore } from '@/stores/settings'
-import type { ContentRating } from '@/types/shared/translation'
+import { TranslationService } from '@/services/translation'
+import type { AIServiceConfig } from '@/types/ai/config'
 
+/**
+ * AI Provider Store
+ * Responsible for managing the AI provider configuration and initialization.
+ * Only handles provider state, not translation functionality.
+ */
 export const useAIStore = defineStore('ai', () => {
   // State
-  const isLoading = ref(false)
-  const errors = ref<Array<{
-    code: string
-    message: string
-    timestamp: number
-    metadata?: Record<string, unknown>
-  }>>([])
-  const lastUpdated = ref(Date.now())
-
-  // Composables
-  const settings = useSettingsStore()
-  const { stats, reset: resetStats } = useTranslationStats()
-  const { reset: resetRateLimit } = useRateLimit()
-  const { isConnected: isOllamaConnected } = useOllamaConnection()
-  const { isConnected: isChatGPTConnected } = useChatGPTConnection()
-  const { isConnected: isDeepSeekConnected } = useDeepSeekConnection()
-  const { 
-    provider, 
-    providerType, 
-    isVerifying, 
-    initialize, 
-    reset: resetProvider 
-  } = useAIProvider()
+  const config = ref<AIServiceConfig | null>(null)
+  const isInitializing = ref(false)
+  const error = ref<Error | null>(null)
   
-  // Create reactive settings configuration with computed properties
-  const translationSettings = {
-    addError: (error: any) => errors.value.push(error),
-    setLoading: (loading: boolean) => isLoading.value = loading,
-    updateLastModified: () => lastUpdated.value = Date.now(),
-    get sourceLanguage() { return settings.sourceLanguage },
-    get targetLanguage() { return settings.targetLanguage },
-    get contentRating(): ContentRating { 
-      return settings.allowNSFWContent ? 'nsfw' : 'sfw' 
-    },
-    get isTranslationConfigValid() { return settings.isTranslationConfigValid }
-  }
+  // Service reference
+  const service = TranslationService.getInstance()
   
-  const { translate, translateBatch } = useTranslationService(
-    provider, 
-    providerType,
-    translationSettings
-  )
-
   // Computed
-  const estimatedCost = computed(() => stats.value.totalCost)
-
-  function reset() {
-    isLoading.value = false
-    errors.value = []
-    lastUpdated.value = Date.now()
-    resetStats()
-    resetRateLimit()
-    resetProvider()
+  const isReady = computed(() => service.isInitialized() && !isInitializing.value)
+  const currentProvider = computed(() => config.value?.provider.providerType || 'None')
+  const providerMetadata = computed(() => {
+    if (!config.value) return null
+    
+    return {
+      model: config.value.provider.model,
+      sourceLanguage: config.value.sourceLanguage,
+      targetLanguage: config.value.targetLanguage,
+      contentRating: config.value.contentRating
+    }
+  })
+  
+  /**
+   * Initialize the AI provider with the specified configuration
+   */
+  async function initializeProvider(serviceConfig: AIServiceConfig): Promise<void> {
+    isInitializing.value = true
+    error.value = null
+    
+    try {
+      await service.initialize(serviceConfig)
+      config.value = serviceConfig
+    } catch (err) {
+      error.value = err instanceof Error ? err : new Error(String(err))
+      throw error.value
+    } finally {
+      isInitializing.value = false
+    }
   }
-
+  
+  /**
+   * Reset the provider state
+   */
+  function resetProvider(): void {
+    service.reset()
+    error.value = null
+  }
+  
+  /**
+   * Check if the AI provider configuration is valid
+   */
+  async function validateProviderConfig(serviceConfig: AIServiceConfig): Promise<boolean> {
+    try {
+      return await service.validateConfig(serviceConfig)
+    } catch (err) {
+      error.value = err instanceof Error ? err : new Error(String(err))
+      return false
+    }
+  }
+  
+  /**
+   * Get current provider health status
+   */
+  function getProviderHealth(): { isHealthy: boolean; lastError: Error | null } {
+    return {
+      isHealthy: service.isHealthy(),
+      lastError: service.getLastError()
+    }
+  }
+  
+  /**
+   * Get current service configuration
+   */
+  function getCurrentConfig(): AIServiceConfig | null {
+    return service.getCurrentConfig()
+  }
+  
   return {
     // State
-    provider,
-    providerType,
-    isLoading,
-    errors,
-    lastUpdated,
-    stats,
-    isVerifying,
-    isOllamaConnected,
-    isChatGPTConnected,
-    isDeepSeekConnected,
-    estimatedCost,
-
-    // Actions
-    initializeProvider: initialize,
-    translate,
-    translateBatch,
-    reset
+    config,
+    isInitializing,
+    error,
+    
+    // Computed
+    isReady,
+    currentProvider,
+    providerMetadata,
+    
+    // Methods
+    initializeProvider,
+    resetProvider,
+    validateProviderConfig,
+    getProviderHealth,
+    getCurrentConfig
   }
-}) 
+})

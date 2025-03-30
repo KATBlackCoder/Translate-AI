@@ -1,251 +1,181 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import type { 
-  AIProviderType,
-  TranslationQualitySettings
-} from '@/types/ai/base'
-import type { EngineType } from '@/types/engines/base'
-import { usePreferredDark } from '@vueuse/core'
-import { useRPGMVStore } from './engines/rpgmv'
-import { AI_MODEL_PRESETS, getDefaultModelForProvider } from '@/config/provider/ai'
-// TODO: Add new engine store when adding
-// import { useNewEngineStore } from './engines/newengine'
-
+import { OLLAMA_DEFAULTS } from '@/config/provider/ai/ollama'
 /**
  * Store for managing application settings
- * @returns {Object} Settings state and methods
+ * Handles translation configuration, AI provider settings, and quality settings
  */
 export const useSettingsStore = defineStore('settings', () => {
-  const rpgmvStore = useRPGMVStore()
-  // TODO: Add new engine store when adding
-  // const newEngineStore = useNewEngineStore()
-
-  // Translation Settings
-  const sourceLanguage = ref('ja')
-  const targetLanguage = ref('en')
-  const allowNSFWContent = ref(false)
-
-  // AI Provider Settings
-  const aiProvider = ref<AIProviderType>('ollama')
-  const aiModel = ref('mistral')
-  const apiKey = ref('')
-  const baseUrl = ref('')
-
-  // Quality Settings
-  const qualitySettings = ref<TranslationQualitySettings>({
-    temperature: 0.3,
-    maxTokens: 1000,
-    retryCount: 3,
-    batchSize: 10,
-    timeout: 30000
-  })
-
-  // Engine Settings
-  // To add a new engine:
-  // 1. Add the engine type to EngineType in types/engines/base.ts
-  // 2. Create new engine store in src/stores/engines/[engine].ts
-  // 3. Create engine-specific handlers in src/services/engines/[engine]/
-  const engineType = ref<EngineType>('rpgmv')
-
-  // Theme
+  // Language settings
+  const sourceLanguage = ref<string>('ja')
+  const targetLanguage = ref<string>('en')
+  
+  // AI provider settings
+  const aiProvider = ref<string>(OLLAMA_DEFAULTS.providerType)
+  const aiModel = ref<string>(OLLAMA_DEFAULTS.defaultModel)
+  const apiKey = ref<string>('')
+  const baseUrl = ref<string>(OLLAMA_DEFAULTS.baseUrl)
+  
+  // Content settings
+  const allowNSFWContent = ref<boolean>(true)
+  
+  // Theme settings
   const isDark = ref(false)
-  const systemDark = usePreferredDark()
-
-  // Validation
+  
+  // Quality settings
+  const qualitySettings = ref({
+    temperature: OLLAMA_DEFAULTS.defaultTemperature,
+    maxTokens: OLLAMA_DEFAULTS.defaultMaxTokens,
+    retryCount: OLLAMA_DEFAULTS.retryCount, 
+    batchSize: OLLAMA_DEFAULTS.batchSize,
+    timeout: OLLAMA_DEFAULTS.timeout
+  })
+  
+  // Computed properties
   const isAIConfigValid = computed(() => {
-    if (aiProvider.value === 'ollama') {
-      return Boolean(aiModel.value) && Boolean(baseUrl.value)
-    }
-    if (aiProvider.value === 'deepseek' || aiProvider.value === 'chatgpt') {
-      return Boolean(apiKey.value && baseUrl.value && aiModel.value)
-    }
-    return Boolean(apiKey.value && aiModel.value)
-  })
-
-  const isTranslationConfigValid = computed(() => {
-    return Boolean(sourceLanguage.value && targetLanguage.value)
-  })
-
-  const isQualityConfigValid = computed(() => {
-    const q = qualitySettings.value
-    return (
-      q.temperature >= 0 && 
-      q.temperature <= 2 &&
-      q.maxTokens > 0 &&
-      q.retryCount > 0 &&
-      q.batchSize > 0 &&
-      q.timeout >= 1000
-    )
-  })
-
-  /**
-   * Gets engine-specific configuration
-   * @param {string} key - Configuration key
-   * @returns {T | undefined} Configuration value
-   */
-  function getEngineConfig<T>(key: keyof typeof rpgmvStore.settings): T | undefined {
-    switch (engineType.value) {
-      case 'rpgmv':
-        return rpgmvStore.getConfig(key)
-      // TODO: Add new engine when adding
-      // case 'newengine':
-      //   return newEngineStore.getConfig(key)
-      default:
-        return undefined
-    }
-  }
-
-  /**
-   * Sets engine-specific configuration
-   * @param {keyof typeof rpgmvStore.settings} key - Configuration key
-   * @param {typeof rpgmvStore.settings[keyof typeof rpgmvStore.settings]} value - Configuration value
-   */
-  function setEngineConfig<K extends keyof typeof rpgmvStore.settings>(
-    key: K, 
-    value: typeof rpgmvStore.settings[K]
-  ) {
-    switch (engineType.value) {
-      case 'rpgmv':
-        rpgmvStore.setConfig(key, value)
-        break
-      // TODO: Add new engine when adding
-      // case 'newengine':
-      //   newEngineStore.setConfig(key, value)
-      //   break
-    }
-  }
-
-  /**
-   * Gets available AI models for the selected provider
-   * @returns {Record<string, AIModelPreset>} Dictionary of available models
-   */
-  function getAvailableModels() {
-    return AI_MODEL_PRESETS[aiProvider.value] || {}
-  }
-
-  /**
-   * Gets current model preset
-   * @returns {AIModelPreset | undefined} The current model preset or undefined
-   */
-  function getCurrentModelPreset() {
-    const models = AI_MODEL_PRESETS[aiProvider.value]
-    return models?.[aiModel.value]
-  }
-
-  /**
-   * Updates quality settings based on the selected model
-   */
-  function applyModelPresetDefaults(): void {
-    const preset = getCurrentModelPreset()
-    if (preset) {
-      qualitySettings.value.temperature = preset.defaultTemperature
-      qualitySettings.value.maxTokens = preset.defaultMaxTokens
-    }
-  }
-
-  /**
-   * Checks if the current language pair is supported by the selected model
-   * @returns {boolean} True if the language pair is supported
-   */
-  function isLanguagePairSupported(): boolean {
-    const preset = getCurrentModelPreset()
-    if (!preset || !preset.supportedLanguages) return true // Assume supported if not specified
+    const validProvider = !!aiProvider.value
+    const validModel = !!aiModel.value
     
-    return preset.supportedLanguages.includes(sourceLanguage.value) && 
-           preset.supportedLanguages.includes(targetLanguage.value)
-  }
-
+    // Different validation depending on provider
+    if (aiProvider.value === 'ollama') {
+      return validProvider && validModel && !!baseUrl.value
+    } else if (aiProvider.value === 'chatgpt' || aiProvider.value === 'deepseek') {
+      return validProvider && validModel && !!apiKey.value
+    }
+    
+    return false
+  })
+  
+  const isTranslationConfigValid = computed(() => {
+    return !!sourceLanguage.value && 
+           !!targetLanguage.value && 
+           sourceLanguage.value !== targetLanguage.value
+  })
+  
   /**
-   * Resets all settings to default values
+   * Save settings to local storage
    */
-  function reset() {
+  function saveSettings() {
+    const settings = {
+      sourceLanguage: sourceLanguage.value,
+      targetLanguage: targetLanguage.value,
+      aiProvider: aiProvider.value,
+      aiModel: aiModel.value,
+      apiKey: apiKey.value,
+      baseUrl: baseUrl.value,
+      allowNSFWContent: allowNSFWContent.value,
+      qualitySettings: qualitySettings.value
+    }
+    
+    localStorage.setItem('translation-ai-settings', JSON.stringify(settings))
+  }
+  
+  /**
+   * Load settings from local storage
+   */
+  function loadSettings() {
+    const savedSettings = localStorage.getItem('translation-ai-settings')
+    if (!savedSettings) return
+    
+    try {
+      const settings = JSON.parse(savedSettings)
+      
+      // Update refs with saved values
+      sourceLanguage.value = settings.sourceLanguage || 'ja'
+      targetLanguage.value = settings.targetLanguage || 'en'
+      aiProvider.value = settings.aiProvider || OLLAMA_DEFAULTS.providerType
+      aiModel.value = settings.aiModel || OLLAMA_DEFAULTS.defaultModel
+      apiKey.value = settings.apiKey || ''
+      baseUrl.value = settings.baseUrl || OLLAMA_DEFAULTS.baseUrl
+      allowNSFWContent.value = settings.allowNSFWContent || false
+      
+      // Merge quality settings with defaults
+      qualitySettings.value = {
+        ...qualitySettings.value,
+        ...settings.qualitySettings
+      }
+    } catch (error) {
+      console.error('Error loading settings:', error)
+    }
+  }
+  
+  /**
+   * Reset settings to defaults
+   */
+  function resetSettings() {
     sourceLanguage.value = 'ja'
     targetLanguage.value = 'en'
-    allowNSFWContent.value = false
     aiProvider.value = 'ollama'
-    aiModel.value = getDefaultModelForProvider('ollama')
+    aiModel.value = 'mistral'
     apiKey.value = ''
-    baseUrl.value = ''
+    baseUrl.value = 'http://localhost:11434/api'
+    allowNSFWContent.value = false
     
-    // Use default values from the mistral preset
-    const defaultPreset = AI_MODEL_PRESETS.ollama.mistral
     qualitySettings.value = {
-      temperature: defaultPreset.defaultTemperature,
-      maxTokens: defaultPreset.defaultMaxTokens,
+      temperature: 0.7,
+      maxTokens: 2000,
       retryCount: 3,
-      batchSize: 10,
+      batchSize: 5,
       timeout: 30000
     }
-
-    engineType.value = 'rpgmv'
-    rpgmvStore.reset()
-    // TODO: Add new engine when adding
-    // newEngineStore.reset()
+    
+    // Remove from local storage
+    localStorage.removeItem('translation-ai-settings')
   }
-
+  
   /**
-   * Initializes theme from localStorage or system preference
+   * Toggle between dark and light mode
    */
-  const initializeTheme = () => {
-    const stored = localStorage.getItem('darkMode')
-    isDark.value = stored ? JSON.parse(stored) : systemDark.value
-    updateTheme()
-  }
-
-  /**
-   * Updates theme in DOM and localStorage
-   */
-  const updateTheme = () => {
-    document.documentElement.classList.toggle('dark', isDark.value)
-    localStorage.setItem('darkMode', JSON.stringify(isDark.value))
-  }
-
-  /**
-   * Toggles dark mode
-   */
-  const toggleDarkMode = () => {
+  function toggleDarkMode() {
     isDark.value = !isDark.value
     updateTheme()
   }
-
+  
+  /**
+   * Initialize theme based on system preference
+   */
+  function initializeTheme() {
+    // Use system preference
+    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
+    isDark.value = prefersDark
+    updateTheme()
+  }
+  
+  /**
+   * Update the document theme based on current isDark state
+   */
+  function updateTheme() {
+    if (isDark.value) {
+      document.documentElement.classList.add('dark')
+    } else {
+      document.documentElement.classList.remove('dark')
+    }
+  }
+  
+  // Load settings on store creation
+  loadSettings()
+  
   return {
-    // Translation Settings
+    // State
     sourceLanguage,
     targetLanguage,
-    allowNSFWContent,
-    
-    // AI Settings
     aiProvider,
     aiModel,
     apiKey,
     baseUrl,
-    
-    // AI Model Presets
-    modelPresets: AI_MODEL_PRESETS,
-    getAvailableModels,
-    getCurrentModelPreset,
-    applyModelPresetDefaults,
-    isLanguagePairSupported,
-    
-    // Quality Settings
+    allowNSFWContent,
     qualitySettings,
+    isDark,
     
-    // Engine Settings
-    engineType,
-    getEngineConfig,
-    setEngineConfig,
-
-    // Validation
+    // Computed
     isAIConfigValid,
     isTranslationConfigValid,
-    isQualityConfigValid,
     
-    // Actions
-    reset,
-
-    // Theme
-    isDark,
-    initializeTheme,
+    // Methods
+    saveSettings,
+    loadSettings,
+    resetSettings,
     toggleDarkMode,
+    initializeTheme
   }
 }) 

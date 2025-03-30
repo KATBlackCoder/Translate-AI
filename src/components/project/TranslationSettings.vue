@@ -1,5 +1,5 @@
 <template>
-  <Card class="h-full">
+  <Card class="h-full dark:bg-gray-800 dark:text-white dark:dark-card" :class="{'': settingsStore.isDark}">
     <template #title>
       <div class="text-lg font-medium">Translation Settings</div>
     </template>
@@ -8,7 +8,7 @@
         <!-- Language Selection -->
         <div class="grid grid-cols-2 gap-4">
           <div>
-            <label class="block mb-2 text-sm font-medium text-gray-700">Source Language</label>
+            <label class="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-200">Source Language</label>
             <Select 
               v-model="settingsStore.sourceLanguage"
               :options="languages"
@@ -19,7 +19,7 @@
             />
           </div>
           <div>
-            <label class="block mb-2 text-sm font-medium text-gray-700">Target Language</label>
+            <label class="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-200">Target Language</label>
             <Select 
               v-model="settingsStore.targetLanguage"
               :options="languages"
@@ -31,9 +31,31 @@
           </div>
         </div>
 
+        <!-- Content Rating Controls -->
+        <div>
+          <label class="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-200">Content Rating</label>
+          <div class="flex flex-col gap-2">
+            <div class="flex items-center gap-2">
+              <InputSwitch v-model="settingsStore.allowNSFWContent" />
+              <span class="text-sm text-gray-700 dark:text-gray-200">
+                Allow NSFW Content
+              </span>
+              <Badge 
+                :value="contentRatingLabel" 
+                :severity="settingsStore.allowNSFWContent ? 'warning' : 'success'" 
+                class="ml-2"
+              />
+            </div>
+            <small class="text-xs text-gray-500 dark:text-gray-400">
+              This setting determines the content rating sent to AI providers. 
+              When disabled, translation requests will be limited to SFW content only.
+            </small>
+          </div>
+        </div>
+
         <!-- AI Provider Selection -->
         <div>
-          <label class="block mb-2 text-sm font-medium text-gray-700">AI Provider</label>
+          <label class="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-200">AI Provider</label>
           <Select 
             v-model="settingsStore.aiProvider"
             :options="aiProviders"
@@ -46,7 +68,7 @@
 
         <!-- AI Model Selection -->
         <div v-if="settingsStore.aiProvider === 'ollama'">
-          <label class="block mb-2 text-sm font-medium text-gray-700">Ollama Model</label>
+          <label class="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-200">Ollama Model</label>
           <Select 
             v-model="settingsStore.aiModel"
             :options="ollamaModels"
@@ -55,7 +77,7 @@
             placeholder="Select Ollama model"
             class="w-full"
           />
-          <div class="mt-1 text-sm text-gray-500">
+          <div class="mt-1 text-sm text-gray-500 dark:text-gray-400">
             Server URL: 
             <InputText 
               v-model="settingsStore.baseUrl" 
@@ -68,7 +90,7 @@
         <!-- ChatGPT Settings -->
         <div v-if="settingsStore.aiProvider === 'chatgpt'">
           <div class="mb-4">
-            <label class="block mb-2 text-sm font-medium text-gray-700">OpenAI Model</label>
+            <label class="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-200">OpenAI Model</label>
             <Select 
               v-model="settingsStore.aiModel"
               :options="chatgptModels"
@@ -80,7 +102,7 @@
           </div>
           
           <div class="mb-4">
-            <label class="block mb-2 text-sm font-medium text-gray-700">OpenAI API Key</label>
+            <label class="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-200">OpenAI API Key</label>
             <Password 
               v-model="settingsStore.apiKey"
               :feedback="false"
@@ -91,7 +113,7 @@
           </div>
           
           <div class="mb-4">
-            <label class="block mb-2 text-sm font-medium text-gray-700">API Base URL (Optional)</label>
+            <label class="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-200">API Base URL (Optional)</label>
             <InputText 
               v-model="settingsStore.baseUrl" 
               placeholder="https://api.openai.com/v1"
@@ -103,7 +125,7 @@
         <!-- DeepSeek Settings -->
         <div v-if="settingsStore.aiProvider === 'deepseek'">
           <div class="mb-4">
-            <label class="block mb-2 text-sm font-medium text-gray-700">DeepSeek Model</label>
+            <label class="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-200">DeepSeek Model</label>
             <Select 
               v-model="settingsStore.aiModel"
               :options="deepseekModels"
@@ -115,7 +137,7 @@
           </div>
           
           <div class="mb-4">
-            <label class="block mb-2 text-sm font-medium text-gray-700">API Key</label>
+            <label class="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-200">API Key</label>
             <Password 
               v-model="settingsStore.apiKey"
               :feedback="false"
@@ -126,7 +148,7 @@
           </div>
           
           <div class="mb-4">
-            <label class="block mb-2 text-sm font-medium text-gray-700">API Base URL</label>
+            <label class="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-200">API Base URL</label>
             <InputText 
               v-model="settingsStore.baseUrl" 
               placeholder="https://api.deepseek.com/v1"
@@ -140,7 +162,7 @@
           <AccordionTab header="Advanced Settings">
             <div class="grid grid-cols-2 gap-4 mb-4">
               <div>
-                <label class="block mb-2 text-sm font-medium text-gray-700">Temperature</label>
+                <label class="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-200">Temperature</label>
                 <div class="flex items-center gap-2">
                   <Slider 
                     v-model="settingsStore.qualitySettings.temperature" 
@@ -151,13 +173,13 @@
                   />
                   <span class="text-sm">{{ settingsStore.qualitySettings.temperature }}</span>
                 </div>
-                <div class="text-xs text-gray-500 mt-1">
+                <div class="text-xs mt-1 text-gray-500 dark:text-gray-400">
                   Lower values are more focused, higher values more creative
                 </div>
               </div>
               
               <div>
-                <label class="block mb-2 text-sm font-medium text-gray-700">Max Tokens</label>
+                <label class="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-200">Max Tokens</label>
                 <InputNumber 
                   v-model="settingsStore.qualitySettings.maxTokens" 
                   :min="100" 
@@ -169,20 +191,20 @@
             
             <div class="grid grid-cols-2 gap-4">
               <div>
-                <label class="block mb-2 text-sm font-medium text-gray-700">Batch Size</label>
+                <label class="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-200">Batch Size</label>
                 <InputNumber 
                   v-model="settingsStore.qualitySettings.batchSize" 
                   :min="1" 
                   :max="50"
                   class="w-full"
                 />
-                <div class="text-xs text-gray-500 mt-1">
+                <div class="text-xs mt-1 text-gray-500 dark:text-gray-400">
                   Number of texts to translate in one batch
                 </div>
               </div>
               
               <div>
-                <label class="block mb-2 text-sm font-medium text-gray-700">Retry Count</label>
+                <label class="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-200">Retry Count</label>
                 <InputNumber 
                   v-model="settingsStore.qualitySettings.retryCount" 
                   :min="0" 
@@ -211,7 +233,7 @@
             label="Reset Settings" 
             icon="pi pi-refresh" 
             severity="secondary" 
-            @click="resetSettings"
+            @click="settingsStore.reset"
           />
         </div>
       </div>
@@ -275,6 +297,11 @@ const deepseekModels = [
   { name: 'DeepSeek Coder', id: 'deepseek-coder' }
 ]
 
+// Content rating computed value
+const contentRatingLabel = computed(() => 
+  settingsStore.allowNSFWContent ? 'NSFW' : 'SFW'
+)
+
 // Set default base URL when provider changes
 watch(() => settingsStore.aiProvider, (newProvider) => {
   if (newProvider && (!settingsStore.baseUrl || settingsStore.baseUrl === '')) {
@@ -284,26 +311,8 @@ watch(() => settingsStore.aiProvider, (newProvider) => {
 
 // Validation
 const isValid = computed(() => settingsStore.isTranslationConfigValid && settingsStore.isAIConfigValid)
+</script>
 
-// Add resetSettings function
-function resetSettings() {
-  // Reset language settings
-  settingsStore.sourceLanguage = 'ja'
-  settingsStore.targetLanguage = 'en'
-  
-  // Reset AI provider settings
-  settingsStore.aiProvider = 'ollama'
-  settingsStore.aiModel = 'mistral'
-  settingsStore.baseUrl = defaultBaseUrls.ollama
-  settingsStore.apiKey = ''
-  
-  // Reset quality settings
-  settingsStore.qualitySettings = {
-    temperature: 0.3,
-    maxTokens: 1000,
-    retryCount: 3,
-    batchSize: 10,
-    timeout: 30000
-  }
-}
-</script> 
+<style scoped>
+
+</style> 

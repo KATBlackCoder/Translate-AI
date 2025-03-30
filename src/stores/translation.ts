@@ -1,325 +1,180 @@
+// src/stores/translation.ts
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import type { ResourceTranslation } from '@/types/shared/translation'
-import { writeTextFile, writeFile } from '@tauri-apps/plugin-fs'
-import { join } from '@tauri-apps/api/path'
-import { open, save } from '@tauri-apps/plugin-dialog'
-import { zip } from 'fflate'
-import { useProjectStore } from './project'
-import { useSettingsStore } from './settings'
-import { useAIStore } from './ai'
-import { useEngineStore } from './engines/engine'
-import { useTranslationStats } from '@/composables/useTranslationStats'
-
-// Define TranslationTarget and TranslatedText types based on ResourceTranslation
-type TranslationTarget = ResourceTranslation;
-type TranslatedText = ResourceTranslation;
+import { useTranslationQueue } from '@/composables/useTranslationQueue'
+import type { ResourceTranslation, PromptType } from '@/types/shared/translation'
 
 /**
- * Store for managing translation operations
- * Handles translating, saving, and exporting game resources
+ * Translation Store
+ * 
+ * Responsible for:
+ * - Managing the translation UI state
+ * - Tracking translation progress
+ * - Storing and organizing translation results
+ * - Providing high-level translation operations
  */
 export const useTranslationStore = defineStore('translation', () => {
-  const projectStore = useProjectStore()
-  const settingsStore = useSettingsStore()
-  const aiStore = useAIStore()
-  const engineStore = useEngineStore()
-  const translationStats = useTranslationStats()
-
-  // Translation State
-  const translatedTexts = ref<TranslatedText[]>([])
-  const currentFile = ref('')
-  const progress = ref(0)
-  const errors = ref<string[]>([])
-  const shouldCancel = ref(false)
-
-  // Helper functions
-  function findTranslationByResourceId(resourceId: string): TranslatedText | undefined {
-    return translatedTexts.value.find(t => t.resourceId === resourceId)
-  }
-
-  function findTranslationsByResourceId(resourceId: string): TranslatedText[] {
-    return translatedTexts.value.filter(t => t.resourceId === resourceId)
-  }
-
+  // Core dependencies
+  const queue = useTranslationQueue()
+  
+  // State
+  const isTranslating = ref(false)
+  const error = ref<string | null>(null)
+  const results = ref<ResourceTranslation[]>([])
+  const currentBatch = ref<ResourceTranslation[]>([])
+  const totalItemsCount = ref(0)
+  
   // Computed
-  const isTranslating = computed(() => progress.value > 0 && progress.value < 100)
-  const canTranslate = computed(() => 
-    projectStore.extractedTexts.length > 0 && 
-    settingsStore.isTranslationConfigValid && 
-    settingsStore.isAIConfigValid
-  )
-
+  const progress = computed(() => {
+    if (totalItemsCount.value === 0) return 0
+    return Math.round((results.value.length / totalItemsCount.value) * 100)
+  })
+  
+  const completedItems = computed(() => results.value.length)
+  const remainingItems = computed(() => totalItemsCount.value - completedItems.value)
+  
   /**
-   * Start translation of all untranslated texts
-   * @returns {Promise<boolean>} True if successful, false otherwise
+   * Translate a batch of texts
+   * Delegates to the translation queue for actual processing
    */
-  async function translateAll(): Promise<boolean> {
-    if (!canTranslate.value) {
-      errors.value.push('Cannot start translation: invalid configuration')
-      return false
+  async function translateBatch(
+    texts: ResourceTranslation[], 
+    batchSize = 10,
+    promptType: PromptType = 'general'
+  ): Promise<ResourceTranslation[]> {
+    if (texts.length === 0) return []
+    
+    const allResults: ResourceTranslation[] = []
+    
+    // Create batches
+    const batches: ResourceTranslation[][] = []
+    for (let i = 0; i < texts.length; i += batchSize) {
+      batches.push(texts.slice(i, i + batchSize))
     }
-
-    const untranslated = projectStore.extractedTexts.filter((text: TranslationTarget) => 
-      !translatedTexts.value.some((t: TranslatedText) => 
-        t.resourceId === text.resourceId && 
-        t.field === text.field && 
-        t.file === text.file
-      )
-    )
-
-    if (untranslated.length === 0) {
-      return true
-    }
-
-    try {
-      errors.value = [] // Clear previous errors
-      shouldCancel.value = false
+    
+    for (const batch of batches) {
+      currentBatch.value = batch
       
-      // Initialize AI provider with the current settings
-      aiStore.initializeProvider(
-        settingsStore.aiProvider,
-        {
-          model: settingsStore.aiModel,
-          apiKey: settingsStore.apiKey,
-          baseUrl: settingsStore.baseUrl,
-          temperature: settingsStore.qualitySettings.temperature,
-          maxTokens: settingsStore.qualitySettings.maxTokens,
-          contentRating: settingsStore.allowNSFWContent ? 'nsfw' : 'sfw'
-        }
-      )
-      
-      progress.value = 0
-      const batchSize = settingsStore.qualitySettings.batchSize || 10
-      const batches = Math.ceil(untranslated.length / batchSize)
-
-      for (let i = 0; i < batches && !shouldCancel.value; i++) {
-        currentFile.value = untranslated[i * batchSize]?.file || ''
-        const batch = untranslated.slice(i * batchSize, (i + 1) * batchSize)
-        const result = await aiStore.translateBatch(batch)
+      try {
+        // Use the queue to process this batch
+        queue.clearQueue()
+        queue.addToQueue(batch)
         
-        if (result.translations.length > 0) {
-          const completeTranslations = result.translations.map((translation: any) => {
-            const sourceText = batch.find(text => text.resourceId === translation.resourceId)
-            if (!sourceText) return null
-            
-            return {
-              ...translation,
-              field: sourceText.field,
-              file: sourceText.file,
-              resourceId: sourceText.resourceId,
-              section: sourceText.section
-            } as ResourceTranslation
-          }).filter(Boolean) as ResourceTranslation[]
-          
-          translatedTexts.value.push(...completeTranslations)
-          
-          // Update translation statistics
-          if (result.stats) {
-            translationStats.stats.value = {
-              ...translationStats.stats.value,
-              ...result.stats
-            }
-          }
+        const result = await queue.processQueue({ promptType, batchSize })
+        
+        if (result?.translations) {
+          // Add to our cumulative results
+          const batchResults = ensureResourceTranslations(result.translations)
+          results.value = [...results.value, ...batchResults]
+          allResults.push(...batchResults)
         }
-
-        // Add any AI errors to translation errors
-        if ('errors' in result && result.errors?.length) {
-          errors.value.push(...result.errors.map((e: { error: string }) => e.error))
-        }
-
-        progress.value = Math.round(((i + 1) / batches) * 100)
+      } catch (e) {
+        handleError('Batch translation error', e)
       }
-
-      return !shouldCancel.value
-    } catch (error) {
-      errors.value.push(error instanceof Error ? error.message : 'Translation failed')
-      return false
+    }
+    
+    currentBatch.value = []
+    return allResults
+  }
+  
+  /**
+   * Translate all texts and optionally apply the translations
+   */
+  async function translateAll(
+    texts: ResourceTranslation[],
+    applyTranslationsFn?: (translations: ResourceTranslation[]) => Promise<void>,
+    promptType: PromptType = 'general'
+  ): Promise<ResourceTranslation[]> {
+    if (isTranslating.value) return []
+    
+    try {
+      // Start translation process
+      isTranslating.value = true
+      error.value = null
+      results.value = []
+      
+      if (texts.length === 0) {
+        console.warn('No texts to translate')
+        return []
+      }
+      
+      // Set total for progress tracking
+      totalItemsCount.value = texts.length
+      
+      // Translate all texts in batches
+      const translatedTexts = await translateBatch(texts, 10, promptType)
+      
+      // Apply translations if a function was provided
+      if (translatedTexts.length > 0 && applyTranslationsFn) {
+        await applyTranslationsFn(translatedTexts)
+      }
+      
+      return translatedTexts
+    } catch (e) {
+      handleError('Translation process error', e)
+      return []
     } finally {
-      if (shouldCancel.value) {
-        errors.value.push('Translation cancelled')
-      }
-      currentFile.value = ''
-      progress.value = 0
-      shouldCancel.value = false
+      isTranslating.value = false
     }
   }
-
+  
   /**
-   * Cancel the current translation process
+   * Reset the translation state
    */
-  function cancelTranslation(): void {
-    if (isTranslating.value) {
-      shouldCancel.value = true
-    }
+  function resetTranslation() {
+    isTranslating.value = false
+    error.value = null
+    results.value = []
+    currentBatch.value = []
+    totalItemsCount.value = 0
+    queue.clearQueue()
   }
-
+  
+/**
+ * Handle errors consistently
+ */
+function handleError(context: string, err: unknown) {
+  const message = err instanceof Error ? err.message : String(err)
+  error.value = `${context}: ${message}`
+  console.error(error.value)
+}
+  
   /**
-   * Save translated files to the specified directory
-   * @returns {Promise<boolean>} True if successful, false otherwise
+   * Ensure all items are valid ResourceTranslations
    */
-  async function saveTranslations(): Promise<boolean> {
-    try {
-      if (!projectStore.projectPath || !projectStore.projectFiles.length) {
-        throw new Error('No project files loaded')
-      }
-
-      if (!translatedTexts.value.length) {
-        throw new Error('No translations to save')
-      }
-
-      const selectedDir = await open({
-        directory: true,
-        multiple: false,
-        title: 'Select where to save translated files'
-      })
-
-      if (!selectedDir) {
-        throw new Error('No directory selected')
-      }
-
-      const updatedFiles = await engineStore.applyTranslations(
-        projectStore.projectFiles, 
-        translatedTexts.value,
-        settingsStore.engineType
-      )
-      
-      const savedFiles: string[] = []
-      const failedFiles: string[] = []
-
-      for (const file of updatedFiles) {
-        try {
-          const relativePath = file.path.replace('www/data/', '')
-          const fullPath = await join(selectedDir as string, relativePath)
-          await writeTextFile(fullPath, JSON.stringify(file.content, null, 2))
-          savedFiles.push(relativePath)
-        } catch (error) {
-          failedFiles.push(file.path)
-          errors.value.push(`Failed to save ${file.path}: ${error instanceof Error ? error.message : 'Unknown error'}`)
-        }
-      }
-
-      if (failedFiles.length > 0) {
-        if (savedFiles.length === 0) {
-          throw new Error('Failed to save any files. Check file permissions and try again.')
-        }
-        throw new Error(`Partially saved. Failed files: ${failedFiles.join(', ')}`)
-      }
-
-      return true
-    } catch (error) {
-      errors.value.push(error instanceof Error ? error.message : 'Failed to save translations')
-      return false
-    }
-  }
-
-  /**
-   * Export translations as a ZIP archive
-   * @returns {Promise<boolean>} True if successful, false otherwise
-   */
-  async function exportTranslations(): Promise<boolean> {
-    try {
-      if (!translatedTexts.value.length) {
-        throw new Error('No translations to export')
-      }
-
-      const updatedFiles = await engineStore.applyTranslations(
-        projectStore.projectFiles, 
-        translatedTexts.value,
-        settingsStore.engineType
-      )
-      
-      const files: Record<string, Uint8Array> = {}
-
-      const exportData = {
-        metadata: {
-          timestamp: new Date().toISOString(),
-          sourceLanguage: settingsStore.sourceLanguage,
-          targetLanguage: settingsStore.targetLanguage,
-          provider: settingsStore.aiProvider,
-          model: settingsStore.aiModel,
-          stats: {
-            total: translatedTexts.value.length,
-            ...Object.fromEntries(
-              Object.entries(translationStats.stats.value)
-                .filter(([key]) => key !== 'totalTokens')
-            )
-          }
-        },
-        translations: translatedTexts.value
+  function ensureResourceTranslations(items: any[]): ResourceTranslation[] {
+    return items.map(item => {
+      if ('resourceId' in item && 'field' in item && 'file' in item) {
+        return item as ResourceTranslation
       }
       
-      files['translations.json'] = new TextEncoder().encode(JSON.stringify(exportData, null, 2))
-
-      for (const file of updatedFiles) {
-        files[file.path] = new TextEncoder().encode(JSON.stringify(file.content, null, 2))
-      }
-
-      return new Promise<boolean>((resolve, reject) => {
-        zip(files, { level: 6 }, async (err: Error | null, data: Uint8Array) => {
-          if (err) {
-            reject(err)
-            return
-          }
-
-          try {
-            const savePath = await save({
-              filters: [{
-                name: 'ZIP Archive',
-                extensions: ['zip']
-              }],
-              defaultPath: 'translations.zip'
-            })
-
-            if (!savePath) {
-              throw new Error('No save location selected')
-            }
-
-            await writeFile(savePath, data, { append: false })
-            resolve(true)
-          } catch (error) {
-            reject(error)
-          }
-        })
-      })
-
-    } catch (error) {
-      errors.value.push(error instanceof Error ? error.message : 'Failed to export translations')
-      return false
-    }
+      // Convert to ResourceTranslation
+      return {
+        resourceId: item.id || '',
+        field: 'text',
+        file: 'unknown',
+        source: item.source || '',
+        target: item.target || '',
+        context: item.context || ''
+      } as ResourceTranslation
+    })
   }
-
-  /**
-   * Reset the translation store
-   */
-  function reset(): void {
-    translatedTexts.value = []
-    currentFile.value = ''
-    progress.value = 0
-    errors.value = []
-    aiStore.reset()
-    translationStats.reset()
-  }
-
+  
   return {
     // State
-    translatedTexts,
-    currentFile,
     progress,
-    errors,
-    stats: translationStats.stats,
-
-    // Computed
     isTranslating,
-    canTranslate,
-
-    // Actions
+    error,
+    results,
+    currentBatch,
+    
+    // Computed
+    completedItems,
+    remainingItems,
+    
+    // Methods
     translateAll,
-    cancelTranslation,
-    saveTranslations,
-    exportTranslations,
-    reset,
-    findTranslationByResourceId,
-    findTranslationsByResourceId
+    translateBatch,
+    resetTranslation
   }
-}) 
+})

@@ -1,10 +1,10 @@
 import { OpenAIBaseProvider } from '@/core/ai/openai-base-provider'
-import type { AIProviderConfig } from '@/types/ai/base'
-import type { TranslationRequest, ContentRating, PromptType } from '@/types/shared/translation'
+import type { AIProviderConfig } from '@/types/ai/config'
 import { 
   AI_MODEL_PRESETS, 
   getDefaultModelForProvider,
   isModelSupported as isModelSupportedByProvider,
+  CHATGPT_DEFAULTS,
   CHATGPT_CONFIG
 } from '@/config/provider/ai'
 
@@ -13,16 +13,16 @@ import {
  * Uses OpenAI's GPT models for high-quality translations.
  */
 export class ChatGPTProvider extends OpenAIBaseProvider {
-  readonly name: string = 'ChatGPT'
-  readonly version: string = '1.0.0'
-  readonly maxBatchSize: number = 10
+  readonly name: string = CHATGPT_CONFIG.name
+  readonly version: string = CHATGPT_CONFIG.version
+  readonly maxBatchSize: number = CHATGPT_CONFIG.maxBatchSize
   /** Cost per token in USD ($0.0001 per token) */
-  readonly costPerToken: number = 0.0001
-  readonly supportsAdultContent: boolean = false
-  readonly qualityScore: number = 0.9
+  readonly costPerToken: number = CHATGPT_CONFIG.costPerToken
+  readonly supportsAdultContent: boolean = CHATGPT_CONFIG.supportsAdultContent
+  readonly qualityScore: number = CHATGPT_CONFIG.qualityScore
 
   protected getBaseUrl(baseUrl?: string): string {
-    return baseUrl || CHATGPT_CONFIG.baseUrl
+    return baseUrl || CHATGPT_DEFAULTS.baseUrl
   }
 
   protected getDefaultModel(): string {
@@ -32,7 +32,7 @@ export class ChatGPTProvider extends OpenAIBaseProvider {
   protected getDefaultTemperature(): number {
     const defaultModel = this.getDefaultModel()
     const preset = AI_MODEL_PRESETS.chatgpt[defaultModel]
-    return preset?.defaultTemperature || 0.7
+    return preset?.defaultTemperature || CHATGPT_DEFAULTS.defaultTemperature
   }
 
   protected isModelSupported(model: string): boolean {
@@ -50,12 +50,22 @@ export class ChatGPTProvider extends OpenAIBaseProvider {
     if (config.temperature && (config.temperature < 0 || config.temperature > 2)) {
       return false
     }
+    
+    // Check for correct provider type to prevent misconfiguration
+    if (config.providerType !== 'chatgpt') {
+      return false
+    }
+    
+    // Check prompt type compatibility
     if (config.promptType && !this.supportedPromptTypes.includes(config.promptType)) {
       return false
     }
-    if (config.promptType === 'nsfw' && !this.supportsAdultContent) {
+    
+    // Content rating check
+    if (config.contentRating === 'nsfw' && !this.supportsAdultContent) {
       return false
     }
+    
     return true
   }
 

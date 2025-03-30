@@ -10,9 +10,11 @@ declare module 'vue' {
   export interface GlobalComponents {
     Accordion: typeof import('primevue/accordion')['default']
     AccordionTab: typeof import('primevue/accordiontab')['default']
+    AiTranslator: typeof import('./src/components/AiTranslator.vue')['default']
     AppFooter: typeof import('./src/components/common/AppFooter.vue')['default']
     AppHeader: typeof import('./src/components/common/AppHeader.vue')['default']
     AppSidebar: typeof import('./src/components/common/AppSidebar.vue')['default']
+    Badge: typeof import('primevue/badge')['default']
     Button: typeof import('primevue/button')['default']
     Card: typeof import('primevue/card')['default']
     Column: typeof import('primevue/column')['default']

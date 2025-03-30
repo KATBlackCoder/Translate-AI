@@ -1,5 +1,6 @@
 import type { ContentRating, PromptType } from '@/types/shared/translation'
-import type { AIErrorMessages, AIModelPreset, CommonProviderConfig } from '@/types/ai/base'
+import type { AIErrorMessages, AIProviderType } from '@/types/ai/base'
+import type { AIModelPreset, ProviderMetadata } from '@/types/ai/metadata'
 import { AI_SUPPORTED_LANGUAGES } from '@/config/provider/languages'
 import { SUPPORTED_PROMPT_TYPES } from '@/config/provider/prompts'
 
@@ -15,16 +16,29 @@ const GPT4_LANGUAGES = AI_SUPPORTED_LANGUAGES.filter(lang =>
 /**
  * ChatGPT provider configuration
  */
-export const CHATGPT_CONFIG: CommonProviderConfig = {
+export const CHATGPT_CONFIG: ProviderMetadata = {
   name: 'ChatGPT',
   version: '1.0.0',
   costPerToken: 0.000002, // $0.002 per 1000 tokens
   maxBatchSize: 10,
+  qualityScore: 0.95,
+  supportsAdultContent: true,
+  supportedPromptTypes: SUPPORTED_PROMPT_TYPES as PromptType[],
+  supportedLanguages: GPT4_LANGUAGES
+}
+
+/**
+ * ChatGPT provider default settings
+ */
+export const CHATGPT_DEFAULTS = {
+  providerType: 'chatgpt' as AIProviderType,
+  baseUrl: 'https://api.openai.com/v1',
   defaultModel: 'gpt-3.5-turbo',
   defaultTemperature: 0.3,
   defaultMaxTokens: 1000,
-  qualityScore: 0.95,
-  supportsAdultContent: true,
+  retryCount: 3,
+  batchSize: 5,
+  timeout: 30000,
   contentRating: 'nsfw' as ContentRating,
   supportedModels: [
     'gpt-3.5-turbo',
@@ -32,10 +46,7 @@ export const CHATGPT_CONFIG: CommonProviderConfig = {
     'gpt-4',
     'gpt-4-turbo',
     'gpt-4-32k'
-  ],
-  baseUrl: 'https://api.openai.com/v1',
-  supportedPromptTypes: SUPPORTED_PROMPT_TYPES as PromptType[],
-  supportedLanguages: GPT4_LANGUAGES
+  ]
 }
 
 /**
@@ -100,10 +111,26 @@ export const CHATGPT_MODEL_ERROR_MESSAGES: Record<string, string> = {
 }
 
 /**
+ * Creates a default provider configuration for ChatGPT
+ */
+export function createChatGPTProviderConfig(model?: string, apiKey?: string, options?: Record<string, unknown>) {
+  return {
+    providerType: CHATGPT_DEFAULTS.providerType,
+    model: model || CHATGPT_DEFAULTS.defaultModel,
+    baseUrl: CHATGPT_DEFAULTS.baseUrl,
+    apiKey,
+    temperature: CHATGPT_DEFAULTS.defaultTemperature,
+    maxTokens: CHATGPT_DEFAULTS.defaultMaxTokens,
+    contentRating: CHATGPT_DEFAULTS.contentRating,
+    options
+  };
+}
+
+/**
  * Check if a model is supported by ChatGPT
  */
 export function isChatGPTModelSupported(model: string): boolean {
-  return CHATGPT_CONFIG.supportedModels.includes(model)
+  return CHATGPT_DEFAULTS.supportedModels.includes(model)
 }
 
 /**

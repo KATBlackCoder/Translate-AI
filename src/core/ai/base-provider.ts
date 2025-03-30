@@ -1,4 +1,7 @@
-import type { AIProvider, AIProviderConfig, AIBaseConfig } from '@/types/ai/base'
+import type { AIBaseConfig, AIProviderType } from '@/types/ai/base'
+import type { AIProviderConfig } from '@/types/ai/config'
+import type { AIProvider } from '@/types/ai/provider'
+import type { ProviderMetadata } from '@/types/ai/metadata'
 import type { 
   ResourceTranslation,
   TranslationRequest, 
@@ -6,16 +9,14 @@ import type {
   BatchTranslationResult, 
   TranslationPrompt,
   PromptType,
-  TextPair
+  TextPair,
+  ContentRating
 } from '@/types/shared/translation'
 import { RetryManager } from '@/utils/ai/retry'
 import { RateLimiter } from '@/utils/ai/rate-limiter'
 import { CacheManager } from '@/utils/ai/cache'
-import { 
-  getPrompt,
-  SUPPORTED_PROMPT_TYPES,
-  AI_SUPPORTED_LANGUAGES
-} from '@/config'
+import { getPrompt, SUPPORTED_PROMPT_TYPES } from '@/config/provider/prompts'
+import { AI_SUPPORTED_LANGUAGES } from '@/config/provider/languages'
 
 /**
  * Abstract base class for AI provider implementations
@@ -32,7 +33,7 @@ export abstract class BaseProvider implements AIProvider {
   abstract readonly maxBatchSize: number
   abstract readonly costPerToken: number
   abstract readonly supportsAdultContent: boolean
-  // New required property from AIProvider interface
+  // Quality score property from ProviderMetadata interface
   abstract readonly qualityScore: number
 
   // Configuration for the provider
@@ -68,7 +69,7 @@ export abstract class BaseProvider implements AIProvider {
    */
   async translate(request: TranslationRequest): Promise<TranslationResponse> {
     const cacheKey = this.getCacheKey(request)
-    const cached = await this.cache.get<TranslationResponse>(cacheKey)
+    const cached = this.cache.get<TranslationResponse>(cacheKey)
     if (cached) return cached
 
     await this.rateLimiter.acquire()
@@ -102,13 +103,10 @@ export abstract class BaseProvider implements AIProvider {
       batchSize?: number
       retryCount?: number
       timeout?: number
+      promptType?: PromptType
     }
   ): Promise<BatchTranslationResult> {
-    // Check content suitability
-    if (options?.isAdult && !this.supportsAdultContent) {
-      throw new Error('This provider does not support adult content')
-    }
-
+    // Check content suitability based on provider
     if (options?.contentRating === 'nsfw' && !this.supportsAdultContent) {
       throw new Error(`This provider does not support NSFW content`)
     }
@@ -132,9 +130,14 @@ export abstract class BaseProvider implements AIProvider {
             async () => {
               // Determine content type based on options and provider capabilities
               let contentType: PromptType = 'general'
+              
+              // Use promptType from options if supported
               if (options?.promptType && this.supportedPromptTypes.includes(options.promptType)) {
                 contentType = options.promptType
-              } else if (options?.isAdult && this.supportsAdultContent) {
+              }
+              
+              // Use NSFW prompt type if content rating indicates adult content
+              if (options?.contentRating === 'nsfw' && this.supportsAdultContent) {
                 contentType = 'nsfw'
               }
 
@@ -215,7 +218,8 @@ export abstract class BaseProvider implements AIProvider {
    * @returns The default translation prompt
    */
   getDefaultPrompt(type: PromptType): TranslationPrompt {
-    return getPrompt(type)
+    // Use the provider configuration to get a compatible prompt
+    return getPrompt(type, this.config as AIProviderConfig)
   }
 
   /**

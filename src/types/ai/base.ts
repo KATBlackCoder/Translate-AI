@@ -1,251 +1,114 @@
-import type { 
-  ResourceTranslation,
-  TranslationPrompt,
-  TranslationRequest,
-  TranslationResponse,
-  BatchTranslationResult,
-  ContentRating,
-  PromptType
-} from '@/types/shared/translation'
+/**
+ * Core AI System Type Definitions
+ * 
+ * This file contains the fundamental types and interfaces that form the base
+ * of the AI translation system. These are the essential building blocks that
+ * all other AI-related types depend on.
+ */
+
+import type { ContentRating } from '@/types/shared/translation'
 
 // ============================================================
-// CORE ENUMS AND SIMPLE TYPES
+// PROVIDER TYPES
 // ============================================================
 
 /**
- * Supported AI provider types
+ * Supported AI provider types in the application
+ * 
+ * Add new provider types here when implementing new integrations.
+ * This is the central definition of supported providers used throughout the system.
  */
-export type AIProviderType = 'chatgpt' | 'ollama' | 'deepseek'
+export type AIProviderType = 
+  | 'chatgpt'  // OpenAI's GPT models
+  | 'ollama'   // Local Ollama models
+  | 'deepseek' // DeepSeek cloud models
 
 // ============================================================
-// PROMPT AND MESSAGE RELATED TYPES
+// CONFIGURATION TYPES
 // ============================================================
 
 /**
- * Custom prompt configuration for a specific content type
+ * Essential configuration required by all AI providers
+ * 
+ * This represents the core settings that every AI provider implementation
+ * must have to function properly. Different providers may use these settings
+ * in different ways, but all providers must support these basic configurations.
  */
-export interface CustomPrompt {
-  /** System prompt that defines the context and instructions */
-  system?: string
-  /** User prompt template for this content type */
-  user?: string
+export interface AIBaseConfig {
+  /** The specific model identifier to use (e.g., "gpt-3.5-turbo", "llama2") */
+  model: string
+  
+  /** Base URL for the API endpoint */
+  baseUrl: string
+  
+  /** API key for authentication (required for commercial providers like ChatGPT) */
+  apiKey?: string
+  
+  /** 
+   * Model temperature (randomness) setting 
+   * Higher values (0.7-1.0) make output more random
+   * Lower values (0.0-0.3) make output more deterministic
+   */
+  temperature: number
+  
+  /** Maximum tokens to generate in the response */
+  maxTokens: number
+  
+  /** Content rating classification (sfw/nsfw) */
+  contentRating: ContentRating
 }
 
-/**
- * Collection of custom prompts by content type
- */
-export interface PromptSettings {
-  /** Custom prompts organized by content type */
-  customPrompts: Record<PromptType, CustomPrompt>
-}
+// ============================================================
+// ERROR MESSAGE TYPES
+// ============================================================
 
 /**
  * Error message templates for API connections
+ * 
+ * Standardized error messages for different connection scenarios.
+ * These are used to provide consistent error reporting across providers.
  */
 export interface AIErrorMessages {
-  /** Error message when connection fails */
+  /** Error message when connection to the provider fails */
   connectionFailed: string
-  /** Error message when API endpoint is not found */
+  
+  /** Error message when the API endpoint is not found */
   apiNotFound: string
+  
   /** Error message for authentication failures */
   authFailed?: string
+  
   /** Error message for rate limiting */
   rateLimit?: string
-  /** Default error message */
+  
+  /** Default/fallback error message */
   default: string
 }
 
-// ============================================================
-// MODEL AND CONFIGURATION TYPES
-// ============================================================
-
 /**
- * AI model preset metadata for UI and defaults
+ * Error message templates for specific models
+ * 
+ * Provides model-specific error messages, useful for when certain
+ * models have unique requirements or limitations.
  */
-export interface AIModelPreset {
-  /** Display name of the model */
-  name: string
-  /** Description of the model's capabilities */
-  description: string
-  /** Default temperature parameter for best results */
-  defaultTemperature: number
-  /** Default token limit for outputs */
-  defaultMaxTokens: number
-  /** Languages this model can effectively handle */
-  supportedLanguages?: string[]
-}
-
-/**
- * Base configuration for translation AI operations
- */
-export interface AIBaseConfig {
-  /** The type of content being translated, affects prompt selection */
-  promptType?: PromptType
-  /** Whether the content contains adult themes */
-  isAdult?: boolean
-  /** Content rating classification (sfw/nsfw) */
-  contentRating?: ContentRating
-  /** Model temperature (randomness) setting */
-  temperature?: number
-  /** Maximum tokens to generate */
-  maxTokens?: number
-}
-
-/**
- * Standard provider metadata
- */
-export interface ProviderMetadata {
-  /** Provider display name */
-  name: string
-  /** Provider implementation version */
-  version: string
-  /** Cost per token in USD */
-  costPerToken: number
-  /** Maximum number of translations to process in parallel */
-  maxBatchSize: number
-  /** Quality score for this provider (0-1) */
-  qualityScore: number
-  /** Whether this provider allows adult content */
-  supportsAdultContent: boolean
-  /** Prompt types supported by this provider */
-  supportedPromptTypes: PromptType[]
-  /** Languages supported by this provider */
-  supportedLanguages: string[]
-}
-
-/**
- * Common provider configuration shared across all AI providers
- */
-export interface CommonProviderConfig extends ProviderMetadata {
-  /** Default model for this provider */
-  defaultModel: string
-  /** Default temperature setting */
-  defaultTemperature: number
-  /** Default max tokens setting */
-  defaultMaxTokens: number
-  /** Default content rating this provider can handle (sfw/nsfw) */
-  contentRating: ContentRating
-  /** List of supported model IDs */
-  supportedModels: string[]
-  /** Base URL for the API */
-  baseUrl: string
-}
-
-/**
- * Collection of AI model presets organized by provider and model ID
- */
-export type AIModelPresets = Record<AIProviderType, Record<string, AIModelPreset>>
-
-/**
- * Runtime AI provider configuration for translation operations
- */
-export interface AIProviderConfig {
-  /** The specific model to use */
-  model: string
-  /** API key for authenticated providers */
-  apiKey?: string
-  /** Base URL for the API */
-  baseUrl?: string
-  /** The type of content being translated, affects prompt selection */
-  promptType?: PromptType
-  /** Whether the content contains adult themes */
-  isAdult?: boolean
-  /** Content rating classification (sfw/nsfw) */
-  contentRating?: ContentRating
-  /** Model temperature (randomness) setting */
-  temperature?: number
-  /** Maximum tokens to generate */
-  maxTokens?: number
-}
-
-/**
- * Configuration for quality control in translation
- */
-export interface TranslationQualitySettings {
-  /** Model temperature (randomness) setting */
-  temperature: number
-  /** Maximum tokens to generate */
-  maxTokens: number
-  /** Number of retries on failure */
-  retryCount: number
-  /** Number of translations to process in parallel */
-  batchSize: number
-  /** Request timeout in milliseconds */
-  timeout: number
-}
-
-/**
- * Connection configuration for testing AI provider connections
- */
-export interface AIConnectionConfig extends Omit<AIProviderConfig, 'apiKey'> {
-  /** API key for authenticated providers */
-  apiKey: string
-  /** Error messages for different failure scenarios - if not provided, defaults will be used */
-  errorMessages?: AIErrorMessages
-}
-
-// ============================================================
-// SERVICE INTERFACES
-// ============================================================
-
-/**
- * Core interface that all AI providers must implement
- */
-export interface AIProvider extends ProviderMetadata {
-  /** Current configuration for this provider */
-  readonly config: AIBaseConfig
-
-  /**
-   * Translate a single text using this provider
-   * @param request The translation request details
-   * @returns Promise resolving to the translation response
-   */
-  translate(request: TranslationRequest): Promise<TranslationResponse>
+export interface AIModelErrorMessages {
+  /** Default error message for unknown models */
+  default: string
   
-  /**
-   * Translate multiple texts in batch
-   * @param targets Resource translations to process
-   * @param sourceLanguage Source language code
-   * @param targetLanguage Target language code
-   * @param options Additional options for the batch processing
-   * @returns Promise resolving to the batch translation result
-   */
-  translateBatch(
-    targets: ResourceTranslation[], 
-    sourceLanguage: string, 
-    targetLanguage: string, 
-    options?: AIBaseConfig & {
-      batchSize?: number
-      retryCount?: number
-      timeout?: number
-    }
-  ): Promise<BatchTranslationResult>
+  /** Error messages by model ID */
+  [modelId: string]: string
+}
+
+/**
+ * Combined error messages for a provider
+ * 
+ * Comprehensive collection of all error messages for a provider,
+ * including both connection and model-specific errors.
+ */
+export interface ProviderErrorMessages {
+  /** Connection-related error messages */
+  connection: AIErrorMessages
   
-  /**
-   * Validate provider configuration
-   * @param config Configuration to validate
-   * @returns Promise resolving to true if valid
-   */
-  validateConfig(config: AIProviderConfig): Promise<boolean>
-  
-  /**
-   * Estimate cost for translating text
-   * @param text Text to estimate
-   * @returns Object with token count and cost
-   */
-  estimateCost(text: string): { tokens: number; cost: number }
-  
-  /**
-   * Get the default prompt for a content type
-   * @param type The prompt type to get
-   * @returns The default translation prompt
-   */
-  getDefaultPrompt(type: PromptType): TranslationPrompt
-  
-  /**
-   * Validate if a prompt is properly formed
-   * @param prompt The prompt to validate
-   * @returns True if the prompt is valid
-   */
-  validatePrompt(prompt: TranslationPrompt): boolean
+  /** Model-specific error messages */
+  models: AIModelErrorMessages
 } 

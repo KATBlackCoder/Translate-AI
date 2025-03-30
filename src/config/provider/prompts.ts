@@ -4,6 +4,8 @@ import type {
     PromptType,
     ContentRating
   } from '@/types/shared/translation'
+  import type { AIProviderType } from '@/types/ai/base'
+  import type { AIProviderConfig } from '@/types/ai/config'
   
   // ============================================================
   // PROMPT TYPES CONSTANTS
@@ -51,11 +53,55 @@ import type {
   }
   
   /**
+   * Check if prompt type is supported by a provider
+   */
+  export function isPromptTypeSupportedByProvider(type: PromptType, providerType: AIProviderType): boolean {
+    // DeepSeek doesn't support adult content
+    if (providerType === 'deepseek' && type === 'nsfw') {
+      return false
+    }
+    
+    return isPromptTypeSupported(type)
+  }
+  
+  /**
    * Get the appropriate content rating based on prompt type
    */
   export function getContentRatingForPromptType(type: PromptType): ContentRating {
     if (type === 'nsfw') return 'nsfw'
     return 'sfw'
+  }
+  
+  /**
+   * Determine if a content rating is supported by a provider config
+   * @param providerType - The type of provider to check
+   * @param model - The model name to check
+   * @param rating - The content rating to check
+   * @returns True if the content rating is supported
+   */
+  export function isContentRatingSupportedByProvider(
+    providerType: AIProviderType, 
+    model: string, 
+    rating: ContentRating
+  ): boolean {
+    // NSFW content is only allowed if the provider explicitly supports it
+    if (rating === 'nsfw') {
+      // DeepSeek doesn't support adult content
+      if (providerType === 'deepseek') {
+        return false
+      }
+      
+      // Some models don't support adult content
+      const restrictedModels: string[] = [
+        // Add restricted models if needed
+      ]
+      
+      if (restrictedModels.includes(model)) {
+        return false
+      }
+    }
+    
+    return true
   }
   
   // ============================================================
@@ -144,13 +190,36 @@ import type {
   
   /**
    * Get prompt template by type
+   * 
+   * @param type - The prompt type to get
+   * @param providerConfig - Optional provider configuration to validate compatibility
+   * @returns The prompt template or fallback to general if not supported
    */
-  export function getPrompt(type: PromptType = 'general'): TranslationPrompt {
-    return prompts[type]
+  export function getPrompt(
+    type: PromptType = 'general', 
+    providerConfig?: AIProviderConfig
+  ): TranslationPrompt {
+    // If no provider config, return the requested prompt
+    if (!providerConfig) {
+      return prompts[type] || prompts.general
+    }
+    
+    // If provider config is provided, check compatibility
+    if (providerConfig.providerType === 'deepseek' && type === 'nsfw') {
+      // DeepSeek doesn't support adult content, fallback to general
+      return prompts.general
+    }
+    
+    return prompts[type] || prompts.general
   }
   
   /**
    * Format prompt with parameters
+   * 
+   * @param prompt - The prompt template to format
+   * @param params - Parameters to insert into the prompt
+   * @param providerConfig - Optional provider configuration to validate compatibility
+   * @returns Formatted system and user prompts
    */
   export function formatPrompt(
     prompt: TranslationPrompt,
@@ -160,12 +229,26 @@ import type {
       text: string
       context?: string
       isAdult?: boolean
-    }
+    },
+    providerConfig?: AIProviderConfig
   ): { system: string; user: string } {
     const { source, target, text, context = '', isAdult = false } = params
+    
+    // Handle adult content based on provider compatibility
+    let useAdultPrompt = isAdult
+    
+    if (providerConfig && isAdult) {
+      // Check if provider supports adult content
+      if (providerConfig.providerType === 'deepseek' || 
+          providerConfig.contentRating !== 'nsfw') {
+        // Force SFW prompt for providers that don't support adult content
+        useAdultPrompt = false
+      }
+    }
+    
     return {
-      system: isAdult ? prompts.nsfw.system : prompt.system,
-      user: (isAdult ? prompts.nsfw.user : prompt.user)
+      system: useAdultPrompt ? prompts.nsfw.system : prompt.system,
+      user: (useAdultPrompt ? prompts.nsfw.user : prompt.user)
         .replace('{source}', source)
         .replace('{target}', target)
         .replace('{text}', text)

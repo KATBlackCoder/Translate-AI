@@ -13,23 +13,31 @@
               v-model="path" 
               placeholder="Select project folder" 
               class="flex-1"
-              :disabled="isValidating"
+              :disabled="isLoading"
             />
             <Button 
               icon="pi pi-folder-open" 
               @click="selectFolder"
-              :loading="isValidating"
+              :loading="isLoading"
             />
           </div>
         </div>
 
+        <!-- Engine Detection Status -->
+        <div v-if="isLoading" class="mt-2">
+          <ProgressBar mode="indeterminate" class="h-4" />
+          <small class="block mt-1 text-gray-600">
+            {{ validationStatus }}
+          </small>
+        </div>
+
         <!-- Validation Status -->
-        <div v-if="projectPath" class="mt-2">
+        <div v-if="projectPath && !isLoading" class="mt-2">
           <div v-if="projectValid" class="text-green-600 flex items-center gap-2">
             <i class="pi pi-check-circle"></i>
             <span>Valid project</span>
           </div>
-          <div v-else-if="errors.length" class="text-red-600 flex items-center gap-2">
+          <div v-else-if="errorMessages.length" class="text-red-600 flex items-center gap-2">
             <i class="pi pi-times-circle"></i>
             <span>Invalid project structure</span>
           </div>
@@ -41,20 +49,34 @@
             <div class="flex flex-col gap-1">
               <div class="flex items-center gap-2">
                 <i class="pi pi-cog"></i>
-                <span><strong>Engine:</strong> {{ engineName }}</span>
+                <span><strong>Engine:</strong> {{ engineNameValue }}</span>
               </div>
-              <div v-if="settingsStore.aiProvider && settingsStore.aiModel" class="flex items-center gap-2">
+              <div class="flex items-center gap-2">
+                <i class="pi pi-file"></i>
+                <span><strong>Translatable files:</strong> {{ translatableFilesCount }} found</span>
+              </div>
+              <div v-if="hasAIConfig" class="flex items-center gap-2">
                 <i class="pi pi-brain"></i>
-                <span><strong>AI Model:</strong> {{ getProviderName }} ({{ settingsStore.aiModel }})</span>
+                <span><strong>AI Model:</strong> {{ getProviderName }} ({{ aiModel }})</span>
               </div>
             </div>
           </Message>
         </div>
 
         <!-- Error Messages -->
-        <div v-if="errors.length" class="mt-2">
-          <Message severity="error" v-for="error in errors" :key="error">
+        <div v-if="errorMessages.length" class="mt-2">
+          <Message severity="error" v-for="error in errorMessages" :key="error">
             {{ error }}
+          </Message>
+        </div>
+
+        <!-- Missing Files -->
+        <div v-if="missingFiles.length" class="mt-2">
+          <Message severity="warn">
+            <div class="font-medium">Missing required files</div>
+            <ul class="ml-4 list-disc">
+              <li v-for="file in missingFiles" :key="file">{{ file }}</li>
+            </ul>
           </Message>
         </div>
 
@@ -81,125 +103,175 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { useProjectStore } from '@/stores/project'
-import { useSettingsStore } from '@/stores/settings'
-import { useTranslationStore } from '@/stores/translation'
-import { useEngineStore } from '@/stores/engines/engine'
 import { useRouter } from 'vue-router'
 import { open } from '@tauri-apps/plugin-dialog'
-const router = useRouter()
-const projectStore = useProjectStore()
+import { useEngine } from '@/composables/useEngine'
+import { useSettingsStore } from '@/stores/settings'
+import { useTranslationStore } from '@/stores/translation'
+
+// Use our composable for engine functionality
+const engine = useEngine()
 const settingsStore = useSettingsStore()
 const translationStore = useTranslationStore()
-const engineStore = useEngineStore()
-const path = ref('')
-const isValidating = ref(false)
+const router = useRouter()
 
-// Default base URLs
-const defaultBaseUrls = {
-  ollama: 'http://localhost:11434',
+// UI state
+const path = ref('')
+const validationStatus = ref('Checking project...')
+const missingFiles = ref<string[]>([])
+const translatableFilesCount = ref(0)
+
+// Unwrap reactive refs from engine composable to avoid type errors
+const isLoading = computed(() => engine.isLoading.value)
+const errorMessages = computed(() => engine.errors.value)
+const engineNameValue = computed(() => engine.engineName.value)
+
+// Map of default base URLs for providers
+const providerBaseUrls = {
+  ollama: 'http://localhost:11434/api',
   chatgpt: 'https://api.openai.com/v1',
   deepseek: 'https://api.deepseek.com/v1'
 }
 
+// Map of display names for providers 
+const providerDisplayNames = {
+  'ollama': 'Ollama',
+  'chatgpt': 'ChatGPT',
+  'deepseek': 'DeepSeek'
+}
+
 // Initialize base URL on mount
-onMounted(() => {
-  if (settingsStore.aiProvider && (!settingsStore.baseUrl || settingsStore.baseUrl === '')) {
-    settingsStore.baseUrl = defaultBaseUrls[settingsStore.aiProvider as keyof typeof defaultBaseUrls] || ''
+onMounted(initializeProviderDefaults)
+
+// Helper Functions
+function initializeProviderDefaults() {
+  const provider = settingsStore.aiProvider
+  if (provider && (!settingsStore.baseUrl || settingsStore.baseUrl === '')) {
+    settingsStore.baseUrl = providerBaseUrls[provider as keyof typeof providerBaseUrls] || ''
   }
-})
+}
+
+function updateValidationStatus(status: string) {
+  validationStatus.value = status
+}
+
+function updateTranslatableCount(count: number) {
+  translatableFilesCount.value = count
+}
 
 // Computed properties
-const errors = computed(() => projectStore.errors)
-const projectPath = computed(() => projectStore.projectPath)
+const projectPath = computed(() => path.value)
+const aiModel = computed(() => settingsStore.aiModel || '')
+const hasAIConfig = computed(() => 
+  !!settingsStore.aiProvider && 
+  !!settingsStore.aiModel
+)
+
 const canStartTranslation = computed(() => {
   const conditions = {
-    hasTexts: projectStore.extractedTexts.length > 0,
+    // Now we check extracted content directly from the engine store
+    hasTexts: translatableFilesCount.value > 0,
     translationConfigValid: settingsStore.isTranslationConfigValid,
     aiConfigValid: settingsStore.isAIConfigValid,
     notTranslating: !isTranslating.value,
     projectValid: projectValid.value,
-    hasProjectPath: projectPath.value
+    hasProjectPath: !!projectPath.value
   }
   
-  console.log('Translation conditions:', conditions)
-  console.log('AI Config:', {
-    provider: settingsStore.aiProvider,
-    model: settingsStore.aiModel,
-    baseUrl: settingsStore.baseUrl,
-    hasApiKey: Boolean(settingsStore.apiKey)
-  })
   return Object.values(conditions).every(Boolean)
 })
-const isTranslating = computed(() => translationStore.progress > 0 && translationStore.progress < 100)
+
+const isTranslating = computed(() => 
+  translationStore.progress > 0 && 
+  translationStore.progress < 100
+)
+
 const getProviderName = computed(() => {
-  const providers = {
-    'ollama': 'Ollama',
-    'chatgpt': 'ChatGPT',
-    'deepseek': 'DeepSeek'
-  }
-  return providers[settingsStore.aiProvider as keyof typeof providers] || settingsStore.aiProvider
-})
-const projectValid = computed(() => projectPath.value && projectStore.extractedTexts.length > 0)
-const engineName = computed(() => {
-  if (engineStore.engine && engineStore.engine.settings) {
-    return engineStore.engine.settings.name
-  }
-  
-  // Fallback to mapping if engine is not initialized
-  const engines = {
-    'rpgmv': 'RPG Maker MV',
-    // Add more engines here as they are implemented
-  }
-  return engines[settingsStore.engineType as keyof typeof engines] || settingsStore.engineType
+  const provider = settingsStore.aiProvider
+  return provider ? (providerDisplayNames[provider as keyof typeof providerDisplayNames] || provider) : ''
 })
 
-// Methods
+const projectValid = computed(() => 
+  !!projectPath.value && 
+  translatableFilesCount.value > 0
+)
+
+// Main methods
 async function selectFolder() {
   try {
-    isValidating.value = true
+    updateValidationStatus('Selecting project folder...')
     
-    // Reset error messages and validation status
-    projectStore.errors = []
-    
-    // Open folder dialog
+    // Step 1: Open folder dialog
     const selected = await open({
       directory: true,
       multiple: false,
-      title: 'Select RPG Maker MV Project Folder'
+      title: 'Select Game Project Folder'
     })
     
-    if (selected) {
-      
-      // Validate and start the project
-      const isValid = await projectStore.startEngineProject(selected as string)
-      
-      if (isValid) {
-        path.value = selected as string
-      }
+    if (!selected) return false
+    
+    const selectedPath = selected as string
+    path.value = selectedPath
+    
+    // Step 2: Detect engine type
+    updateValidationStatus('Detecting game engine...')
+    const engineType = await engine.detectEngine(selectedPath)
+    if (!engineType) return false
+    
+    // Step 3: Initialize project with the detected engine
+    updateValidationStatus('Initializing project...')
+    const initialized = await engine.initializeProject(selectedPath, engineType)
+    if (!initialized) return false
+    
+    // Step 4: Extract translatable content
+    updateValidationStatus('Extracting translatable content...')
+    const texts = await engine.extractContent()
+    if (!texts || texts.length === 0) {
+      return false
     }
+    
+    // Update UI with extracted text count
+    updateTranslatableCount(texts.length)
+    return true
+    
   } catch (error) {
     console.error('Error selecting folder:', error)
-    projectStore.errors.push('Failed to select folder: ' + (error instanceof Error ? error.message : String(error)))
-  } finally {
-    isValidating.value = false
+    return false
   }
 }
 
 function resetProject() {
-  projectStore.resetProject()
+  // Reset engine and translation stores
+  engine.reset()
+  translationStore.resetTranslation()
+  
+  // Reset local state
   path.value = ''
+  missingFiles.value = []
+  translatableFilesCount.value = 0
 }
 
 async function startTranslation() {
   try {
     // First navigate to translation view
     await router.push('/translation')
-    // Then start translation after navigation is complete
-    await translationStore.translateAll()
+    
+    // Get extracted texts from engine store
+    const extractedTexts = await engine.extractContent()
+    
+    // Use the engine's apply translations function
+    const applyTranslations = async (translations: any[]) => {
+      await engine.applyTranslations(translations)
+    }
+    
+    // Start translation with proper parameters
+    await translationStore.translateAll(
+      extractedTexts,
+      applyTranslations,
+      'general' // Use 'general' as the default promptType
+    )
   } catch (error) {
     console.error('Error starting translation:', error)
-    projectStore.errors.push('Failed to start translation: ' + (error instanceof Error ? error.message : String(error)))
   }
 }
-</script> 
+</script>
