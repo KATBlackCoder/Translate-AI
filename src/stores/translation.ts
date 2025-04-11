@@ -2,7 +2,8 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { useTranslationQueue } from '@/composables/useTranslationQueue'
-import type { ResourceTranslation, PromptType } from '@/types/shared/translation'
+import type { ResourceTranslation, PromptType } from '@/types/ai'
+import type { AIServiceConfig } from '@/types/ai/config'
 
 /**
  * Translation Store
@@ -39,14 +40,18 @@ export const useTranslationStore = defineStore('translation', () => {
    */
   async function translateBatch(
     texts: ResourceTranslation[], 
-    batchSize = 10,
-    promptType: PromptType = 'general'
+    config: AIServiceConfig,
+    options?: {
+      promptType?: PromptType
+      batchSize?: number
+    }
   ): Promise<ResourceTranslation[]> {
     if (texts.length === 0) return []
     
     const allResults: ResourceTranslation[] = []
     
     // Create batches
+    const batchSize = options?.batchSize || config.quality.batchSize
     const batches: ResourceTranslation[][] = []
     for (let i = 0; i < texts.length; i += batchSize) {
       batches.push(texts.slice(i, i + batchSize))
@@ -60,7 +65,10 @@ export const useTranslationStore = defineStore('translation', () => {
         queue.clearQueue()
         queue.addToQueue(batch)
         
-        const result = await queue.processQueue({ promptType, batchSize })
+        const result = await queue.processQueue(config, {
+          promptType: options?.promptType,
+          batchSize
+        })
         
         if (result?.translations) {
           // Add to our cumulative results
@@ -82,8 +90,12 @@ export const useTranslationStore = defineStore('translation', () => {
    */
   async function translateAll(
     texts: ResourceTranslation[],
-    applyTranslationsFn?: (translations: ResourceTranslation[]) => Promise<void>,
-    promptType: PromptType = 'general'
+    config: AIServiceConfig,
+    options?: {
+      applyTranslationsFn?: (translations: ResourceTranslation[]) => Promise<void>
+      promptType?: PromptType
+      batchSize?: number
+    }
   ): Promise<ResourceTranslation[]> {
     if (isTranslating.value) return []
     
@@ -102,11 +114,14 @@ export const useTranslationStore = defineStore('translation', () => {
       totalItemsCount.value = texts.length
       
       // Translate all texts in batches
-      const translatedTexts = await translateBatch(texts, 10, promptType)
+      const translatedTexts = await translateBatch(texts, config, {
+        promptType: options?.promptType,
+        batchSize: options?.batchSize
+      })
       
       // Apply translations if a function was provided
-      if (translatedTexts.length > 0 && applyTranslationsFn) {
-        await applyTranslationsFn(translatedTexts)
+      if (translatedTexts.length > 0 && options?.applyTranslationsFn) {
+        await options.applyTranslationsFn(translatedTexts)
       }
       
       return translatedTexts
@@ -130,14 +145,14 @@ export const useTranslationStore = defineStore('translation', () => {
     queue.clearQueue()
   }
   
-/**
- * Handle errors consistently
- */
-function handleError(context: string, err: unknown) {
-  const message = err instanceof Error ? err.message : String(err)
-  error.value = `${context}: ${message}`
-  console.error(error.value)
-}
+  /**
+   * Handle errors consistently
+   */
+  function handleError(context: string, err: unknown) {
+    const message = err instanceof Error ? err.message : String(err)
+    error.value = `${context}: ${message}`
+    console.error(error.value)
+  }
   
   /**
    * Ensure all items are valid ResourceTranslations

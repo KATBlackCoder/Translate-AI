@@ -1,4 +1,6 @@
-import type { ResourceTranslation } from '@/types/shared/translation'
+import type { 
+  ResourceTranslation
+} from '@/types/engines'
 
 /**
  * Supported game engine types
@@ -67,6 +69,41 @@ export interface EngineValidation {
 }
 
 // ============================================================
+// TRANSLATION INTERFACES
+// ============================================================
+
+/**
+ * Interface for resource translation operations
+ */
+export interface ResourceTranslator {
+  /**
+   * Extracts translatable content from files.
+   * 
+   * @param {GameResourceFile[]} files - Array of files to extract translations from
+   * @param {object} options - Optional extraction options
+   * @param {boolean} options.useRelatedContext - Whether to use related files for context
+   * @returns {Promise<ResourceTranslation[]>} Array of translation targets
+   */
+  extractTranslations(
+    files: GameResourceFile[]
+  ): Promise<ResourceTranslation[]>
+
+  /**
+   * Applies translations back to the original files.
+   * 
+   * @param {GameResourceFile[]} files - Original files to update
+   * @param {ResourceTranslation[]} translations - Array of translations to apply
+   * @param {object} options - Optional application options
+   * @param {boolean} options.updateRelatedFiles - Whether to update related files if needed
+   * @returns {Promise<GameResourceFile[]>} Updated files with translations applied
+   */
+  applyTranslations(
+    files: GameResourceFile[], 
+    translations: ResourceTranslation[]
+  ): Promise<GameResourceFile[]>
+}
+
+// ============================================================
 // ENGINE INTERFACE
 // ============================================================
 
@@ -112,30 +149,4 @@ export interface GameEngine {
    * @returns {Promise<GameResourceFile[]>} Array of files containing translatable content
    */
   readProject(path: string): Promise<GameResourceFile[]>
-
-  /**
-   * Extracts translatable content from files.
-   * 
-   * @param {GameResourceFile[]} files - Array of files to extract translations from
-   * @param {object} options - Optional extraction options
-   * @param {boolean} options.useRelatedContext - Whether to use related files for context
-   * @returns {Promise<ResourceTranslation[]>} Array of translation targets
-   */
-  extractTranslations(
-    files: GameResourceFile[]
-  ): Promise<ResourceTranslation[]>
-
-  /**
-   * Applies translations back to the original files.
-   * 
-   * @param {GameResourceFile[]} files - Original files to update
-   * @param {ResourceTranslation[]} translations - Array of translations to apply
-   * @param {object} options - Optional application options
-   * @param {boolean} options.updateRelatedFiles - Whether to update related files if needed
-   * @returns {Promise<GameResourceFile[]>} Updated files with translations applied
-   */
-  applyTranslations(
-    files: GameResourceFile[], 
-    translations: ResourceTranslation[]
-  ): Promise<GameResourceFile[]>
 }

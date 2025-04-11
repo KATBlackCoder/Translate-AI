@@ -1,7 +1,7 @@
 // src/stores/ai/ai.ts
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { TranslationService } from '@/services/translation'
+import { AIProviderFactory } from '@/services/ai/factory'
 import type { AIServiceConfig } from '@/types/ai/config'
 
 /**
@@ -16,19 +16,19 @@ export const useAIStore = defineStore('ai', () => {
   const error = ref<Error | null>(null)
   
   // Service reference
-  const service = TranslationService.getInstance()
+  const factory = AIProviderFactory.getInstance()
   
   // Computed
-  const isReady = computed(() => service.isInitialized() && !isInitializing.value)
+  const isReady = computed(() => config.value !== null && !isInitializing.value)
   const currentProvider = computed(() => config.value?.provider.providerType || 'None')
   const providerMetadata = computed(() => {
     if (!config.value) return null
     
     return {
       model: config.value.provider.model,
-      sourceLanguage: config.value.sourceLanguage,
-      targetLanguage: config.value.targetLanguage,
-      contentRating: config.value.contentRating
+      sourceLanguage: config.value.languagePair.source,
+      targetLanguage: config.value.languagePair.target,
+      quality: config.value.quality
     }
   })
   
@@ -40,7 +40,8 @@ export const useAIStore = defineStore('ai', () => {
     error.value = null
     
     try {
-      await service.initialize(serviceConfig)
+      const provider = factory.createProvider(serviceConfig.provider.providerType, serviceConfig.provider)
+      await provider.validateConfig(serviceConfig.provider)
       config.value = serviceConfig
     } catch (err) {
       error.value = err instanceof Error ? err : new Error(String(err))
@@ -54,7 +55,8 @@ export const useAIStore = defineStore('ai', () => {
    * Reset the provider state
    */
   function resetProvider(): void {
-    service.reset()
+    factory.clearProviders()
+    config.value = null
     error.value = null
   }
   
@@ -63,7 +65,8 @@ export const useAIStore = defineStore('ai', () => {
    */
   async function validateProviderConfig(serviceConfig: AIServiceConfig): Promise<boolean> {
     try {
-      return await service.validateConfig(serviceConfig)
+      const provider = factory.createProvider(serviceConfig.provider.providerType, serviceConfig.provider)
+      return await provider.validateConfig(serviceConfig.provider)
     } catch (err) {
       error.value = err instanceof Error ? err : new Error(String(err))
       return false
@@ -74,9 +77,18 @@ export const useAIStore = defineStore('ai', () => {
    * Get current provider health status
    */
   function getProviderHealth(): { isHealthy: boolean; lastError: Error | null } {
+    if (!config.value) {
+      return { isHealthy: false, lastError: null }
+    }
+    
+    const provider = factory.getProvider(config.value.provider.providerType)
+    if (!provider) {
+      return { isHealthy: false, lastError: new Error('Provider not found') }
+    }
+    
     return {
-      isHealthy: service.isHealthy(),
-      lastError: service.getLastError()
+      isHealthy: true, // Provider exists and is initialized
+      lastError: error.value
     }
   }
   
@@ -84,7 +96,7 @@ export const useAIStore = defineStore('ai', () => {
    * Get current service configuration
    */
   function getCurrentConfig(): AIServiceConfig | null {
-    return service.getCurrentConfig()
+    return config.value
   }
   
   return {

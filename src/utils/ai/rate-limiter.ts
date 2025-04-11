@@ -1,67 +1,64 @@
-export class RateLimiter {
-  private tokens: number
-  private lastRefill: number
-  private readonly maxTokens: number
-  private readonly refillRate: number
-  private readonly refillInterval: number
-
-  constructor(
-    maxTokens: number = 10,
-    refillRate: number = 1,
-    refillInterval: number = 1000
-  ) {
-    if (maxTokens <= 0) throw new Error('Max tokens must be positive')
-    if (refillRate <= 0) throw new Error('Refill rate must be positive')
-    if (refillInterval <= 0) throw new Error('Refill interval must be positive')
-    if (refillRate > maxTokens) throw new Error('Refill rate cannot be greater than max tokens')
-
-    this.maxTokens = maxTokens
-    this.tokens = maxTokens
-    this.lastRefill = Date.now()
-    this.refillRate = refillRate
-    this.refillInterval = refillInterval
-  }
-
-  private refillTokens(): void {
+/**
+ * Creates a rate limiter using the token bucket algorithm
+ * @param maxTokens Maximum number of tokens (default: 10)
+ * @param refillRate Tokens added per interval (default: 1)
+ * @param refillInterval Time between refills in ms (default: 1000)
+ * @returns Object with acquire method to control rate limiting
+ */
+export function createRateLimiter(
+  maxTokens = 10,
+  refillRate = 1,
+  refillInterval = 1000
+) {
+  let tokens = maxTokens
+  let lastRefill = Date.now()
+  
+  function refillTokens() {
     const now = Date.now()
-    const timePassed = now - this.lastRefill
-    const tokensToAdd = Math.floor(timePassed / this.refillInterval) * this.refillRate
-
+    const timePassed = now - lastRefill
+    const tokensToAdd = Math.floor(timePassed / refillInterval) * refillRate
+    
     if (tokensToAdd > 0) {
-      this.tokens = Math.min(this.maxTokens, this.tokens + tokensToAdd)
-      this.lastRefill = now
+      tokens = Math.min(maxTokens, tokens + tokensToAdd)
+      lastRefill = now
     }
   }
+  
+  return {
+    /**
+     * Acquires a token, waiting if necessary
+     * @returns Promise that resolves when a token is available
+     */
+    async acquire() {
+      refillTokens()
+      
+      if (tokens <= 0) {
+        const waitTime = refillInterval - (Date.now() - lastRefill)
+        await new Promise(resolve => setTimeout(resolve, waitTime))
+      }
+      
+      tokens--
+    },
 
-  async acquire(): Promise<void> {
-    this.refillTokens()
+    canAcquire(): boolean {
+      refillTokens()
+      return tokens > 0
+    },
 
-    if (this.tokens <= 0) {
-      const waitTime = this.refillInterval - (Date.now() - this.lastRefill)
-      await new Promise(resolve => setTimeout(resolve, waitTime))
+    getWaitTime(): number {
+      refillTokens()
+      if (tokens > 0) return 0
+      return refillInterval - (Date.now() - lastRefill)
+    },
+
+    getTokens(): number {
+      refillTokens()
+      return tokens
+    },
+
+    reset(): void {
+      tokens = maxTokens
+      lastRefill = Date.now()
     }
-
-    this.tokens--
-  }
-
-  canAcquire(): boolean {
-    this.refillTokens()
-    return this.tokens > 0
-  }
-
-  getWaitTime(): number {
-    this.refillTokens()
-    if (this.tokens > 0) return 0
-    return this.refillInterval - (Date.now() - this.lastRefill)
-  }
-
-  getTokens(): number {
-    this.refillTokens()
-    return this.tokens
-  }
-
-  reset(): void {
-    this.tokens = this.maxTokens
-    this.lastRefill = Date.now()
   }
 } 

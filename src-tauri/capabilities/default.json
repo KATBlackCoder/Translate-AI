@@ -11,6 +11,8 @@
     "http:default",
     "dialog:default",
     "fs:allow-desktop-read-recursive",
-    "fs:allow-desktop-write-recursive"
+    "fs:allow-desktop-write-recursive",
+    "dialog:allow-open",
+    "dialog:allow-save"
   ]
 }

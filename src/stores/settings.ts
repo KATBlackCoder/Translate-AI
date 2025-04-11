@@ -1,6 +1,19 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { OLLAMA_DEFAULTS } from '@/config/provider/ai/ollama'
+import type { AIProviderType, TranslationQualitySettings } from '@/types/ai'
+
+// Default settings for Ollama provider
+const OLLAMA_DEFAULTS = {
+  providerType: 'ollama' as AIProviderType,
+  defaultModel: 'mistral',
+  baseUrl: 'http://localhost:11434/api',
+  defaultTemperature: 0.3,
+  defaultMaxTokens: 2000,
+  retryCount: 2,
+  batchSize: 5,
+  timeout: 30000
+}
+
 /**
  * Store for managing application settings
  * Handles translation configuration, AI provider settings, and quality settings
@@ -11,22 +24,22 @@ export const useSettingsStore = defineStore('settings', () => {
   const targetLanguage = ref<string>('en')
   
   // AI provider settings
-  const aiProvider = ref<string>(OLLAMA_DEFAULTS.providerType)
+  const aiProvider = ref<AIProviderType>(OLLAMA_DEFAULTS.providerType)
   const aiModel = ref<string>(OLLAMA_DEFAULTS.defaultModel)
   const apiKey = ref<string>('')
   const baseUrl = ref<string>(OLLAMA_DEFAULTS.baseUrl)
   
   // Content settings
-  const allowNSFWContent = ref<boolean>(true)
+  const allowNSFWContent = ref<boolean>(false)
   
   // Theme settings
   const isDark = ref(false)
   
   // Quality settings
-  const qualitySettings = ref({
+  const qualitySettings = ref<TranslationQualitySettings>({
     temperature: OLLAMA_DEFAULTS.defaultTemperature,
     maxTokens: OLLAMA_DEFAULTS.defaultMaxTokens,
-    retryCount: OLLAMA_DEFAULTS.retryCount, 
+    retryCount: OLLAMA_DEFAULTS.retryCount,
     batchSize: OLLAMA_DEFAULTS.batchSize,
     timeout: OLLAMA_DEFAULTS.timeout
   })
@@ -102,21 +115,21 @@ export const useSettingsStore = defineStore('settings', () => {
   /**
    * Reset settings to defaults
    */
-  function resetSettings() {
+  function $resetSettings() {
     sourceLanguage.value = 'ja'
     targetLanguage.value = 'en'
-    aiProvider.value = 'ollama'
-    aiModel.value = 'mistral'
+    aiProvider.value = OLLAMA_DEFAULTS.providerType
+    aiModel.value = OLLAMA_DEFAULTS.defaultModel
     apiKey.value = ''
-    baseUrl.value = 'http://localhost:11434/api'
+    baseUrl.value = OLLAMA_DEFAULTS.baseUrl
     allowNSFWContent.value = false
     
     qualitySettings.value = {
-      temperature: 0.7,
-      maxTokens: 2000,
-      retryCount: 3,
-      batchSize: 5,
-      timeout: 30000
+      temperature: OLLAMA_DEFAULTS.defaultTemperature,
+      maxTokens: OLLAMA_DEFAULTS.defaultMaxTokens,
+      retryCount: OLLAMA_DEFAULTS.retryCount,
+      batchSize: OLLAMA_DEFAULTS.batchSize,
+      timeout: OLLAMA_DEFAULTS.timeout
     }
     
     // Remove from local storage
@@ -174,7 +187,7 @@ export const useSettingsStore = defineStore('settings', () => {
     // Methods
     saveSettings,
     loadSettings,
-    resetSettings,
+    $resetSettings,
     toggleDarkMode,
     initializeTheme
   }

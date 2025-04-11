@@ -3,9 +3,9 @@ import { BaseEngineService } from '../base-engine-service'
 import type { 
   EngineValidation, 
   GameResourceFile, 
-  EngineSettings 
-} from '@/types/engines/base'
-import type { ResourceTranslation } from '@/types/shared/translation'
+  EngineSettings,
+  ResourceTranslation
+} from '@/types/engines'
 import { join } from '@tauri-apps/api/path'
 
 // Reuse actor handlers

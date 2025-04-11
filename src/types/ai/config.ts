@@ -8,8 +8,12 @@
  * @module types/ai/config
  */
 
-import type { ContentRating, PromptType } from '@/types/shared/translation'
-import type { AIBaseConfig, AIProviderType, AIErrorMessages } from './base'
+import type { 
+  AIBaseConfig, 
+  AIProviderType, 
+  AIErrorMessages,
+  LanguagePair
+} from '@/types/ai'
 
 // ============================================================
 // PROVIDER CONFIGURATION
@@ -28,8 +32,7 @@ import type { AIBaseConfig, AIProviderType, AIErrorMessages } from './base'
  *   model: 'mistral',
  *   baseUrl: 'http://localhost:11434/api',
  *   temperature: 0.7,
- *   maxTokens: 2000,
- *   contentRating: 'sfw'
+ *   maxTokens: 2000
  * };
  * ```
  */
@@ -42,15 +45,6 @@ export interface AIProviderConfig extends AIBaseConfig {
    */
   providerType: AIProviderType
   
-  /**
-   * Prompt type for content-specific handling
-   * Affects which prompt templates are used for translation
-   * 
-   * @example 'dialogue' for character conversations
-   * @example 'menu' for game menu items
-   */
-  promptType?: PromptType
-
   /**
    * Provider-specific options
    * Additional configuration options specific to each provider
@@ -189,16 +183,13 @@ export interface TranslationQualitySettings {
  * @example
  * ```typescript
  * const serviceConfig: AIServiceConfig = {
- *   sourceLanguage: 'ja',
- *   targetLanguage: 'en',
- *   contentRating: 'sfw',
+ *   languagePair: { source: 'ja', target: 'en' },
  *   provider: {
  *     providerType: 'ollama',
  *     model: 'mistral',
  *     baseUrl: 'http://localhost:11434/api',
  *     temperature: 0.7,
- *     maxTokens: 2000,
- *     contentRating: 'sfw'
+ *     maxTokens: 2000
  *   },
  *   quality: {
  *     temperature: 0.3,
@@ -212,37 +203,14 @@ export interface TranslationQualitySettings {
  */
 export interface AIServiceConfig {
   /**
-   * Source language code (ISO)
-   * The language being translated from
+   * Language pair for translation
    * 
-   * Uses ISO 639-1 two-letter language codes (e.g., 'en', 'ja', 'zh')
+   * Specifies the source and target languages for translation
+   * using the LanguagePair type that encapsulates both languages
    * 
-   * @example 'ja' for Japanese
-   * @example 'zh' for Chinese
+   * @example { source: 'ja', target: 'en' }
    */
-  sourceLanguage: string
-  
-  /**
-   * Target language code (ISO)
-   * The language being translated to
-   * 
-   * Uses ISO 639-1 two-letter language codes (e.g., 'en', 'fr', 'es')
-   * 
-   * @example 'en' for English
-   * @example 'fr' for French
-   */
-  targetLanguage: string
-  
-  /**
-   * Content rating classification
-   * Controls whether adult content is permitted
-   * 
-   * - 'sfw': Safe for work content only
-   * - 'nsfw': May include adult or sensitive content
-   * 
-   * This affects prompt selection and content filtering.
-   */
-  contentRating: ContentRating
+  languagePair: LanguagePair
   
   /**
    * Provider-specific configuration
@@ -279,7 +247,6 @@ export interface AIServiceConfig {
  *   apiKey: 'sk-...',
  *   temperature: 0.7,
  *   maxTokens: 100,
- *   contentRating: 'sfw',
  *   errorMessages: {
  *     connectionFailed: 'Unable to connect to OpenAI API',
  *     apiNotFound: 'OpenAI API endpoint not found',

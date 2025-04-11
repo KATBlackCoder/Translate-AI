@@ -1,135 +1,206 @@
-# Translation AI
+# Type System Organization
 
-A TypeScript-based application for translating RPG Maker MV game content. The project provides a structured way to extract, translate, and reapply translations to RPG Maker MV game files using various AI providers.
-
-## Core Features
-
-- Extract translatable content from RPG Maker MV game files
-- Manage translations with context and tracking
-- Apply translations back to game files
-- Validate RPG Maker MV project structure
-- Support for multiple game engines (currently focused on RPG Maker MV)
-- Support for multiple AI providers (Ollama, ChatGPT, DeepSeek)
-- Content rating system for handling NSFW content
-
-## Project Structure
-
-### Engine System
-
-The project uses an engine-based architecture to support different game engines:
-
-- `GameEngine` interface defines the contract for game engine implementations
-- `RPGMakerMVEngine` implements translation support for RPG Maker MV games
-- Each engine handles:
-  - Project validation
-  - File reading
-  - Translation extraction
-  - Translation application
-
-### AI Provider System
-
-The application implements a flexible AI provider system:
-
-- `AIProvider` interface defines the contract for all AI providers
-- `BaseProvider` implements common functionality (caching, rate limiting, retries)
-- Specialized providers for:
-  - `OllamaProvider`: Local Ollama AI models
-  - `ChatGPTProvider`: OpenAI's ChatGPT models
-  - `DeepSeekProvider`: DeepSeek AI models
-- Content rating support across all providers
-- Quality scoring for translations
-
-### Data Types
-
-#### RPG Maker MV Types
-
-- `RPGMVActorData`: Array structure for actor data (with null first element)
-- `RPGMVActor`: Individual actor properties (name, profile, etc.)
-- `RPGMVBaseData`: Common properties across all data types
-- Additional types for items, skills, classes, etc.
-
-#### Translation Types
-
-- `TranslationTarget`: Structure for translation entries
-- `EngineFile`: Represents game data files
-- `EngineValidation`: Project validation results
-
-#### AI Types
-
-- `AIProviderConfig`: Configuration for AI providers
-- `AIModelPreset`: Model settings and capabilities
-- `ContentRating`: Content appropriateness rating ('sfw'/'nsfw')
-- `PromptType`: Different types of translation prompts
-
-### File Structure
+## Directory Structure
 
 ```
 src/
-├── engines/           # Game engine implementations
-├── types/            # TypeScript type definitions
-│   ├── engines/      # Engine-specific types
-│   ├── ai/           # AI provider types
-│   └── shared/       # Shared type definitions
-├── composables/      # Vue.js composables
-│   └── providers/    # AI provider composables
-├── stores/          # Pinia state management
-├── services/        # Service implementations
-│   └── providers/   # AI provider implementations
-└── config/          # Configuration and settings
-    └── provider/    # AI provider configuration
+├── core/                  # Core abstractions only
+│   ├── index.ts          # Main entry point for core
+│   ├── ai/
+│   │   ├── index.ts      # Exports AI base classes and interfaces
+│   │   └── base/         # Base implementations (HOW)
+│   │       ├── base-provider.ts # Generic base provider
+│   │       ├── openai-base-provider.ts # OpenAI-specific base provider
+│   │       ├── base-translation.ts # Base translation implementation
+│   │       ├── base-prompt.ts # Base prompt implementation
+│   │       ├── base-cost.ts # Base cost implementation
+│   │       └── base-error.ts # Error handling
+│   └── engines/
+│       ├── index.ts      # Exports engine base classes
+│       └── base-engine.ts # Generic base engine
+├── services/             # Concrete implementations
+│   ├── providers/        # Provider implementations
+│   │   ├── index.ts      # Exports all provider implementations
+│   │   ├── ollama-provider.ts # Ollama provider implementation
+│   │   └── chatgpt-provider.ts # ChatGPT provider implementation
+│   ├── initializers/     # Provider initialization
+│   │   ├── index.ts      # Exports all initializers
+│   │   └── openai-initializer.ts # OpenAI API format initializer
+│   ├── ai/               # AI service implementations
+│   │   ├── translation/  # Translation implementations
+│   │   │   ├── index.ts  # Exports all translation implementations
+│   │   │   ├── chatgpt-translation.ts # ChatGPT translation implementation
+│   │   │   └── ollama-translation.ts # Ollama translation implementation
+│   │   ├── prompt/       # Prompt implementations
+│   │   │   ├── index.ts  # Exports all prompt implementations
+│   │   │   ├── chatgpt-prompt.ts # ChatGPT prompt implementation
+│   │   │   └── ollama-prompt.ts # Ollama prompt implementation
+│   │   └── cost/         # Cost implementations
+│   │       ├── index.ts  # Exports all cost implementations
+│   │       ├── chatgpt-cost.ts # ChatGPT cost implementation
+│   │       └── ollama-cost.ts # Ollama cost implementation
+│   └── factory.ts        # Provider factory
+├── utils/                # Utilities outside of core
+│   ├── index.ts          # Exports all utilities
+│   ├── ai/               # AI-specific utilities
+│   │   ├── index.ts      # Exports AI utilities
+│   │   ├── retry.ts      # Retry mechanism
+│   │   ├── rate-limiter.ts # Rate limiting
+│   │   └── cache.ts      # Caching utilities
+│   └── common/           # Common utilities
+│       ├── index.ts      # Exports common utilities
+│       └── ...           # Other utility files
+└── types/                 # Type definitions only
+    ├── ai/               # AI interfaces (WHAT)
+    │   ├── index.ts      # Re-exports all AI types
+    │   ├── provider.ts   # Provider interfaces
+    │   ├── prompt.ts     # Prompt interfaces
+    │   ├── store.ts      # Store types
+    │   └── config.ts     # Configuration types
+    ├── engines/          # Engine interfaces
+    │   ├── index.ts      # Re-exports all engine types
+    │   ├── base.ts       # Base engine interfaces
+    │   ├── translator.ts # Translator interfaces
+    │   └── rpgmv/        # RPG Maker MV specific types
+    └── shared/           # Shared type definitions
+        ├── core.ts       # Core shared types
+        ├── languages.ts  # Language-related types
+        ├── resources.ts  # Resource-related types
+        ├── ai.ts         # AI-related shared types
+        └── errors.ts     # Error types
 ```
 
-## Key Components
+## Type System Rules
 
-### RPG Maker MV Engine
+1. **Module Organization**
+   - Core abstractions are in the `core` directory
+   - Type definitions are in the `types` directory
+   - Utilities are in the `utils` directory
+   - Concrete implementations are in the `services` directory
+   - Each domain has its own type directory (`ai`, `engines`)
+   - Shared types are in the `shared` directory
+   - Each module has an `index.ts` that re-exports types
 
-- Handles RPG Maker MV specific file structure
-- Manages actor translations with proper context
-- Supports multiple translatable fields:
-  - Name
-  - Nickname
-  - Profile
-  - Notes
+2. **Import Patterns**
+   - Never import directly from `@shared`
+   - Always import through module index files
+   - Example: `import type { LanguageCode } from '@/types/ai'` (not from `@/types/shared/languages`)
+   - Import utilities from `@utils` directory
+   - Example: `import { RetryManager } from '@/utils/ai/retry'`
+   - Import services from `@services` directory
+   - Example: `import { ChatGPTProvider } from '@/services/providers/chatgpt-provider'`
 
-### AI Provider System
+3. **Type Definitions**
+   - Core types are in `shared/core.ts`
+   - Language types are in `shared/languages.ts`
+   - Resource types are in `shared/resources.ts`
+   - AI-specific shared types are in `shared/ai.ts`
+   - Error types are in `shared/errors.ts`
+   - AI-specific types are in `ai/*.ts`
+   - Engine-specific types are in `engines/*.ts`
 
-- Abstract base provider with shared functionality
-- Provider-specific implementations
-- Content rating validation
-- Translation quality scoring
-- Centralized error handling
-- Configurable model presets
+4. **Design Principles**
+   - **DRY**: Shared types are defined once in `@shared`
+   - **SOLID**: Each type file has one clear purpose
+   - **YAGNI**: Types are added only when needed
 
-### File Management
+5. **Dependency Flow**
+   - Dependencies flow in one direction: `core.ts` → `languages.ts` → `errors.ts` → `resources.ts` → `ai.ts`
+   - Each file only depends on files "above" it in the hierarchy
+   - No file depends on files "below" it
 
-- Validates required game files
-- Reads JSON data files
-- Maintains file structure integrity
-- Handles file system errors gracefully
+6. **Language Handling**
+   - Use `LanguagePair` instead of separate source/target language parameters
+   - Import language types from module indexes, not directly from `@shared`
+   - Example: `import type { LanguagePair } from '@/types/ai'`
 
-### Translation Flow
+7. **Type Consistency**
+   - Use the same types across modules for similar concepts
+   - For example, both AI and engine modules use `LanguagePair` for language pairs
+   - Avoid duplicating type definitions across modules
 
-1. Validate project structure
-2. Read game data files
-3. Extract translatable content
-4. Process translations with configured AI provider
-5. Apply translations back to files
+## Implementation Roadmap
 
-## Development
+### AI Core Implementation
+1. **Interfaces**
+   - Define contracts for providers, translation, prompts, and costs
+   - Ensure interfaces are focused and specific
+   - Follow interface segregation principle
+   - Make interfaces provider-agnostic
 
-- Built with TypeScript for type safety
-- Uses Vue.js with Composition API
-- State management with Pinia
-- UI components with PrimeVue
-- Desktop integration with Tauri
-- Unit testing with Vitest
+2. **Base Classes**
+   - Implement common functionality in base classes
+   - Create OpenAI API format base provider
+   - Implement base translation, prompt, and cost classes
+   - Ensure base classes are extensible
+   - Implement error handling with AIErrorFactory
 
-## Project Goals
+3. **Factory Pattern**
+   - Create provider factory for instantiation
+   - Implement provider registration system
+   - Handle provider configuration
+   - Provide provider access
 
-- Provide accurate game content translation
-- Maintain game file integrity
-- Support multiple game engines
-- Support multiple AI providers
-- Ensure content appropriateness with rating system
-- Ensure type safety throughout the application
-- Deliver a user-friendly translation workflow 
+4. **Utilities**
+   - Evaluate existing utilities
+   - Determine which utilities should be moved to core
+   - Create new utilities for common functionality
+   - Implement proper dependency injection
+
+5. **Error Handling**
+   - Create error hierarchy
+   - Add error recovery strategies
+   - Implement logging system
+   - Standardize error types
+
+### AI Services Implementation
+1. **Provider Services**
+   - Implement ChatGPT provider
+   - Implement Ollama provider
+   - Ensure providers follow OpenAI API format
+   - Handle provider-specific functionality
+   - Extend OpenAIBaseProvider for OpenAI-compatible providers
+
+2. **Initializers**
+   - Create OpenAI API format initializer
+   - Handle API key validation
+   - Handle model validation
+   - Handle client initialization
+
+3. **Service Implementations**
+   - Implement translation services
+   - Implement prompt services
+   - Implement cost estimation services
+   - Ensure services are provider-specific
+
+4. **Integration Tests**
+   - Test ChatGPT provider
+   - Test Ollama provider
+   - Test provider switching
+   - Test error handling
+
+### Engine Implementation
+1. **Base Engine**
+   - Uses `@engines/base.ts` interface
+   - Implements common engine functionality
+   - Handles engine lifecycle
+   - Manages engine state
+
+2. **Engine Factory**
+   - Creates engine instances
+   - Manages engine registration
+   - Handles engine configuration
+   - Provides engine access
+
+### Utility Implementation
+1. **AI Utilities**
+   - Retry mechanism for API calls
+   - Rate limiting for API requests
+   - Caching for API responses
+   - Error handling for API failures
+
+2. **Common Utilities**
+   - File system operations
+   - Data transformation
+   - Validation functions
+   - Helper methods

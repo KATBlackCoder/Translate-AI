@@ -1,380 +1,479 @@
-# Application Architecture: Separation of Concerns
+# Architecture Documentation
 
-This document outlines the architecture of our Translation AI application, focusing on how we've separated concerns between user preferences, AI functionality, and engine implementation.
+## Overview
 
-## Core Architecture Principles
+This document outlines the architecture of the Game Translation Desktop App, focusing on the core abstractions, type system organization, design principles, and implementation guidelines.
 
-1. **Separation of Concerns**: Each module has a single, well-defined responsibility
-2. **Configuration as Source of Truth**: Default values come from configuration files, not hardcoded in components
-3. **Independence Between Modules**: Components can function without tight coupling to others
-4. **Unidirectional Data Flow**: Data flows from configuration → settings → services, not in reverse
-5. **Clear Dependency Boundaries**: Higher-level modules don't depend on implementation details of lower-level modules
-6. **Modular Store Design**: Pinia stores are split into modular components (state, getters, actions)
-7. **Dependency Injection**: Services use dependency injection for better testability and flexibility
+## Design Principles
 
-## Key Architecture Components
+The architecture follows three core design principles:
 
-### Store Architecture
+### DRY (Don't Repeat Yourself)
+- Shared types are defined once in `@shared`
+- Common interfaces are defined in base files
+- Engine-specific types extend base interfaces
+- Error types are standardized across modules
+- Language types are shared between AI and engines
 
-The application uses a modular store architecture with Pinia, splitting stores into logical components:
+### SOLID
+1. **Single Responsibility**
+   - Each type file has one clear purpose
+   - Interfaces are focused and specific
+   - Types are grouped by functionality
 
-**Store Structure:**
+2. **Open/Closed**
+   - Base interfaces allow extension
+   - New engines can be added without modification
+   - New AI providers can be added without changes
+
+3. **Liskov Substitution**
+   - Engine types properly extend base interfaces
+   - AI providers follow common interface
+   - Shared types maintain consistent behavior
+
+4. **Interface Segregation**
+   - Small, focused interfaces
+   - Types are split by concern
+   - No unnecessary dependencies
+   - Large interfaces are broken into smaller ones to avoid circular dependencies
+
+5. **Dependency Inversion**
+   - High-level modules depend on abstractions
+   - Types define contracts, not implementations
+   - Shared types provide common interfaces
+   - Dependencies flow in one direction to avoid cycles
+
+### YAGNI (You Aren't Gonna Need It)
+- Types are added only when needed
+- No speculative type definitions
+- Focus on current requirements
+- Simple, focused interfaces
+
+## Directory Structure
+
+### @core Directory
+
+The `@core` directory contains the core abstractions for the application. These abstractions define the interfaces and base classes that concrete implementations will use.
+
+#### Files
+
+1. **index.ts**
+   - Purpose: Main entry point for core module
+   - Contains: Re-exports of all core abstractions
+   - Used by: Application code that needs core functionality
+
+2. **ai/**
+   - Purpose: Contains AI-related base classes and interfaces
+   - Contains:
+     - `index.ts`: Exports AI base classes and interfaces
+     - `base/`: Base implementations (HOW)
+       - `base-provider.ts`: Generic base provider
+       - `openai-base-provider.ts`: OpenAI-specific base provider
+       - `base-translation.ts`: Base translation implementation
+       - `base-prompt.ts`: Base prompt implementation
+       - `base-cost.ts`: Base cost implementation
+       - `base-error.ts`: Error handling with AIErrorFactory
+   - Used by: AI provider implementations
+
+3. **engines/**
+   - Purpose: Contains game engine-related base classes
+   - Contains:
+     - `index.ts`: Exports engine base classes
+     - `base-engine.ts`: Generic base engine
+   - Used by: Game engine implementations
+
+### @services Directory
+
+The `@services` directory contains concrete implementations of the core abstractions. These implementations provide the actual functionality for the application.
+
+#### Files
+
+1. **providers/**
+   - Purpose: Contains AI provider implementations
+   - Contains:
+     - `index.ts`: Exports all provider implementations
+     - `ollama-provider.ts`: Ollama provider implementation
+     - `chatgpt-provider.ts`: ChatGPT provider implementation
+   - Used by: Application code that needs AI providers
+
+2. **initializers/**
+   - Purpose: Contains provider initialization logic
+   - Contains:
+     - `index.ts`: Exports all initializers
+     - `openai-initializer.ts`: OpenAI API format initializer
+   - Used by: Provider implementations
+
+3. **ai/**
+   - Purpose: Contains AI service implementations
+   - Contains:
+     - `translation/`: Translation implementations
+       - `index.ts`: Exports all translation implementations
+       - `chatgpt-translation.ts`: ChatGPT translation implementation
+       - `ollama-translation.ts`: Ollama translation implementation
+     - `prompt/`: Prompt implementations
+       - `index.ts`: Exports all prompt implementations
+       - `chatgpt-prompt.ts`: ChatGPT prompt implementation
+       - `ollama-prompt.ts`: Ollama prompt implementation
+     - `cost/`: Cost implementations
+       - `index.ts`: Exports all cost implementations
+       - `chatgpt-cost.ts`: ChatGPT cost implementation
+       - `ollama-cost.ts`: Ollama cost implementation
+   - Used by: Provider implementations
+
+4. **factory.ts**
+   - Purpose: Creates provider instances
+   - Contains: Provider factory implementation
+   - Used by: Application code that needs provider instances
+
+### @utils Directory
+
+The `@utils` directory contains utility functions and classes that are used across the application. These utilities provide common functionality that can be used by both core and implementation code.
+
+#### Files
+
+1. **index.ts**
+   - Purpose: Main entry point for utils module
+   - Contains: Re-exports of all utilities
+   - Used by: Application code that needs utility functions
+
+2. **ai/**
+   - Purpose: Contains AI-specific utilities
+   - Contains:
+     - `index.ts`: Exports AI utilities
+     - `retry.ts`: Retry mechanism for API calls
+     - `rate-limiter.ts`: Rate limiting for API calls
+     - `cache.ts`: Caching for API responses
+   - Used by: AI provider implementations
+
+3. **common/**
+   - Purpose: Contains common utilities used across the application
+   - Contains:
+     - `index.ts`: Exports common utilities
+     - Various utility files for common functionality
+   - Used by: Multiple modules across the application
+
+### @types Directory
+
+The `@types` directory contains type definitions that are used across the application. These types provide a common foundation for the application's type system.
+
+#### @shared Directory
+
+The `@shared` directory contains type definitions that are used across multiple modules. These types provide a common foundation for the application's type system.
+
+##### Files
+
+1. **core.ts**
+   - Purpose: Defines core shared types used across the application
+   - Contains: Base interfaces and types for common functionality
+   - Used by: Multiple modules across the application
+
+2. **languages.ts**
+   - Purpose: Defines language-related types used throughout the application
+   - Contains: Language codes, language information, and language pairs
+   - Used by: Translation services, UI components, and configuration
+
+3. **resources.ts**
+   - Purpose: Defines types for resource management
+   - Contains: Resource-related interfaces and type definitions
+   - Used by: Resource handling implementations
+
+4. **ai.ts**
+   - Purpose: Defines AI-specific shared types
+   - Contains: AI-related interfaces and type definitions
+   - Used by: AI implementations
+
+5. **errors.ts**
+   - Purpose: Defines standardized error types
+   - Contains: Error interfaces and type definitions
+   - Used by: Error handling implementations
+
+#### @ai Directory
+
+The `@ai` directory contains type definitions for AI-related functionality. These types are used across the application to ensure type safety and consistency when working with AI providers.
+
+##### Files
+
+1. **index.ts**
+   - Purpose: Serves as the main entry point for all AI-related types
+   - Contains: Re-exports of types from @shared and @ai
+   - Used by: Application code that needs AI types
+
+2. **provider.ts**
+   - Purpose: Defines the core AI provider interface and related types
+   - Contains: 
+     - `AIProvider` interface
+     - Provider metadata types
+     - Error message types
+     - Provider configuration types
+   - Used by: AI provider implementations
+
+3. **prompt.ts**
+   - Purpose: Defines prompt-related interfaces and types
+   - Contains: Prompt interfaces and prompt-related type definitions
+   - Used by: AI prompt implementations
+
+4. **store.ts**
+   - Purpose: Defines types for AI state management
+   - Contains: State interfaces, action types, and store-related type definitions
+   - Used by: AI state management implementation
+
+5. **config.ts**
+   - Purpose: Defines configuration types for AI providers
+   - Contains: 
+     - Provider-specific configuration types
+     - Model configuration types
+     - Settings and options types
+   - Used by: AI provider configuration implementations
+
+#### @engines Directory
+
+The `@engines` directory contains type definitions for game engine-specific functionality. These types define the structure and requirements for different game engines.
+
+##### Files
+
+1. **index.ts**
+   - Purpose: Serves as the main entry point for all engine-related types
+   - Contains: Re-exports of types from @shared and @engines
+   - Used by: Application code that needs engine types
+
+2. **base.ts**
+   - Purpose: Defines the base interface for all game engines
+   - Contains: Core engine interfaces and common types
+   - Used by: All engine implementations
+
+3. **translator.ts**
+   - Purpose: Defines types for engine-specific translation
+   - Contains: Translation interfaces and engine-specific types
+   - Used by: Engine translation implementations
+
+4. **rpgmv/**
+   - Purpose: Contains RPG Maker MV specific types
+   - Contains: 
+     - `index.ts`: Re-exports all RPGMV types
+     - `common.ts`: Common RPGMV types
+     - `data/`: RPGMV data structure types
+   - Used by: RPG Maker MV implementation
+
+## Dependency Management
+
+### Circular Dependency Prevention
+
+The architecture actively prevents circular dependencies through several strategies:
+
+1. **Unidirectional Dependencies**
+   - Dependencies flow in one direction: `core.ts` → `languages.ts` → `errors.ts` → `resources.ts` → `ai.ts`
+   - Each file only depends on files "above" it in the hierarchy
+   - No file depends on files "below" it
+
+2. **Base Types in Core**
+   - Fundamental types are defined in `core.ts`
+   - Other files import from `core.ts` but not vice versa
+   - `BaseError` in `core.ts` provides common error properties
+
+3. **Interface Segregation**
+   - Large interfaces are broken into smaller, focused ones
+   - `ResourceTranslationError` contains resource properties directly instead of referencing `ResourceTranslation`
+   - `AITranslationError` is defined in `ai.ts` to avoid circular references
+
+4. **Type-Only Imports**
+   - All imports use `import type` to prevent runtime circular dependencies
+   - This allows TypeScript to resolve type references even with circular imports
+
+### Dependency Structure
+
+The `@shared` directory follows this dependency structure:
+
 ```
-src/stores/
-├── ai/
-│   ├── index.ts       # Main store export
-│   ├── types.ts       # Type definitions
-│   ├── state.ts       # State management
-│   ├── getters.ts     # Computed properties
-│   ├── actions.ts     # Actions and methods
-│   └── constants.ts   # Store constants
-├── engines/
-│   ├── engine.ts      # Main engine store
-│   └── rpgmv.ts       # RPGMV-specific store
-└── settings.ts        # User settings store
-```
-
-**Benefits:**
-- Better code organization
-- Easier testing
-- Clearer dependencies
-- Improved maintainability
-- Better type safety
-
-### Configuration Layer
-
-The configuration layer defines application-wide constants, defaults, and factory functions. It serves as the single source of truth for default values.
-
-**Key Files:**
-- `src/config/provider/ai/index.ts` - AI provider configuration constants
-- `src/config/provider/ai/config-factory.ts` - Factory functions for AI configuration
-- `src/config/engines/index.ts` - Engine configuration constants and helpers
-
-**Benefits:**
-- Centralized management of default values
-- Easy modification of application-wide constants
-- Configuration used consistently across the application
-
-### Type Definitions
-
-Types provide contracts between modules and define the shape of data flowing through the system.
-
-**Key Files:**
-- `src/types/ai/base.ts` - Basic AI-related types 
-- `src/types/ai/config.ts` - AI configuration types
-- `src/types/engines/base.ts` - Engine-related types
-- `src/types/shared/translation.ts` - Translation-related types
-
-**Benefits:**
-- Clear interfaces between modules
-- Type safety throughout the application
-- Documentation of data structures
-
-### User Preferences/Settings
-
-The settings layer manages user preferences and UI state. It focuses on what the user wants, not how those preferences are implemented.
-
-**Key Files:**
-- `src/stores/settings.ts` - User preferences and UI settings
-
-**Responsibilities:**
-- Managing user preferences for AI providers, languages, etc.
-- Handling UI state like dark mode
-- Storing and retrieving settings from localStorage
-- Providing validation for UI components
-
-**What it doesn't do:**
-- Directly initialize AI providers
-- Handle implementation-specific logic
-- Contain default values (uses configuration instead)
-
-### Application Services
-
-Service modules implement core functionality using configuration and settings.
-
-**Key Files:**
-- `src/stores/ai/` - AI service functionality
-- `src/stores/engines/engine.ts` - Engine orchestration
-- `src/stores/engines/rpgmv.ts` - RPGMV-specific implementation
-
-**Responsibilities:**
-- Implementing business logic
-- Performing operations (translation, file processing)
-- Maintaining operational state (progress, errors)
-
-**What they don't do:**
-- Store user preferences
-- Handle UI concerns
-- Depend directly on settings store implementation
-
-### Connector Layer
-
-Connectors synchronize between user preferences and service implementations, translating settings into configuration.
-
-**Key Files:**
-- `src/composables/useAISettingsConnector.ts` - Connects settings to AI service 
-- `src/composables/useEngineSettingsConnector.ts` - Connects settings to engine services
-
-**Responsibilities:**
-- Watching for changes in settings
-- Converting user preferences to service configuration
-- Initializing services with proper configuration
-
-**Benefits:**
-- Decoupling between settings and services
-- Clear boundary for data transformation
-- Single responsibility for settings synchronization
-
-## Data Flow Examples
-
-### AI Configuration Flow
-
-1. Configuration defines default values for AI providers and models
-2. Settings store holds user preferences but doesn't initialize providers
-3. AI store accepts configuration objects independent of settings
-4. Connector watches settings changes and updates AI configuration
-5. AI services use their configuration without depending on settings
-
-```
-┌─────────────────┐     ┌───────────────┐     ┌────────────────┐
-│  Configuration  │────▶│ Settings Store │────▶│ AI Connector   │
-└─────────────────┘     └───────────────┘     └────────────────┘
-                                                      │
-                                                      ▼
-┌─────────────────┐     ┌───────────────┐     ┌────────────────┐
-│ Translation UI  │◀────│ AI Store      │◀────│ AI Config      │
-└─────────────────┘     └───────────────┘     └────────────────┘
-```
-
-### Engine Configuration Flow
-
-1. Configuration defines default engine settings and supported engines
-2. Settings store holds user's engine preferences
-3. Engine service accepts configuration independent of settings
-4. Connector synchronizes engine preferences to engine services
-5. Engine services perform operations based on configuration
-
-```
-┌─────────────────┐     ┌───────────────┐     ┌────────────────┐
-│  Configuration  │────▶│ Settings Store │────▶│ Engine Connect │
-└─────────────────┘     └───────────────┘     └────────────────┘
-                                                      │
-                                                      ▼
-┌─────────────────┐     ┌───────────────┐     ┌────────────────┐
-│   Project UI    │◀────│ Engine Store  │◀────│ Engine Config  │
-└─────────────────┘     └───────────────┘     └────────────────┘
-```
-
-## Benefits of This Architecture
-
-### Maintainability
-
-- **Clear Responsibility Boundaries**: Each module has a single, well-defined responsibility
-- **Reduced Coupling**: Changes in one module don't require changes in others
-- **Centralized Configuration**: Default values and constants are defined in one place
-- **Consistent Patterns**: Similar problems are solved in similar ways
-- **Modular Stores**: Easier to maintain and test individual store components
-
-### Testability
-
-- **Independent Module Testing**: Each module can be tested in isolation
-- **Easier Mocking**: Clear interfaces make mocking dependencies straightforward
-- **Predictable Data Flow**: Data flows in a consistent, predictable direction
-- **Reduced Test Setup**: Tests don't need to set up the entire application
-- **Store Testing**: Each store component can be tested independently
-
-### Extensibility
-
-- **Adding New Providers**: New AI providers can be added without changing settings
-- **Adding New Engines**: New game engines can be added with minimal changes
-- **Feature Expansion**: New features can be added without disrupting existing ones
-- **Alternative UIs**: Different UIs could use the same services with different settings
-- **Store Extensions**: Easy to add new store modules or extend existing ones
-
-## Implementation Guidelines
-
-When implementing new features or making changes, follow these guidelines:
-
-1. **Start with Configuration**: Define constants and default values in configuration files
-2. **Define Types**: Create or update type definitions to reflect the data structure
-3. **Update Services**: Implement functionality in service modules
-4. **Connect to Settings**: Use connectors to link user preferences to services
-5. **Create UI Components**: Build UI components that use settings for configuration
-6. **Use Modular Stores**: Split new stores into state, getters, and actions
-7. **Implement DI**: Use dependency injection for better testability
-
-## Common Pitfalls to Avoid
-
-1. **Direct Dependencies**: Don't import settings directly in service modules
-2. **Hardcoded Values**: Don't hardcode values that should come from configuration
-3. **Bidirectional Dependencies**: Maintain unidirectional flow from settings to services
-4. **Mixed Responsibilities**: Keep UI concerns separate from service implementation
-5. **Implementation Leakage**: Don't expose implementation details to higher levels
-6. **Monolithic Stores**: Avoid putting all store logic in a single file
-7. **Tight Coupling**: Use dependency injection to avoid direct dependencies
-
-By following these architecture principles, our application remains maintainable, testable, and extensible as it grows in complexity.
-
-## Configuration Systems
-
-### AI Configuration System
-
-The AI configuration system manages all AI-related settings and provider configurations through a centralized, type-safe approach.
-
-#### Key Components
-
-1. **AIServiceConfig Interface**
-   ```typescript
-   interface AIServiceConfig {
-     sourceLanguage: string;
-     targetLanguage: string;
-     contentRating: ContentRating;
-     provider: AIProviderConfig;
-     quality: TranslationQualitySettings;
-   }
-   ```
-   - Combines all AI-related settings into a single configuration object
-   - Built on existing types from `base.ts`
-   - Provides type safety for all AI operations
-
-2. **Configuration Factory**
-   - Located in `src/config/provider/ai/config-factory.ts`
-   - Provides two main functions:
-     - `createDefaultAIConfig()`: Creates default configuration
-     - `buildAIConfigFromSettings()`: Builds config from user settings
-   - Handles validation and error cases
-   - Ensures consistent configuration across the application
-
-3. **Settings Connector**
-   - Located in `src/composables/useAISettingsConnector.ts`
-   - Synchronizes user settings with AI configuration
-   - Handles updates and cleanup
-   - Provides error handling and validation
-
-#### Data Flow
-```
-┌─────────────────┐     ┌───────────────┐     ┌────────────────┐
-│  Configuration  │────▶│ Settings Store │────▶│ AI Connector   │
-└─────────────────┘     └───────────────┘     └────────────────┘
-                                                      │
-                                                      ▼
-┌─────────────────┐     ┌───────────────┐     ┌────────────────┐
-│ Translation UI  │◀────│ AI Store      │◀────│ AI Config      │
-└─────────────────┘     └───────────────┘     └────────────────┘
-```
-
-### Engine Configuration System
-
-The Engine configuration system manages game engine-specific settings and capabilities through a similar centralized approach.
-
-#### Key Components
-
-1. **EngineServiceConfig Interface**
-   ```typescript
-   interface EngineServiceConfig {
-     engineType: EngineType;
-     metadata: EngineMetadata;
-     config: EngineConfig;
-     filePatterns: string[];
-     supportedFormats: string[];
-   }
-   ```
-   - Combines all engine-related settings
-   - Built on existing types from `base.ts`
-   - Provides type safety for engine operations
-
-2. **Configuration Factory**
-   - Located in `src/config/engines/config-factory.ts`
-   - Provides two main functions:
-     - `createDefaultEngineConfig()`: Creates default configuration
-     - `buildEngineConfigFromSettings()`: Builds config from user settings
-   - Handles validation and error cases
-   - Ensures consistent configuration across engines
-
-3. **Settings Connector**
-   - Located in `src/composables/useEngineSettingsConnector.ts`
-   - Synchronizes user settings with engine configuration
-   - Handles updates and cleanup
-   - Provides error handling and validation
-
-#### Data Flow
-```
-┌─────────────────┐     ┌───────────────┐     ┌────────────────┐
-│  Configuration  │────▶│ Settings Store │────▶│ Engine Connect │
-└─────────────────┘     └───────────────┘     └────────────────┘
-                                                      │
-                                                      ▼
-┌─────────────────┐     ┌───────────────┐     ┌────────────────┐
-│   Project UI    │◀────│ Engine Store  │◀────│ Engine Config  │
-└─────────────────┘     └───────────────┘     └────────────────┘
+core.ts (base types)
+   ↓
+languages.ts (depends on core)
+   ↓
+errors.ts (depends on core)
+   ↓
+resources.ts (depends on core)
+   ↓
+ai.ts (depends on core and resources)
 ```
 
-### Benefits of Configuration Systems
+This structure ensures:
+- Clear ownership of types
+- Predictable change propagation
+- Easier testing and maintenance
+- No circular dependencies
+- Language types are shared between AI and engines
+- Configuration uses shared language types
 
-1. **Type Safety**
-   - All configurations are fully typed
-   - Compile-time checking of configuration validity
-   - Runtime validation of configuration values
+## Import Patterns
 
-2. **Centralized Management**
-   - Single source of truth for all settings
-   - Consistent configuration across components
-   - Easy to modify and extend
+The architecture follows a strict module-based import pattern to maintain clean dependencies and encapsulation.
 
-3. **Separation of Concerns**
-   - User settings separate from service configuration
-   - Clear boundaries between UI and business logic
-   - Easy to test and maintain
+### Module Structure
 
-4. **Extensibility**
-   - Easy to add new providers or engines
-   - Simple to modify configuration structure
-   - Flexible for future changes
+Each module (`@ai`, `@engines`) should have its own `index.ts` file that acts as the single entry point for all exports. This file:
+- Re-exports types from `@shared` that the module needs
+- Exports module-specific types
+- Controls what is publicly available from the module
 
-### Implementation Guidelines
+The `@shared` directory is special and does not need an index.ts file because:
+- It contains the base types that other modules build upon
+- It should never be imported directly by application code
+- All shared types should be re-exported through module-specific index files
 
-1. **Creating New Configurations**
-   - Start with existing types from `base.ts`
-   - Create new interface extending base types
-   - Implement factory functions
-   - Add validation and error handling
+Example structure:
+```
+@engines/
+  ├── index.ts           # Single entry point, re-exports everything
+  ├── base.ts            # Base engine interfaces
+  ├── translator.ts      # Translation interfaces
+  └── rpgmv/             # RPGMV specific types
+      ├── index.ts       # RPGMV module entry point
+      └── types.ts       # RPGMV specific types
 
-2. **Using Configurations**
-   - Always use factory functions to create configs
-   - Validate configurations before use
-   - Handle errors appropriately
-   - Use type guards when necessary
+@shared/                 # No index.ts needed
+  ├── core.ts            # Core shared types
+  ├── languages.ts       # Language-related types
+  ├── resources.ts       # Resource types
+  ├── ai.ts              # AI-specific shared types
+  └── errors.ts          # Error types
+```
 
-3. **Updating Configurations**
-   - Use connectors for settings changes
-   - Validate updates before applying
-   - Handle cleanup properly
-   - Maintain backward compatibility
+### Import Rules
 
-4. **Testing**
-   - Test factory functions
-   - Test validation logic
-   - Test error cases
-   - Test with edge cases
+1. **Module Internal Imports**
+```typescript
+// ✅ DO: Import from module's index
+import type { ResourceTranslation } from '@/types/engines'
+import type { AIProvider } from '@/types/ai'
 
-### Common Pitfalls
+// ❌ DON'T: Import directly from @shared
+import type { ResourceTranslation } from '@/types/shared/resources'
+import type { ErrorType } from '@/types/shared/errors'
+```
 
-1. **Direct Settings Access**
-   - Avoid accessing settings directly in services
-   - Always use configuration objects
-   - Use connectors for updates
+2. **Cross-Module Imports**
+```typescript
+// ✅ DO: Import from other module's index
+import type { GameEngine } from '@/types/engines'
+import type { AIProvider } from '@/types/ai'
 
-2. **Missing Validation**
-   - Always validate configurations
-   - Handle invalid cases gracefully
-   - Provide clear error messages
+// ❌ DON'T: Import from specific files
+import type { GameEngine } from '@/types/engines/base'
+import type { AIProvider } from '@/types/ai/provider'
+```
 
-3. **Incomplete Cleanup**
-   - Clean up watchers and subscriptions
-   - Handle component unmounting
-   - Release resources properly
+3. **Shared Types Access**
+```typescript
+// ✅ DO: Access shared types through module indexes
+import type { ResourceTranslation } from '@/types/engines'
+import type { BatchOptions } from '@/types/ai'
 
-4. **Type Inconsistency**
-   - Keep types in sync with base types
-   - Update types when base types change
-   - Document type dependencies
+// ❌ DON'T: Import directly from @shared
+import type { ResourceTranslation } from '@/types/shared/resources'
+import type { BatchOptions } from '@/types/shared/core'
+```
+
+### Benefits
+
+1. **Clean Dependencies**
+   - Each module has clear dependencies
+   - Dependencies are managed through index files
+   - Easy to track what each module uses
+   - Clear separation between shared and module-specific types
+
+2. **Better Encapsulation**
+   - Implementation details are hidden
+   - Only public types are exposed
+   - Changes to internal structure don't affect other modules
+   - Shared types are accessed through a controlled interface
+
+3. **Single Source of Truth**
+   - Each type has one clear export point
+   - No duplicate type definitions
+   - Easy to find where types come from
+   - Shared types are defined once but accessed through modules
+
+4. **Easier Maintenance**
+   - Changes to shared types only need to be updated in index files
+   - Refactoring is simpler with clear dependencies
+   - Better control over type visibility
+   - Clear upgrade path when shared types change
+
+### Example Implementation
+
+```typescript
+// @engines/index.ts
+export type { ResourceTranslation } from '@/types/shared/resources'
+export type { BatchOptions } from '@/types/shared/core'
+export type { GameEngine } from './base'
+export type { RPGMVEngine } from './rpgmv'
+
+// @engines/base.ts
+import type { ResourceTranslation, BatchOptions } from '.'
+
+// @engines/rpgmv/index.ts
+export type { RPGMVEngine } from './types'
+export type { GameEngine } from '..'
+
+// @engines/rpgmv/types.ts
+import type { GameEngine, ResourceTranslation } from '..'
+```
+
+## Implementation Roadmap
+
+### AI Core Implementation
+1. **Interfaces**
+   - Define contracts for providers, translation, prompts, and costs
+   - Ensure interfaces are focused and specific
+   - Follow interface segregation principle
+   - Make interfaces provider-agnostic
+
+2. **Base Classes**
+   - Implement common functionality in base classes
+   - Create OpenAI API format base provider
+   - Implement base translation, prompt, and cost classes
+   - Ensure base classes are extensible
+   - Implement error handling with AIErrorFactory
+
+3. **Factory Pattern**
+   - Create provider factory for instantiation
+   - Implement provider registration system
+   - Handle provider configuration
+   - Provide provider access
+
+4. **Utilities**
+   - Evaluate existing utilities
+   - Determine which utilities should be moved to core
+   - Create new utilities for common functionality
+   - Implement proper dependency injection
+
+5. **Error Handling**
+   - Create error hierarchy
+   - Add error recovery strategies
+   - Implement logging system
+   - Standardize error types
+
+### AI Services Implementation
+1. **Provider Services**
+   - Implement ChatGPT provider
+   - Implement Ollama provider
+   - Ensure providers follow OpenAI API format
+   - Handle provider-specific functionality
+   - Extend OpenAIBaseProvider for OpenAI-compatible providers
+
+2. **Initializers**
+   - Create OpenAI API format initializer
+   - Handle API key validation
+   - Handle model validation
+   - Handle client initialization
+
+3. **Service Implementations**
+   - Implement translation services
+   - Implement prompt services
+   - Implement cost estimation services
+   - Ensure services are provider-specific
+
+4. **Integration Tests**
+   - Test ChatGPT provider
+   - Test Ollama provider
+   - Test provider switching
+   - Test error handling

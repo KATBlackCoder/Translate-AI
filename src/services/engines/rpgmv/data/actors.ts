@@ -1,8 +1,7 @@
 // src/services/engines/rpgmv/data/actors.ts
-import type { ResourceTranslation } from '@/types/shared/translation'
-import type { GameResourceFile } from '@/types/engines/base'
+import type { ResourceTranslation, GameResourceFile } from '@/types/engines'
 import type { RPGMVActorData, RPGMVActor, RPGMVActorTranslatable } from '@/types/engines/rpgmv'
-
+import type { PromptType } from '@/types/ai'
 /**
  * Map of translatable actor fields with metadata
  * Defines which fields should be extracted and how they should be processed
@@ -10,27 +9,27 @@ import type { RPGMVActorData, RPGMVActor, RPGMVActorTranslatable } from '@/types
 export const translatableFields: Record<keyof RPGMVActorTranslatable, {
   field: string,
   context: string,
-  promptType: string
+  promptType: PromptType
 }> = {
   name: {
     field: 'name',
-    context: 'Actor Name',
+    context: 'Name',
     promptType: 'name'
   },
   nickname: {
     field: 'nickname',
-    context: 'Actor Title',
+    context: 'Title',
     promptType: 'name'
   },
   profile: {
     field: 'profile',
-    context: 'Actor Profile',
+    context: 'Profile',
     promptType: 'dialogue'
   },
   note: {
     field: 'note',
-    context: 'Actor Notes',
-    promptType: 'general'
+    context: 'Notes',
+    promptType: 'dialogue'
   }
 }
 
@@ -69,9 +68,10 @@ export function extractTranslations(file: GameResourceFile): ResourceTranslation
             field: key,
             source: value,
             target: '',
-            context: `${translatableFields[key].context} for Actor #${actor.id}`,
+            context: `${translatableFields[key].context}`,
             file: file.path,
-            section: 'actors'
+            section: 'actors',
+            promptType: translatableFields[key].promptType
           })
         }
       })

@@ -1,7 +1,7 @@
 // src/services/engines/factory.ts
 import type { BaseEngineService } from '@/services/engines/base-engine-service'
 import { RPGMVEngineService } from '@/services/engines/rpgmv/rpgmv-engine-service'
-import type { EngineType, EngineValidation } from '@/types/engines/base'
+import type { EngineType, EngineValidation } from '@/types/engines'
 
 /**
  * Factory class for creating and managing game engine services.

@@ -4,6 +4,7 @@ import AppHeader from '@/components/common/AppHeader.vue'
 import AppSidebar from '@/components/common/AppSidebar.vue'
 import AppFooter from '@/components/common/AppFooter.vue'
 import { RouterView } from 'vue-router'
+import Toast from 'primevue/toast'
 
 // State for sidebar
 const isSidebarCollapsed = ref(false)
@@ -37,6 +38,7 @@ const toggleSidebar = () => {
 
     <!-- Footer -->
     <AppFooter />
+
   </div>
 </template>
 

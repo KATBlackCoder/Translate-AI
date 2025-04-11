@@ -1,6 +1,6 @@
 # Translation AI
 
-A powerful AI-powered translation tool for game localization, built with Vue 3, TypeScript, and Pinia.
+A powerful AI-powered translation tool for game engine content, built with Vue 3, TypeScript, and Pinia.
 
 ## Features
 
@@ -8,24 +8,28 @@ A powerful AI-powered translation tool for game localization, built with Vue 3, 
   - RPGMV support out of the box
   - Extensible architecture for adding more engines
   - Automatic engine detection
+  - Engine-specific file handling
 
 - 🤖 **AI Translation**
-  - Multiple AI provider support
+  - Multiple AI provider support (Ollama, ChatGPT, DeepSeek)
   - Batch translation capabilities
   - Quality settings control
   - Cost estimation
+  - Content rating system
 
 - ⚙️ **Smart Configuration**
   - User-friendly settings
   - Default configurations
   - Persistent preferences
   - Type-safe configuration
+  - Engine-specific validation
 
 - 🎯 **Project Management**
-  - File pattern detection
+  - Engine file pattern detection
   - Resource file handling
   - Translation progress tracking
   - Error handling and recovery
+  - File integrity maintenance
 
 ## Tech Stack
 

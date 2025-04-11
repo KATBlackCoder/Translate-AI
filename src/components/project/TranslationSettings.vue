@@ -1,3 +1,75 @@
+<script setup lang="ts">
+import { computed, watch } from 'vue'
+import { useSettingsStore } from '@/stores/settings'
+
+const settingsStore = useSettingsStore()
+
+// Language options
+const languages = [
+  { name: 'Japanese', code: 'ja' },
+  { name: 'English', code: 'en' },
+  { name: 'Chinese', code: 'zh' },
+  { name: 'Korean', code: 'ko' },
+  { name: 'French', code: 'fr' },
+  { name: 'German', code: 'de' },
+  { name: 'Spanish', code: 'es' },
+  { name: 'Italian', code: 'it' },
+  { name: 'Portuguese', code: 'pt' },
+  { name: 'Russian', code: 'ru' }
+]
+
+// AI Provider options
+const aiProviders = [
+  { name: 'Ollama (Local)', type: 'ollama' },
+  { name: 'ChatGPT', type: 'chatgpt' },
+  { name: 'DeepSeek', type: 'deepseek' }
+]
+
+// Default base URLs
+const defaultBaseUrls = {
+  ollama: 'http://localhost:11434',
+  chatgpt: 'https://api.openai.com/v1',
+  deepseek: 'https://api.deepseek.com/v1'
+}
+
+// Ollama model options
+const ollamaModels = [
+  { name: 'Mistral', id: 'mistral' },
+  { name: 'Llama 2', id: 'llama2' },
+  { name: 'Code Llama', id: 'codellama' },
+  { name: 'Neural Chat', id: 'neural-chat' },
+  { name: 'Qwen', id: 'qwen' }
+]
+
+// ChatGPT model options
+const chatgptModels = [
+  { name: 'GPT-3.5 Turbo', id: 'gpt-3.5-turbo' },
+  { name: 'GPT-4', id: 'gpt-4' },
+  { name: 'GPT-4 Turbo', id: 'gpt-4-turbo' }
+]
+
+// DeepSeek model options
+const deepseekModels = [
+  { name: 'DeepSeek Chat', id: 'deepseek-chat' },
+  { name: 'DeepSeek Coder', id: 'deepseek-coder' }
+]
+
+// Content rating computed value
+const contentRatingLabel = computed(() => 
+  settingsStore.allowNSFWContent ? 'NSFW' : 'SFW'
+)
+
+// Set default base URL when provider changes
+watch(() => settingsStore.aiProvider, (newProvider) => {
+  if (newProvider && (!settingsStore.baseUrl || settingsStore.baseUrl === '')) {
+    settingsStore.baseUrl = defaultBaseUrls[newProvider as keyof typeof defaultBaseUrls] || ''
+  }
+}, { immediate: true })
+
+// Validation
+const isValid = computed(() => settingsStore.isTranslationConfigValid && settingsStore.isAIConfigValid)
+</script>
+
 <template>
   <Card class="h-full dark:bg-gray-800 dark:text-white dark:dark-card" :class="{'': settingsStore.isDark}">
     <template #title>
@@ -36,7 +108,7 @@
           <label class="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-200">Content Rating</label>
           <div class="flex flex-col gap-2">
             <div class="flex items-center gap-2">
-              <InputSwitch v-model="settingsStore.allowNSFWContent" />
+              <ToggleSwitch v-model="settingsStore.allowNSFWContent" />
               <span class="text-sm text-gray-700 dark:text-gray-200">
                 Allow NSFW Content
               </span>
@@ -159,61 +231,64 @@
 
         <!-- Quality Settings -->
         <Accordion :activeIndex="0">
-          <AccordionTab header="Advanced Settings">
-            <div class="grid grid-cols-2 gap-4 mb-4">
-              <div>
-                <label class="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-200">Temperature</label>
-                <div class="flex items-center gap-2">
-                  <Slider 
-                    v-model="settingsStore.qualitySettings.temperature" 
-                    :min="0" 
-                    :max="2" 
-                    :step="0.1"
-                    class="w-full" 
+          <AccordionPanel value="0">
+            <AccordionHeader>Advanced Settings</AccordionHeader>
+            <AccordionContent>
+              <div class="grid grid-cols-2 gap-4 mb-4">
+                <div>
+                  <label class="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-200">Temperature</label>
+                  <div class="flex items-center gap-2">
+                    <Slider 
+                      v-model="settingsStore.qualitySettings.temperature" 
+                      :min="0" 
+                      :max="2" 
+                      :step="0.1"
+                      class="w-full" 
+                    />
+                    <span class="text-sm">{{ settingsStore.qualitySettings.temperature }}</span>
+                  </div>
+                  <div class="text-xs mt-1 text-gray-500 dark:text-gray-400">
+                    Lower values are more focused, higher values more creative
+                  </div>
+                </div>
+                
+                <div>
+                  <label class="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-200">Max Tokens</label>
+                  <InputNumber 
+                    v-model="settingsStore.qualitySettings.maxTokens" 
+                    :min="100" 
+                    :max="8000"
+                    class="w-full"
                   />
-                  <span class="text-sm">{{ settingsStore.qualitySettings.temperature }}</span>
-                </div>
-                <div class="text-xs mt-1 text-gray-500 dark:text-gray-400">
-                  Lower values are more focused, higher values more creative
                 </div>
               </div>
               
-              <div>
-                <label class="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-200">Max Tokens</label>
-                <InputNumber 
-                  v-model="settingsStore.qualitySettings.maxTokens" 
-                  :min="100" 
-                  :max="8000"
-                  class="w-full"
-                />
-              </div>
-            </div>
-            
-            <div class="grid grid-cols-2 gap-4">
-              <div>
-                <label class="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-200">Batch Size</label>
-                <InputNumber 
-                  v-model="settingsStore.qualitySettings.batchSize" 
-                  :min="1" 
-                  :max="50"
-                  class="w-full"
-                />
-                <div class="text-xs mt-1 text-gray-500 dark:text-gray-400">
-                  Number of texts to translate in one batch
+              <div class="grid grid-cols-2 gap-4">
+                <div>
+                  <label class="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-200">Batch Size</label>
+                  <InputNumber 
+                    v-model="settingsStore.qualitySettings.batchSize" 
+                    :min="1" 
+                    :max="50"
+                    class="w-full"
+                  />
+                  <div class="text-xs mt-1 text-gray-500 dark:text-gray-400">
+                    Number of texts to translate in one batch
+                  </div>
+                </div>
+                
+                <div>
+                  <label class="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-200">Retry Count</label>
+                  <InputNumber 
+                    v-model="settingsStore.qualitySettings.retryCount" 
+                    :min="0" 
+                    :max="10"
+                    class="w-full"
+                  />
                 </div>
               </div>
-              
-              <div>
-                <label class="block mb-2 text-sm font-medium text-gray-700 dark:text-gray-200">Retry Count</label>
-                <InputNumber 
-                  v-model="settingsStore.qualitySettings.retryCount" 
-                  :min="0" 
-                  :max="10"
-                  class="w-full"
-                />
-              </div>
-            </div>
-          </AccordionTab>
+            </AccordionContent>
+          </AccordionPanel>
         </Accordion>
 
         <!-- Validation -->
@@ -233,85 +308,13 @@
             label="Reset Settings" 
             icon="pi pi-refresh" 
             severity="secondary" 
-            @click="settingsStore.reset"
+            @click="settingsStore.$resetSettings"
           />
         </div>
       </div>
     </template>
   </Card>
 </template>
-
-<script setup lang="ts">
-import { computed, watch } from 'vue'
-import { useSettingsStore } from '@/stores/settings'
-
-const settingsStore = useSettingsStore()
-
-// Language options
-const languages = [
-  { name: 'Japanese', code: 'ja' },
-  { name: 'English', code: 'en' },
-  { name: 'Chinese', code: 'zh' },
-  { name: 'Korean', code: 'ko' },
-  { name: 'French', code: 'fr' },
-  { name: 'German', code: 'de' },
-  { name: 'Spanish', code: 'es' },
-  { name: 'Italian', code: 'it' },
-  { name: 'Portuguese', code: 'pt' },
-  { name: 'Russian', code: 'ru' }
-]
-
-// AI Provider options
-const aiProviders = [
-  { name: 'Ollama (Local)', type: 'ollama' },
-  { name: 'ChatGPT', type: 'chatgpt' },
-  { name: 'DeepSeek', type: 'deepseek' }
-]
-
-// Default base URLs
-const defaultBaseUrls = {
-  ollama: 'http://localhost:11434',
-  chatgpt: 'https://api.openai.com/v1',
-  deepseek: 'https://api.deepseek.com/v1'
-}
-
-// Ollama model options
-const ollamaModels = [
-  { name: 'Mistral', id: 'mistral' },
-  { name: 'Llama 2', id: 'llama2' },
-  { name: 'Code Llama', id: 'codellama' },
-  { name: 'Neural Chat', id: 'neural-chat' },
-  { name: 'Qwen', id: 'qwen' }
-]
-
-// ChatGPT model options
-const chatgptModels = [
-  { name: 'GPT-3.5 Turbo', id: 'gpt-3.5-turbo' },
-  { name: 'GPT-4', id: 'gpt-4' },
-  { name: 'GPT-4 Turbo', id: 'gpt-4-turbo' }
-]
-
-// DeepSeek model options
-const deepseekModels = [
-  { name: 'DeepSeek Chat', id: 'deepseek-chat' },
-  { name: 'DeepSeek Coder', id: 'deepseek-coder' }
-]
-
-// Content rating computed value
-const contentRatingLabel = computed(() => 
-  settingsStore.allowNSFWContent ? 'NSFW' : 'SFW'
-)
-
-// Set default base URL when provider changes
-watch(() => settingsStore.aiProvider, (newProvider) => {
-  if (newProvider && (!settingsStore.baseUrl || settingsStore.baseUrl === '')) {
-    settingsStore.baseUrl = defaultBaseUrls[newProvider as keyof typeof defaultBaseUrls] || ''
-  }
-}, { immediate: true })
-
-// Validation
-const isValid = computed(() => settingsStore.isTranslationConfigValid && settingsStore.isAIConfigValid)
-</script>
 
 <style scoped>
 

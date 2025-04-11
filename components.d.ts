@@ -45,6 +45,7 @@ declare module 'vue' {
     TranslationList: typeof import('./src/components/project/TranslationList.vue')['default']
     TranslationProgress: typeof import('./src/components/project/TranslationProgress.vue')['default']
     TranslationSettings: typeof import('./src/components/project/TranslationSettings.vue')['default']
+    TranslationTable: typeof import('./src/components/project/TranslationTable.vue')['default']
     Tree: typeof import('primevue/tree')['default']
     UntranslatedList: typeof import('./src/components/project/UntranslatedList.vue')['default']
   }

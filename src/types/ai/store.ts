@@ -1,13 +1,81 @@
 import type { Ref } from 'vue'
-import type { AIProvider } from '@/types/ai/provider'
-import type { AIServiceConfig } from '@/types/ai/config'
 import type { 
+  AIProvider, 
   TranslationResponse, 
-  ResourceTranslation,
-  BatchTranslationResult,
+  AIProviderType, 
+  ProviderMetadata,
   PromptType,
-  ContentRating
-} from '@/types/shared/translation'
+  ResourceTranslation, 
+  ResourceTranslationResult,
+  LanguagePair
+} from '@/types/ai'
+import type { AIServiceConfig } from '@/types/ai/config'
+
+// ============================================================
+// MODEL METADATA
+// ============================================================
+
+/**
+ * AI model preset metadata
+ * 
+ * Contains information about an AI model used for UI display
+ * and setting appropriate defaults for the model.
+ */
+export interface AIModelPreset {
+  /** Human-readable display name of the model */
+  name: string
+  
+  /** Detailed description of the model's capabilities */
+  description: string
+  
+  /** Recommended default temperature parameter for best results */
+  defaultTemperature: number
+  
+  /** Recommended default token limit for outputs */
+  defaultMaxTokens: number
+  
+  /** Languages this model can effectively handle (if limited) */
+  supportedLanguages?: string[]
+}
+
+/**
+ * Collection of AI model presets organized by provider and model ID
+ * 
+ * Used for populating UI dropdowns and retrieving appropriate
+ * default settings for each model.
+ */
+export type AIModelPresets = Record<AIProviderType, Record<string, AIModelPreset>>
+
+// ============================================================
+// PROVIDER METADATA
+// ============================================================
+
+/**
+ * Provider configuration template
+ * 
+ * Extended metadata that includes default configuration values
+ * for a provider. Used for initializing new provider instances.
+ */
+export interface ProviderTemplate extends ProviderMetadata {
+  /** Default model identifier for this provider */
+  defaultModel: string
+  
+  /** Default temperature setting for this provider */
+  defaultTemperature: number
+  
+  /** Default max tokens setting for this provider */
+  defaultMaxTokens: number
+  
+  /** List of model IDs supported by this provider */
+  supportedModels: string[]
+  
+  /** Default base URL for this provider's API */
+  defaultBaseUrl: string
+}
+
+// ============================================================
+// STORE TYPES
+// ============================================================
 
 /**
  * AI Store State Interface
@@ -38,7 +106,6 @@ export interface AIStoreGetters {
   canTranslate: Ref<boolean>;
   currentProvider: Ref<string>;
   supportedPromptTypes: Ref<PromptType[]>;
-  supportsAdultContent: Ref<boolean>;
   averageCostPerWord: Ref<number>;
 }
 
@@ -53,17 +120,15 @@ export interface AIStoreActions {
   disconnect(): Promise<void>;
   translate(
     text: string,
-    sourceLanguage?: string,
-    targetLanguage?: string,
+    languagePair?: LanguagePair,
     contentType?: PromptType
   ): Promise<TranslationResponse>;
   translateBatch(
     texts: ResourceTranslation[],
     contentType?: PromptType
-  ): Promise<BatchTranslationResult>;
+  ): Promise<ResourceTranslationResult>;
   estimateCost(text: string): { tokens: number; cost: number };
   supportsPromptType(promptType: PromptType): boolean;
-  supportsContentRating(rating: ContentRating): boolean;
 }
 
 /**

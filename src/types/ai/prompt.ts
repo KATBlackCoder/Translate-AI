@@ -6,7 +6,10 @@
  * perform translation tasks for different content types.
  */
 
-import type { PromptType, TranslationPrompt } from '@/types/shared/translation'
+import type { 
+  PromptType, 
+  TranslationPrompt 
+} from '@/types/ai'
 
 // ============================================================
 // PROMPT CONFIGURATION TYPES
@@ -15,22 +18,11 @@ import type { PromptType, TranslationPrompt } from '@/types/shared/translation'
 /**
  * Custom prompt configuration for a specific content type
  * 
- * Defines the system and user messages for a specific prompt type.
- * These prompts can be customized by users to tailor the AI's behavior.
+ * Extends TranslationPrompt but makes fields optional to allow
+ * partial customization of prompts. Users can override either
+ * the system prompt, user prompt, or both.
  */
-export interface CustomPrompt {
-  /** 
-   * System prompt that defines the context and instructions 
-   * This sets the overall behavior and role of the AI model
-   */
-  system?: string
-  
-  /** 
-   * User prompt template for this content type 
-   * This is the prompt that will have placeholders replaced with actual content
-   */
-  user?: string
-}
+export type CustomPrompt = Partial<TranslationPrompt>
 
 /**
  * Collection of custom prompts by content type
@@ -41,4 +33,7 @@ export interface CustomPrompt {
 export interface PromptSettings {
   /** Custom prompts organized by content type */
   customPrompts: Record<PromptType, CustomPrompt>
+  
+  /** Whether to use custom prompts instead of provider defaults */
+  useCustomPrompts: boolean
 } 

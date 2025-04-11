@@ -4,6 +4,7 @@ import tailwindcss from "@tailwindcss/vite";
 import Components from "unplugin-vue-components/vite";
 import { PrimeVueResolver } from "unplugin-vue-components/resolvers";
 import { fileURLToPath, URL } from "url"; 
+import ui from '@nuxt/ui/vite'
 
 const host = process.env.TAURI_DEV_HOST;
 
@@ -12,6 +13,7 @@ export default defineConfig(async () => ({
   plugins: [
     vue(),
     tailwindcss(),
+    ui(),
     Components({
       resolvers: [PrimeVueResolver()],
     }),

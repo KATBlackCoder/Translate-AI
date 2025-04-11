@@ -10,7 +10,7 @@ import { RPGMVBaseData, RPGMVTrait, RPGMVEquip, RPGMVTranslatableExtended } from
  * @property {string} name - The character's display name
  * @property {string} nickname - The character's title or nickname
  * @property {string} profile - The character's biography or description
- * @property {string} note - Additional notes or metadata about the character
+ * @property {string} description - Additional notes or metadata about the character
  */
 export interface RPGMVActorTranslatable extends Pick<RPGMVTranslatableExtended, 'name' | 'nickname' | 'profile' | 'note'> {
   // All translatable fields are inherited from RPGMVTranslatableExtended

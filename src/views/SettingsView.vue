@@ -1,3 +1,8 @@
+
+<script setup lang="ts">
+import TranslationSettings from '@/components/project/TranslationSettings.vue'
+</script>
+
 <template>
   <div class="p-6">
     <div class="mb-6">
@@ -10,7 +15,3 @@
     </div>
   </div>
 </template>
-
-<script setup lang="ts">
-import TranslationSettings from '@/components/project/TranslationSettings.vue'
-</script>

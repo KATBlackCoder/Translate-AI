@@ -1,8 +1,7 @@
 // src/stores/engines/engine.ts
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import type { GameResourceFile, EngineType } from '@/types/engines/base'
-import type { ResourceTranslation } from '@/types/shared/translation'
+import type { ResourceTranslation, GameResourceFile, EngineType } from '@/types/engines'
 import { GameEngineFactory } from '@/services/engines/factory'
 
 /**

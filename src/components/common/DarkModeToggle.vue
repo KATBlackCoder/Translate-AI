@@ -19,5 +19,6 @@ onMounted(() => {
       :class="settingsStore.isDark ? 'text-gray-300' : 'text-gray-700'"
       v-tooltip.bottom="settingsStore.isDark ? 'Light Mode' : 'Dark Mode'"
     />
+
   </div>
 </template> 

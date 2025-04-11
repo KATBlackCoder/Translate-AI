@@ -1,6 +1,6 @@
 ---
 description: 
-globs: *.vue
+globs: *.vue,*ts
 alwaysApply: false
 ---
 
@@ -10,6 +10,7 @@ alwaysApply: false
     - Write concise, maintainable, and technically accurate TypeScript code with relevant examples.
     - Use functional and declarative programming patterns; avoid classes.
     - Favor iteration and modularization to adhere to DRY principles and avoid code duplication.
+    - Favor abstraction and separation of concerns to adhere to SOLID principles and prevent architectural rigidity.
     - Use descriptive variable names with auxiliary verbs (e.g., isLoading, hasError).
     - Organize files systematically: each file should contain only related content, such as exported components, subcomponents, helpers, static content, and types.
   
@@ -19,8 +20,10 @@ alwaysApply: false
   
     TypeScript Usage
     - Use TypeScript for all code; prefer interfaces over types for their extendability and ability to merge.
+    - When creating the interface, place it in the corresponding "types" folder so that it is easier to find.
     - Avoid enums; use maps instead for better type safety and flexibility.
     - Use functional components with TypeScript interfaces.
+    - Add TSDocs
   
     Syntax and Formatting
     - Use the "function" keyword for pure functions to benefit from hoisting and clarity.
