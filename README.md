@@ -1,120 +1,229 @@
-# Translation AI
+# Games Translatore AI
 
-A powerful AI-powered translation tool for game engine content, built with Vue 3, TypeScript, and Pinia.
+A powerful desktop application for translating game content using AI, built with Nuxt.js, TypeScript, and Tauri.
 
 ## Features
 
-- 🎮 **Game Engine Support**
-  - RPGMV support out of the box
-  - Extensible architecture for adding more engines
+### 🎮 Game Engine Support
+- **RPG Maker MV Support**
   - Automatic engine detection
-  - Engine-specific file handling
+  - Resource file handling
+  - Data file parsing
+  - Event system support
+  - Actor/Item/Skill management
 
-- 🤖 **AI Translation**
-  - Multiple AI provider support (Ollama, ChatGPT, DeepSeek)
-  - Batch translation capabilities
+### 🤖 AI Translation
+- **Multiple AI Providers**
+  - Ollama (local)
+  - ChatGPT (API)
+  - DeepSeek (API)
+  - Extensible provider system
+
+- **Translation Features**
+  - Batch translation
   - Quality settings control
   - Cost estimation
-  - Content rating system
+  - Token usage tracking
+  - Error handling and retry
 
-- ⚙️ **Smart Configuration**
-  - User-friendly settings
-  - Default configurations
-  - Persistent preferences
-  - Type-safe configuration
-  - Engine-specific validation
+### ⚙️ Configuration
+- **Settings Management**
+  - Language pair selection
+  - Provider configuration
+  - Quality presets
+  - API key management
+  - Base URL customization
 
-- 🎯 **Project Management**
-  - Engine file pattern detection
-  - Resource file handling
-  - Translation progress tracking
-  - Error handling and recovery
-  - File integrity maintenance
+- **Project Settings**
+  - Engine-specific settings
+  - Resource patterns
+  - File exclusions
+  - Translation rules
+  - Validation rules
+
+### 📊 Monitoring
+- **Translation Stats**
+  - Success/failure rates
+  - Processing time
+  - Token usage
+  - Cost tracking
+  - Quality scores
+
+- **Progress Tracking**
+  - Real-time updates
+  - Queue management
+  - Error reporting
+  - Status indicators
+  - Export options
 
 ## Tech Stack
 
-- **Frontend**: Vue 3 + TypeScript
-- **State Management**: Pinia
-- **UI Framework**: Vue 3 + TailwindCSS
-- **Build Tool**: Vite
-- **Package Manager**: npm
+### Frontend (UI Layer)
+- **Framework**: Nuxt.js 3 + TypeScript
+- **State**: Pinia
+- **UI**: Nuxt UI + TailwindCSS
+- **Utils**: VueUse
+- **Routing**: Nuxt Router
+- **Communication**: Tauri Commands
+
+### Backend (Business Logic)
+- **Framework**: Tauri (Rust)
+- **AI**: Ollama + Mistral
+- **File System**: Rust std::fs
+- **Error Handling**: thiserror + anyhow
+- **Types**: Rust types with serde
+- **Services**: Rust services with async/await
 
 ## Project Structure
 
+### Frontend (UI Layer)
 ```
 src/
-├── components/     # Vue components
-├── composables/    # Vue composables
-├── config/        # Configuration files
-├── core/          # Core functionality
-├── services/      # Service implementations
-├── stores/        # Pinia stores
-├── types/         # TypeScript types
-└── views/         # Page components
+├── components/          # Vue components
+│   ├── project/        # Project-specific components
+│   │   ├── translation/ # Translation workflow
+│   │   └── settings/   # Settings components
+│   └── shared/         # Reusable components
+├── composables/        # Nuxt composables
+│   ├── useTranslation.ts
+│   ├── useSettings.ts
+│   └── useCommands.ts
+├── stores/           # Pinia stores
+│   ├── settings.ts   # Settings store
+│   ├── translation.ts # Translation store
+│   └── index.ts      # Store exports
+├── pages/            # Nuxt pages
+│   ├── index.vue     # Home page
+│   ├── project/      # Project pages
+│   └── settings.vue  # Settings page
+├── layouts/          # Nuxt layouts
+│   └── default.vue   # Default layout
+├── app.vue           # Root component
+├── nuxt.config.ts    # Nuxt configuration
+└── tsconfig.json     # TypeScript configuration
+```
+
+### Backend (Business Logic)
+```
+src-tauri/
+├── src/              # Rust source
+│   ├── types/       # Core type definitions
+│   │   ├── ai/     # AI types
+│   │   ├── engine/ # Engine types
+│   │   └── shared/ # Shared types
+│   ├── core/        # Core business logic
+│   │   ├── ai/     # AI core
+│   │   └── engine/ # Engine core
+│   ├── services/    # Service implementations
+│   │   ├── ai/     # AI services
+│   │   └── engine/ # Engine services
+│   └── commands/    # Tauri commands
+│       ├── ai.rs    # AI commands
+│       ├── engine.rs # Engine commands
+│       └── mod.rs   # Command exports
+├── Cargo.toml       # Rust dependencies
+└── tauri.conf.json  # Tauri config
 ```
 
 ## Getting Started
 
-1. **Install Dependencies**
+### Prerequisites
+- Node.js 18+
+- Rust 1.70+
+- Ollama (for local AI)
+
+### Installation
+1. **Clone Repository**
    ```bash
+   git clone https://github.com/yourusername/translation-ai.git
+   cd translation-ai
+   ```
+
+2. **Install Dependencies**
+   ```bash
+   # Frontend
    npm install
+   
+   # Backend
+   cargo install tauri-cli
    ```
 
-2. **Start Development Server**
+3. **Start Development**
    ```bash
-   npm run dev
+   npm run tauri dev
    ```
 
-3. **Build for Production**
+4. **Build Production**
    ```bash
-   npm run build
+   npm run tauri build
    ```
 
 ## Usage
 
-1. **Select Game Folder**
-   - Click "Select Game Folder"
-   - Choose your game's root directory
-   - The app will automatically detect the game engine
+1. **Project Setup**
+   - Select game folder
+   - Configure engine settings
+   - Set up AI provider
 
-2. **Configure Translation**
-   - Select source and target languages
-   - Choose AI provider and model
-   - Adjust quality settings
-   - Review cost estimation
-
-3. **Start Translation**
-   - Review detected files
-   - Start batch translation
+2. **Translation Process**
+   - Select resources
+   - Configure quality
+   - Start translation
    - Monitor progress
-   - Review results
+   - Export results
 
-## Architecture
+3. **Advanced Features**
+   - Custom prompts
+   - Quality presets
+   - Batch processing
+   - Error recovery
+   - Export options
 
-The application follows a clean architecture pattern with:
+## Development
 
-- **Modular Stores**: Split into state, getters, and actions
-- **Dependency Injection**: For better testability
-- **Configuration System**: Centralized settings management
-- **Type Safety**: Full TypeScript coverage
-- **Unidirectional Data Flow**: Clear data movement patterns
+### Frontend Development
+```bash
+# Start dev server
+npm run dev
 
-See [ARCHITECTURE.md](ARCHITECTURE.md) for detailed architecture documentation.
+# Build for production
+npm run build
+
+# Run tests
+npm run test
+
+# Generate types
+npm run typegen
+```
+
+### Backend Development
+```bash
+# Run Rust tests
+cargo test
+
+# Check Rust code
+cargo check
+
+# Format Rust code
+cargo fmt
+```
 
 ## Contributing
 
 1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+2. Create feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit changes (`git commit -m 'Add amazing feature'`)
+4. Push to branch (`git push origin feature/amazing-feature`)
+5. Open Pull Request
 
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+MIT License - see [LICENSE](LICENSE) for details.
 
 ## Acknowledgments
 
-- Vue.js team for the amazing framework
-- Pinia team for state management
-- All contributors and users
+- Vue.js team
+- Nuxt.js team
+- Tauri team
+- Ollama team
+- All contributors

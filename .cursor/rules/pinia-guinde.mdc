@@ -1,6 +1,6 @@
 ---
 description: 
-globs: *.vue,*.ts
+globs: *.vue,*.ts,stores/*
 alwaysApply: false
 ---
 You are an expert in TypeScript Vue.js and Pinia with a deep understanding of best practices and performance optimization techniques in these technologies.
