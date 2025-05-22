@@ -7,14 +7,8 @@
   ],
   "permissions": [
     "core:default",
-    "opener:default",
-    "http:default",
-    "fs:allow-desktop-read-recursive",
-    "fs:allow-desktop-write-recursive",
-    "dialog:allow-open",
-    "dialog:allow-save",
-    "sql:default",
     "store:default",
-    "store:default"
+    "dialog:default",
+    "fs:default"
   ]
 }

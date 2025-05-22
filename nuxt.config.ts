@@ -1,4 +1,6 @@
 // https://nuxt.com/docs/api/configuration/nuxt-config
+// import tailwindcss from "@tailwindcss/vite"; // Removed: @nuxt/ui handles Tailwind CSS
+
 export default defineNuxtConfig({
   compatibilityDate: "2024-11-01",
   devtools: { enabled: true },
@@ -18,11 +20,18 @@ export default defineNuxtConfig({
       strictPort: true,
     },
   },
-  modules: ["@nuxt/ui", "@nuxt/test-utils", "@nuxt/scripts", "@nuxt/eslint", "@nuxtjs/i18n", "@pinia/nuxt"],
-  css: ['../assets/styles.css'],
-  i18n: {
-    bundle: {
-      optimizeTranslationDirective: false,
-    },
-  },
+  modules: [
+    "@nuxt/eslint",
+    "@nuxt/ui", // Nuxt UI includes Tailwind CSS integration
+    "@nuxt/test-utils",
+    "@nuxt/scripts",
+    "@nuxt/image",
+    "@pinia/nuxt",
+  ],
+  css: ["./assets/css/main.css"],
+  // vite: { // Removed: @nuxt/ui handles Tailwind CSS plugin integration
+  //   plugins: [
+  //     tailwindcss(),
+  //   ],
+  // },
 });

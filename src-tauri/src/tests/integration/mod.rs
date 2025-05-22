@@ -1,0 +1,13 @@
+pub mod actors_test;
+pub mod armors_test;
+pub mod classes_test;
+pub mod enemies_test;
+pub mod items_test;
+pub mod common_events_test;
+pub mod maps_test;
+pub mod skills_test;
+pub mod system_test;
+pub mod map_infos_test;
+pub mod states_test;
+pub mod troops_test;
+pub mod weapons_test;

@@ -1,5 +1,5 @@
 {
-  "name": "nuxt-app",
+  "name": "ia-translator",
   "private": true,
   "type": "module",
   "scripts": {
@@ -10,27 +10,29 @@
     "postinstall": "nuxt prepare"
   },
   "dependencies": {
-    "@nuxt/eslint": "^1.3.0",
-    "@nuxt/scripts": "^0.11.5",
-    "@nuxt/test-utils": "^3.17.2",
-    "@nuxt/ui": "^3.0.2",
-    "@nuxtjs/i18n": "^9.5.3",
+    "@iconify-json/lucide": "^1.2.41",
+    "@nuxt/eslint": "1.3.0",
+    "@nuxt/image": "1.10.0",
+    "@nuxt/scripts": "0.11.6",
+    "@nuxt/test-utils": "3.18.0",
+    "@nuxt/ui": "3.1.1",
     "@pinia/nuxt": "^0.11.0",
-    "@tauri-apps/plugin-dialog": "^2.2.1",
-    "@tauri-apps/plugin-fs": "^2.2.1",
-    "@tauri-apps/plugin-http": "^2.4.3",
-    "@tauri-apps/plugin-opener": "^2.2.6",
-    "@tauri-apps/plugin-sql": "^2.2.0",
-    "@tauri-apps/plugin-store": "^2.2.0",
-    "@unhead/vue": "^2.0.5",
-    "eslint": "^9.24.0",
-    "nuxt": "^3.16.2",
-    "openai": "^4.93.0",
+    "@tauri-apps/api": "^2.5.0",
+    "@tauri-apps/plugin-dialog": "~2.2.1",
+    "@tauri-apps/plugin-fs": "~2.2.1",
+    "@tauri-apps/plugin-store": "~2.2.0",
+    "@unhead/vue": "^2.0.8",
+    "eslint": "^9.26.0",
+    "nuxt": "^3.17.2",
+    "pinia": "^3.0.2",
+    "tailwindcss": "^4.1.6",
     "typescript": "^5.8.3",
     "vue": "^3.5.13",
-    "vue-router": "^4.5.0"
+    "vue-router": "^4.5.1"
   },
+  "packageManager": "pnpm@10.10.0+sha512.d615db246fe70f25dcfea6d8d73dee782ce23e2245e3c4f6f888249fb568149318637dca73c2c5c8ef2a4ca0d5657fb9567188bfab47f566d1ee6ce987815c39",
   "devDependencies": {
-    "@tauri-apps/cli": "^2.4.1"
+    "@tauri-apps/cli": "^2.5.0",
+    "vitest": "^3.1.3"
   }
 }
