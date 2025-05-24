@@ -1,6 +1,6 @@
 <template>
   <div class="min-h-screen bg-background text-foreground">
-    <AppHeader />
+    <LayoutHeader />
     <main class="pt-4 pb-8 px-4">
       <UContainer class="w-full">
         <slot />

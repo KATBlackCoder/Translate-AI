@@ -30,4 +30,4 @@ function openSettings() {
 
 <style>
 /* No specific styles needed here if Tailwind/NuxtUI handles everything */
-</style>
+</style> 

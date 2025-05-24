@@ -39,40 +39,48 @@
         </p>
       </div>
 
-      <!-- New Button for Testing String Extraction -->
+      <!-- "Extract Strings" Button - REMOVED -->
+      <!-- 
       <UButton
         v-if="
           projectStore.selectedProjectFolderPath &&
           projectStore.projectDetectionResult !== 'NotDetected'
         "
-        label="Test String Extraction"
-        icon="i-heroicons-beaker"
-        :loading="projectStore.isExtractingStrings"
+        label="Extract Strings" 
+        icon="i-heroicons-beaker" 
+        :loading="projectStore.isLoadingExtractedStrings" 
         variant="outline"
         block
         class="mt-2"
-        @click="projectStore.performExtractionTest"
+        @click="projectStore.extractProjectStrings" 
+      />
+      -->
+
+      <!-- Display Extraction Error (This might be moved or handled differently if extraction is automatic) -->
+      <UAlert
+        v-if="projectStore.extractionError"
+        icon="i-heroicons-exclamation-triangle"
+        color="error"
+        variant="soft"
+        title="Extraction Error"
+        :description="projectStore.extractionError"
+        class="mt-4"
       />
 
-      <!-- Display basic extraction results -->
-      <div
-        v-if="projectStore.extractionResult"
-        class="mt-4 p-2 border rounded-md text-xs"
-      >
-        <p class="text-sm font-medium mb-1">Extraction Test Output:</p>
-        <template v-if="typeof projectStore.extractionResult === 'string'">
-          <p class="text-red-500">Error: {{ projectStore.extractionResult }}</p>
-        </template>
-        <template v-else-if="Array.isArray(projectStore.extractionResult)">
-          <p>
-            Extracted {{ projectStore.extractionResult.length }} strings. Check
-            console for full details.
-          </p>
-          <!-- 
-          <pre class="max-h-60 overflow-auto bg-gray-50 dark:bg-gray-800 p-2 rounded">{{ JSON.stringify(projectStore.extractionResult, null, 2) }}</pre>
-          -->
-        </template>
+      <!-- Display Extracted Strings Summary and Table - REMOVED -->
+      <!-- 
+      <div v-if="projectStore.extractedStrings.length > 0 && !projectStore.extractionError" class="mt-4 space-y-2">
+        <p class="text-sm font-medium">
+          Successfully extracted {{ projectStore.extractedStrings.length }} string(s):
+        </p>
+
+        <UTable
+          :data="projectStore.extractedStrings"
+          class="max-h-96 overflow-auto"
+        />
+        
       </div>
+      -->
     </div>
   </UCard>
 </template>
@@ -82,10 +90,9 @@ import {
   useProjectStore,
   type RpgMakerDetectionResultType,
 } from "~/stores/project";
-// import { storeToRefs } from 'pinia'; // Not strictly needed if using projectStore.prop directly in template
+// ProjectBatchTranslationControls is auto-imported by Nuxt 3 from components/project/BatchTranslationControls.vue
 
 const projectStore = useProjectStore();
-// const { selectedProjectFolderPath, isLoadingProjectFolder, projectDetectionResult, isExtractingStrings, extractionResult } = storeToRefs(projectStore);
 
 const friendlyDetectionResult = (
   result: RpgMakerDetectionResultType | null

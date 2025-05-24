@@ -1,119 +1,110 @@
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
-import { invoke } from '@tauri-apps/api/core' // Import invoke
-// useToast will be auto-imported by Nuxt 3
+import { ref } from 'vue'
+import { invoke } from '@tauri-apps/api/core'
+import { useToast, navigateTo } from '#imports' // Assuming navigateTo is auto-imported or available
 
-// Define a simple type for language options for clarity
-interface LanguageOption {
-  id: string
-  label: string
+// Re-defining these here for now. Consider a shared types file if they grow.
+export interface TranslatableStringEntry {
+  object_id: number;
+  text: string;
+  source_file: string;
+  json_path: string;
+}
+export interface TranslatedStringEntry {
+  object_id: number;
+  original_text: string;
+  translated_text: string;
+  source_file: string;
+  json_path: string;
+  translation_source: string;
+  error: string | null;
 }
 
+// LanguageOption interface removed as it's now in stores/settings.ts
+
 export const useTranslationStore = defineStore('translation', () => {
-  const toast = useToast() // Initialize useToast
+  const toast = useToast()
 
   // --- State ---
-  const sourceLanguage = ref<string>('en') // Default: English
-  const targetLanguage = ref<string>('ja') // Default: Japanese
-  const sourceText = ref<string>('')
-  const targetText = ref<string>('')
-  const isLoading = ref<boolean>(false)
+  // languageOptions has been moved to stores/settings.ts
 
-  const languageOptions = ref<LanguageOption[]>([
-    { id: 'en', label: 'English' },
-    { id: 'ja', label: 'Japanese' },
-    { id: 'es', label: 'Spanish' },
-    { id: 'fr', label: 'French' },
-    { id: 'de', label: 'German' },
-    { id: 'zh', label: 'Chinese (Simplified)' },
-    { id: 'ko', label: 'Korean' },
-    // Add more languages as needed
-  ])
+  // State for batch translation (moved from project.ts)
+  const isLoadingBatchTranslation = ref(false)
+  const batchTranslatedStrings = ref<TranslatedStringEntry[]>([])
+  const batchTranslationError = ref<string | null>(null)
 
-  // --- Getters (Computed Properties) ---
-  const canTranslate = computed(() => sourceText.value.trim() !== '' && !isLoading.value)
+  // --- Helper for error messages ---
+  const getErrorMessage = (err: unknown, context: string): string => {
+    if (typeof err === 'string') return err;
+    if (err instanceof Error) return err.message;
+    return `Unknown error during ${context}`;
+  };
 
-  // --- Actions (Functions) ---
-  function setSourceLanguage(langId: string) {
-    sourceLanguage.value = langId
-  }
-
-  function setTargetLanguage(langId: string) {
-    targetLanguage.value = langId
-  }
-
-  function setSourceText(text: string) {
-    sourceText.value = text
-    if (!text) {
-      targetText.value = '' // Clear target if source is emptied
+  // --- Actions ---
+  async function performBatchTranslation(
+    entriesToTranslate: TranslatableStringEntry[],
+    sourceLanguage: string, 
+    targetLanguage: string, 
+    engineName: string
+  ) {
+    if (!entriesToTranslate || entriesToTranslate.length === 0) {
+      toast.add({ title: 'Batch Translation Error', description: 'No strings provided to translate.', color: 'error' });
+      return;
     }
-  }
 
-  function setTargetText(text: string) { // Usually set by the translation result
-    targetText.value = text
-  }
-
-  function swapLanguages() {
-    const tempLang = sourceLanguage.value
-    sourceLanguage.value = targetLanguage.value
-    targetLanguage.value = tempLang
-
-    // Optionally, swap text as well if it makes sense for the UX
-    // const tempText = sourceText.value
-    // sourceText.value = targetText.value
-    // targetText.value = tempText
-  }
-
-  function clearTexts() {
-    sourceText.value = ''
-    targetText.value = ''
-  }
-
-  async function handleTranslate() {
-    if (!canTranslate.value) return
-
-    isLoading.value = true
-    targetText.value = '' // Clear previous or show loading indicator in UI
+    isLoadingBatchTranslation.value = true;
+    batchTranslatedStrings.value = [];
+    batchTranslationError.value = null;
 
     try {
-      // Invoke the actual translation Rust command
-      const result: string = await invoke('translate_text_command', {
-        text: sourceText.value,
-        sourceLang: sourceLanguage.value, // Ensure key names match Rust command args
-        targetLang: targetLanguage.value  // Ensure key names match Rust command args
-      })
-      setTargetText(result)
+      const results: TranslatedStringEntry[] = await invoke('batch_translate_strings_command', {
+        entries: entriesToTranslate,
+        sourceLanguage,
+        targetLanguage,
+        engineName, 
+      });
+      batchTranslatedStrings.value = results;
+      
+      const successCount = results.filter(r => r.error === null).length;
+      const failureCount = results.length - successCount;
 
-    } catch (error) {
-      console.error("IPC call to translate_text_command failed:", error)
-      // Display error using toast
-      toast.add({ 
-        title: 'Translation Error', 
-        description: String(error), // Backend error string is already quite descriptive 
-        color: 'error',
-        icon: 'i-heroicons-x-circle-solid' // Using a solid icon
-      })
-      setTargetText('') // Clear the target text area on error
+      if (results.length === 0) {
+        toast.add({ title: 'Batch Translation', description: 'No strings were processed.', color: 'info' });
+      } else if (failureCount === 0) {
+        toast.add({ title: 'Batch Translation Successful', description: `Successfully translated ${successCount} string(s).`, color: 'success' });
+      } else if (successCount === 0) {
+        toast.add({ title: 'Batch Translation Failed', description: `All ${failureCount} string(s) failed to translate. Check individual errors.`, color: 'error' });
+      } else {
+        toast.add({ 
+          title: 'Batch Translation Partially Successful',
+          description: `Translated ${successCount} string(s). ${failureCount} string(s) failed. Check results for details.`,
+          color: 'warning' 
+        });
+      }
+      // Navigate to the project (results) page after batch translation attempt
+      await navigateTo('/project');
+
+    } catch (err) {
+      batchTranslationError.value = getErrorMessage(err, 'batch translation');
+      toast.add({ title: 'Batch Translation Error', description: batchTranslationError.value, color: 'error' });
     } finally {
-      isLoading.value = false
+      isLoadingBatchTranslation.value = false;
     }
+  }
+
+  function $resetBatchState() {
+    isLoadingBatchTranslation.value = false;
+    batchTranslatedStrings.value = [];
+    batchTranslationError.value = null;
   }
 
   // --- Return state and actions ---
   return {
-    sourceLanguage,
-    targetLanguage,
-    sourceText,
-    targetText,
-    isLoading,
-    languageOptions,
-    canTranslate,
-    setSourceLanguage,
-    setTargetLanguage,
-    setSourceText,
-    setTargetText, // Exposing this though it's mainly internal for translateText
-    swapLanguages,
-    clearTexts,
-    handleTranslate,
+    // languageOptions removed
+    isLoadingBatchTranslation,
+    batchTranslatedStrings,
+    batchTranslationError,
+    performBatchTranslation,
+    $resetBatchState,
   }
 })

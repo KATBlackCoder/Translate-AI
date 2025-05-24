@@ -6,12 +6,12 @@ This document outlines a phased approach to developing the AI Game Translator ap
 
 ## Phase 1: Project Setup & Core UI Shell
 
-**Goal:** Establish the project structure, install essential dependencies, and create a basic, non-functional UI layout.
-**Definition of Done:** Project initializes, core dependencies are installed, functional UI layout for single-text translation is implemented with Nuxt UI components, Pinia store (using Setup Stores) for translation UI state is implemented and integrated, and IPC test command works.
+**Goal:** Establish the project structure, install essential dependencies, and create a basic UI shell focused on project translation.
+**Definition of Done:** Project initializes, core dependencies are installed, Pinia store for project translation UI state is implemented, and IPC test command works. Basic UI for project selection is in place on `pages/index.vue`.
 
 **Tasks:**
 
-1.  **Initialize Tauri + Nuxt 3 Project:** (Assumed complete for current scope)
+1.  **Initialize Tauri + Nuxt 3 Project:** (Largely complete)
     *   Use `npx nuxi@latest init <project-name>` to create the Nuxt frontend.
     *   Integrate Tauri into the Nuxt project (`npm run tauri init` or `cargo tauri init`).
     *   Configure `tauri.conf.json` with basic app identifier, window title.
@@ -31,56 +31,29 @@ This document outlines a phased approach to developing the AI Game Translator ap
         *   `zip`
         *   `walkdir`
         *   `reqwest` (for Phase 2 Ollama & Phase 5 DeepL)
-4.  **Basic UI Layout (Nuxt UI):** (Complete for single-text translation)
+4.  **Basic UI Layout (Nuxt UI):** (Focus on Project Translation)
     *   Create main page layout (`app.vue`, default layout).
-    *   Implemented main UI for single-text translation (`pages/index.vue`):
-        *   Input text area (`UTextarea`).
-        *   Output text area (`UTextarea`, readonly).
-        *   Source/Target language selectors (`USelectMenu`), populated from Pinia store.
-        *   "Translate", "Swap", "Clear" buttons (`UButton`).
-        *   Structure provided by `UFormField`.
-        *   Area for "Project Translation" controls (placeholder for later phases).
-        *   Settings icon/button (placeholder for later phases).
-5.  **Basic Frontend State (Pinia):** (Complete for single-text translation)
-    *   Created Pinia store `stores/translation.ts` using **Setup Store syntax** for UI state (input/output text, selected languages using ISO 639-1 codes, loading status).
-    *   Defined and stored the predefined list of supported languages within the store (e.g., `[{ id: 'en', label: 'English' }, ...]`).
-    *   Core UI elements (`pages/index.vue`) are now connected to this store, two-way binding text areas (via computed model for source) and language selectors, and using store actions for buttons.
+    *   Implement initial UI for project selection on `pages/index.vue` using `ProjectSelector.vue`.
+    *   (Single text translation UI elements are removed/deferred).
+5.  **Basic Frontend State (Pinia):**
+    *   Create Pinia store `stores/project.ts` using **Setup Store syntax** for project selection state. (COMPLETE)
+    *   (Store for single text translation, `stores/translation.ts`, will be reviewed for removal/refactoring).
 6.  **Test IPC:** (Complete)
     *   Created a simple `simple_ipc_test` Tauri command in Rust.
     *   Invoked it successfully from the Nuxt frontend (`translationStore`'s `handleTranslate` action), verifying Inter-Process Communication with data passing and response handling.
 
 **(End of Phase 1)**
 
-## Phase 2: Core Single-Text Translation (Offline AI - Ollama) (COMPLETE)
+## Phase 2: Core Single-Text Translation (Offline AI - Ollama) (REMOVED/DEFERRED)
 
-**Goal:** Implement translation for a single text segment using **Ollama (as an offline AI solution)** with `mistral` as the initial target model.
-**Definition of Done:** User can translate text using Ollama (`mistral` model by default). Source/target languages are selectable from the predefined list. Backend translation logic and core UI interactions are functional and tested. Essential error handling for Ollama server reachability, model availability, and response parsing is implemented, with backend errors propagated to the frontend using Nuxt UI Toasts. (Note: A minor formatting issue with double line breaks for Japanese from the Ollama model has been noted and deferred for future consideration).
+**This phase is currently removed from the immediate plan to focus on batch project translation. Functionality may be re-introduced later.**
 
-**Tasks:**
+(Original tasks for Phase 2 are removed for brevity)
 
-1.  **Implement Ollama Client (Rust):** (COMPLETE)
-    *   Implement Rust functions to make HTTP requests to a local Ollama instance (e.g., `http://localhost:11434`) using `reqwest`.
-    *   Structure JSON payloads for Ollama's API (e.g., `/api/generate` or `/api/chat`), including the model name (initially `mistral`, with user selection planned for Phase 6), a well-crafted prompt for translation (mapping ISO 639-1 codes to full language names like "Translate from English to Japanese"), and ensuring `stream: false`.
-    *   Parse Ollama's JSON response to extract the translated text.
-    *   Implement essential error handling (server not reachable, model not found, response parse error).
-2.  **Create Tauri Command for Translation:** (COMPLETE)
-    *   Rust function exposed as a Tauri command (`translate_text_command`, to be located in `src-tauri/src/commands/translation.rs` as per the new structure) that accepts: source text (String), source language (String - ISO 639-1 code), target language (String - ISO 639-1 code).
-    *   Command calls the **Ollama client function** (`ollama_client::translate_with_ollama`).
-    *   Command returns the translated text or an error object with a user-friendly message.
-3.  **Connect Frontend to Translation Command:** (COMPLETE)
-    *   Language selectors are functional (`USelectMenu` with `:items` and `value-key`), populating from the Pinia store and storing the selected ISO 639-1 codes.
-    *   When "Translate" button is clicked:
-        *   Gets source text, source lang code, target lang code from Pinia state.
-        *   Invokes the Tauri translation command (`translate_text_command`).
-        *   Updates Pinia state with the translated text or an error message. Error display to be enhanced with Nuxt UI Toasts (which are rendered via the main `<App>` component, no separate `<UNotifications />` needed). (COMPLETE - Implemented in `stores/translation.ts` using `useToast()`)
-4.  **Display Results & Basic Errors:** (COMPLETE)
-    *   Translated text is shown in the output text area.
-    *   Error messages from the backend (for Ollama issues) are now displayed using Nuxt UI Toasts via `useToast()`, and the target text area is cleared on error. (Enhanced from just displaying in text area).
-
-## Phase 3: RPG Maker MV Project Translation (Batch) (Current Phase)
+## Phase 3: RPG Maker MV Project Translation (Batch) (Now effectively Phase 2 - Current Phase)
 
 **Goal:** Implement the workflow for selecting an RPG Maker MV project, extracting text, batch translating (using Ollama initially), and saving as a ZIP, with simple progress indication.
-**Definition of Done:** User can select an RPG Maker MV project, detection logic works, JSON files are parsed, strings are extracted and batch translated using Ollama. Translated files are correctly reconstructed and saved into a ZIP archive preserving the full relative path (e.g., `www/data/file.json`). A simple indeterminate progress indicator is shown during batch processing. Essential error handling for project detection, file parsing, and ZIP creation is implemented. Unit/integration tests for backend logic are written and passing.
+**Definition of Done:** User can select an RPG Maker MV project, detection logic works, JSON files are parsed, strings are extracted and batch translated using Ollama. **Successful manual testing of this entire workflow (extraction and batch translation) confirms functionality and basic usability.** Translated files are correctly reconstructed and saved into a ZIP archive preserving the full relative path (e.g., `www/data/file.json`). A simple indeterminate progress indicator is shown during batch processing. Essential error handling for project detection, file parsing, and ZIP creation is implemented. Unit/integration tests for backend logic are written and passing.
 
 **Tasks:**
 
@@ -151,29 +124,35 @@ This document outlines a phased approach to developing the AI Game Translator ap
     *   **Classes.json Parser:** Implemented parser in `src-tauri/src/core/rpgmv/classes.rs`. Extracts class `name`, `note`, and `learnings[].note` fields. Integrated into `project.rs`. Linter issues resolved by refactoring to not use `RpgMvDataObject` trait and directly constructing `TranslatableStringEntry`.
     *   **States.json Parser:** Implemented parser in `src-tauri/src/core/rpgmv/states.rs`. Extracts state `name`, `note`, and `message1`-`message4` fields. Integrated into `mod.rs` and `project.rs`. Linter issues resolved by refactoring to not use `RpgMvDataObject` trait and directly constructing `TranslatableStringEntry`.
     *   **Completion of Core Parsing Logic (Phase 3, Task 3):** The entire "File Parsing & String Extraction (Rust)" task, including all core parsing logic and comprehensive integration testing, is **COMPLETE**.
-4.  **Frontend for Batch Workflow:**
-    *   **Define `TranslatableStringEntry` Interface (Frontend):** Create a TypeScript interface matching the Rust `TranslatableStringEntry` struct. For initial implementation, this interface will be defined directly within `stores/project.ts`. It can be refactored into a separate `types/project.ts` file in a later phase if needed for broader reusability.
-    *   **Enhance `stores/project.ts` (Pinia Store):**
-        *   Add state properties: `isLoadingExtractedStrings: ref(false)`, `extractedStrings: ref<TranslatableStringEntry[]>([])`, `extractionError: ref<string | null>(null)`.
-        *   Implement an `extractProjectStrings` action: This action will call the `extract_project_strings_command` Tauri command, manage loading states (`isLoadingExtractedStrings`), populate `extractedStrings` on success, and handle errors by updating `extractionError` and displaying toasts.
-    *   **Update `components/ProjectTranslator.vue` (Vue Component):**
-        *   Add an "Extract Strings" button, conditionally enabled, to trigger the `extractProjectStrings` store action.
-        *   Implement a loading indicator tied to `isLoadingExtractedStrings`.
-        *   Display any errors stored in `extractionError`.
-        *   Once `extractedStrings` is populated, display a summary (e.g., string count) and a detailed view of the strings (e.g., using `UTable` with columns for text, source file, JSON path, object ID).
-        *   Add a placeholder "Start Batch Translation" button, which will be enabled if strings are loaded (functionality to be implemented in Task 5).
-    *   UI to trigger project selection and parsing.
-    *   Display project selection results, including the selected path and the outcome of game engine detection (e.g., RPG Maker MV detected, or not detected).
-    *   Display a simple indeterminate progress indicator (e.g., spinner) while backend processing occurs for parsing and translation.
-    *   Display extracted strings (e.g., in a table or list, potentially with checkboxes for selection if not all are translated by default - *string display can be basic initially*).
-    *   Allow user to confirm selection and trigger batch translation.
-5.  **Batch Translation Logic (Rust):**
-    *   Tauri command (in `src-tauri/src/commands/project.rs`):
-        *   Takes the list of extracted strings.
-        *   Iterates through them, calling the existing single-text translation command (expected to be in `src-tauri/src/commands/translation.rs`, from Phase 2 refactoring) for each.
-        *   Collects all translated strings.
-        *   (Placeholder for Glossary application - Phase 4).
-        *   Implement basic error handling for individual translation failures within the batch.
+4.  **Frontend for Batch Workflow (Refactored & In Progress/COMPLETE for core structure):**
+    *   **Define `TranslatableStringEntry` & `TranslatedStringEntry` Interfaces (Frontend):** (COMPLETE - Currently defined in `stores/translation.ts`, consider moving to a shared types file).
+    *   **Create `stores/settings.ts` (Pinia Store):**
+        *   Manages application-wide settings and selectable options. (COMPLETE)
+        *   Provides `languageOptions` and `engineOptions`. (COMPLETE)
+        *   (Future: API keys, default preferences, theme settings).
+    *   **Update `stores/project.ts` (Pinia Store):**
+        *   Focuses on project selection, game engine detection, and string extraction state and actions. (COMPLETE)
+        *   `$reset()` method clears project state and calls `$resetBatchState()` in `translationStore`. (COMPLETE)
+    *   **Update `stores/translation.ts` (Pinia Store):**
+        *   Focuses on the operational aspects of batch translation (state for loading, results, errors, and the `performBatchTranslation` action). (COMPLETE)
+        *   `$resetBatchState()` method clears batch translation state. (COMPLETE)
+        *   (Currently also defines `TranslatableStringEntry` & `TranslatedStringEntry` interfaces).
+    *   **Update `components/project/ProjectStringsReview.vue` (Vue Component):
+        *   Uses `projectStore` for `extractedStrings`.
+        *   Uses `settingsStore` for `languageOptions` and `engineOptions`.
+        *   Uses `translationStore` for `isLoadingBatchTranslation` and to call `performBatchTranslation`.
+        *   (COMPLETE)
+    *   **Update `components/project/ProjectStringsResult.vue` (Vue Component):
+        *   Uses `translationStore` for `batchTranslatedStrings` and `batchTranslationError`.
+        *   (COMPLETE)
+    *   **Update `pages/project.vue` (Vue Page):
+        *   Conditionally displays `ProjectStringsReview.vue` or `ProjectStringsResult.vue` based on state from `projectStore` (for extracted strings) and `translationStore` (for batch results/errors).
+        *   (COMPLETE)
+    *   (Other sub-tasks like `pages/index.vue` and `components/project/ProjectSelector.vue` updates remain COMPLETE as per their last state and are not directly affected by the `settingsStore` introduction, beyond their child `ProjectStringsReview.vue` being updated).
+    *   Manual testing of this refactored flow is ongoing.
+5.  **Batch Translation Logic (Rust):** (COMPLETE - Details omitted for brevity, no changes to Rust logic itself in this refactor)
+    *   **Frontend Store Logic (Now split between `stores/project.ts` and `stores/translation.ts`):** (Updated as described above)
+    *   **Frontend UI Logic (Handled by `ProjectStringsReview.vue` and `ProjectStringsResult.vue` on `pages/project.vue`):** (Updated as described above)
 6.  **Reconstruct Translated Files (Rust):**
     *   Logic to take the translated strings and insert them back into copies of the original JSON structures, maintaining the correct keys and overall structure.
 7.  **ZIP Archive Creation (Rust):**
@@ -243,6 +222,11 @@ This document outlines a phased approach to developing the AI Game Translator ap
         *   Theme selection (Light/Dark - Nuxt UI provides this).
         *   Ollama Model Selection: UI to list and select from user's available Ollama models. This might require a backend Tauri command (e.g., in a new `src-tauri/src/commands/settings.rs` or `translation.rs`) to proxy the `GET /api/tags` request to Ollama if direct frontend calls are not preferred or if backend processing/caching is involved. Other backend settings commands would also go into `settings.rs`.
         *   (Future: Other offline engine settings if added).
+    *   **Component Structure:** The settings UI will be organized into logical components such as:
+        *   `SettingEngines.vue`: For selecting the AI translation engine (e.g., Ollama, DeepL) and configuring engine-specific settings like API keys.
+        *   `SettingModels.vue`: For managing engine-specific model choices (e.g., selecting from available Ollama models).
+        *   `SettingLanguages.vue`: For setting default source and target languages.
+        *   (Potential) `SettingAppearance.vue`: For theme selection and other visual preferences.
 3.  **Batch Process UX Enhancements:**
     *   Implement a **determinate progress indicator** (e.g., progress bar, percentage complete) for batch translation, requiring backend-to-frontend progress updates (e.g., via Tauri events).
     *   Implement a **cancellation feature** for ongoing batch translation processes. This would likely involve a new Tauri command or modification to existing commands in `src-tauri/src/commands/project.rs`.

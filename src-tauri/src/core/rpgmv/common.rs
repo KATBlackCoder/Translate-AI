@@ -9,6 +9,17 @@ pub struct TranslatableStringEntry {
     pub json_path: String,     // A string representing the path within the JSON, e.g., "[1].name"
 }
 
+#[derive(serde::Serialize, Debug)]
+pub struct TranslatedStringEntry {
+    pub object_id: u32,
+    pub original_text: String,
+    pub translated_text: String,
+    pub source_file: String,
+    pub json_path: String,
+    pub translation_source: String, // e.g., "ollama", "deepl", "glossary"
+    pub error: Option<String>,     // To capture individual translation errors
+}
+
 // Represents a single command in an event's list.
 // This is used by CommonEvents.json, Troops.json event pages, and MapXXX.json events.
 #[derive(Deserialize, Debug, Clone)]

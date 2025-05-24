@@ -47,7 +47,8 @@ pub fn run() {
             commands::translation::translate_text_command,
             commands::project::select_project_folder_command,
             commands::project::detect_rpg_maker_mv_project_command,
-            commands::project::extract_project_strings_command
+            commands::project::extract_project_strings_command,
+            commands::project::batch_translate_strings_command
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

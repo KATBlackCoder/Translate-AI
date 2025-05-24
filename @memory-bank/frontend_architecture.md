@@ -33,10 +33,9 @@ The frontend follows Nuxt 3 conventions and is organized as follows:
 │   └── css/
 │       └── main.css
 ├── components/               // Reusable Vue components
-│   ├── common/               // General common components (e.g., LanguageSelector.vue)
-│   ├── layout/               // Components used in layouts (e.g., AppHeader.vue, AppFooter.vue)
-│   ├── translation/          // Components for single text translation UI (e.g., SingleTextTranslator.vue)
-│   ├── project/              // Components for project translation (e.g., ProjectTranslator.vue)
+│   ├── common/               // General common components (e.g., LanguageSelector.vue - now removed, DataTable.vue - now removed/inlined). This directory may be empty/removed if not actively used.
+│   ├── layout/               // Components used in layouts (e.g., Header.vue, AppFooter.vue)
+│   ├── project/              // Components for project translation (e.g., ProjectSelector.vue, ProjectStringsReview.vue, ProjectStringsResult.vue)
 │   ├── settings/             // Components for settings page (later)
 │   └── glossary/             // Components for glossary management (later)
 ├── composables/              // Reusable Vue Composition API functions (e.g., useTauri.ts, useSettings.ts)
@@ -64,10 +63,12 @@ Stores uncompiled assets such as global stylesheets, fonts, or images that are p
 #### 2.1.3 `components/`
 
 Holds all reusable Vue.js components. These are auto-imported by Nuxt 3.
-*   **`common/`**: For general-purpose components that can be used across different features (e.g., a custom button or modal, though Nuxt UI provides many).
-*   **`layout/`**: Components specifically used within layout files, such as `AppHeader.vue` or `AppFooter.vue`.
-*   **`translation/`**: Components related to the single-text translation feature, like `SingleTextTranslator.vue`.
-*   **`project/`**: Components for the project translation feature, such as `ProjectTranslator.vue`.
+*   **`common/`**: For general-purpose components. (This directory was previously planned for components like `LanguageSelector.vue` and `DataTable.vue`, which have since been removed or inlined. It may be empty or removed if no broadly common, custom components are currently needed).
+*   **`layout/`**: Components specifically used within layout files, such as `Header.vue` (renamed from `AppHeader.vue`) or `AppFooter.vue`.
+*   **`project/`**: Components for the project translation feature. This includes:
+    *   `ProjectSelector.vue` (renamed from `ProjectTranslator.vue`): Handles project folder selection and initiates automatic string extraction.
+    *   `ProjectStringsReview.vue`: Allows users to review extracted strings and configure/start the batch translation process.
+    *   `ProjectStringsResult.vue` (renamed from `BatchTranslationControls.vue`): Displays the results of the batch translation, including any errors.
 *   **`settings/`**: (Future) Components for the application settings page/modal.
 *   **`glossary/`**: (Future) Components for the glossary management interface.
 
@@ -84,8 +85,9 @@ Defines layout components for different page structures. Nuxt 3 auto-imports the
 #### 2.1.6 `pages/`
 
 Contains application views and routes. Nuxt 3 uses a file-system based routing where each `.vue` file in this directory becomes a route.
-*   `index.vue`: The main page of the application.
-*   (Future) `projects.vue`, `settings.vue`, `glossary.vue`.
+*   `index.vue`: The main page of the application, now focused on project selection via the `ProjectSelector.vue` component. After successful project selection and string extraction, the application navigates to `/project`.
+*   `project.vue`: A dedicated page for the project translation workflow. It conditionally displays `ProjectStringsReview.vue` (if strings are extracted but not yet batch translated) or `ProjectStringsResult.vue` (after a batch translation attempt). It also shows relevant loading or error messages.
+*   (Future) `settings.vue`, `glossary.vue`.
 
 #### 2.1.7 `public/`
 
@@ -94,9 +96,10 @@ Stores static assets that are served directly from the root and are not processe
 #### 2.1.8 `stores/`
 
 Houses Pinia store modules for state management. These are also auto-imported.
-*   `translation.ts`: Manages state for the single-text translation feature.
-*   `project.ts`: Manages state for the project translation feature.
-*   (Future) `settings.ts`, `glossary.ts`.
+*   `settings.ts`: Manages application-wide settings and relatively static selectable options. This includes available `languageOptions` and `engineOptions`. (Future: API keys, default preferences, theme settings).
+*   `translation.ts`: Manages the state and actions directly related to performing a translation task, specifically batch translation (loading status, results, errors). (The `TranslatableStringEntry` and `TranslatedStringEntry` interfaces are currently defined here but are candidates for a shared types file.)
+*   `project.ts`: Manages state for project selection, game engine detection, and string extraction. Includes a `$reset()` method that also triggers a reset of batch state in `translation.ts`.
+*   (Future) `glossary.ts`.
 
 ## 3. Key UI Sections & Global Components (Conceptual)
 
@@ -105,16 +108,10 @@ The application will feature several key UI sections, corresponding to pages and
 *   **Global Layout Components:**
     *   `AppHeader.vue`: Provides the main application header with title and global actions (e.g., settings button).
     *   `layouts/default.vue`: The primary layout wrapping pages, incorporating `AppHeader` and the main content area.
-*   **Main Translation Interface:** (Initial Focus - `pages/index.vue`, composed of `SingleTextTranslator.vue` and `ProjectTranslator.vue`)
-    *   Input text area for source text.
-    *   Output text area for translated text.
-    *   Language selectors (source and target).
-    *   Action buttons (Translate, Swap, Clear).
-    *   Project selection interface (`ProjectTranslator.vue`) which now also displays the selected path and game engine detection results.
-*   **Project Translation View:** (`pages/projects.vue` - Later Phase)
-    *   Project selection interface.
-    *   Overview of files and translatable strings.
-    *   Batch translation controls and progress indicators.
+*   **Main Translation Interface:** (`pages/index.vue` is now focused on project selection. The single text translation feature has been removed/deferred.)
+    *   Project selection is handled by `ProjectSelector.vue` on `pages/index.vue`.
+*   **Project Translation View:** (`pages/project.vue`)
+    *   Conditionally displays `ProjectStringsReview.vue` (for reviewing extracted strings and configuring/starting batch translation) or `ProjectStringsResult.vue` (for displaying batch translation results).
 *   **Glossary Management:** (`pages/glossary.vue` - Later Phase)
     *   Interface to add, edit, and delete glossary terms.
 *   **Settings Panel:** (`pages/settings.vue` - Later Phase)
@@ -129,10 +126,10 @@ Pinia stores will be used to manage:
 
 *   **Store Definition:** All Pinia stores will be defined using the **Setup Store** syntax (i.e., a function that returns an object of reactive properties and methods, similar to Vue 3's `setup()` function). This approach aligns best with Nuxt 3 and the Composition API, offering greater flexibility and composability.
 
-*   **`translation.ts`**: State for the single text translation UI (source/target text, selected languages, loading status).
-*   **`settings.ts`**: Global application settings (theme, API keys, user preferences).
-*   **`project.ts`**: State related to batch project translation (selected project folder path, project detection result (e.g., if it's a valid RPG Maker MV project), file list, translation progress).
-*   **`glossary.ts`**: Glossary terms and management state.
+*   **`settings.ts`**: Holds application-level settings and configuration data. This includes lists of available languages (`languageOptions`) and translation engines (`engineOptions`) for selection in the UI. In the future, it will also manage user preferences like API keys, default language selections, themes, etc.
+*   **`translation.ts`**: Focuses on the operational aspects of performing a translation. It handles the state for an active batch translation process: loading indicators, storing the translated strings (including any errors per string), and any overall errors from the batch translation command. (The `TranslatableStringEntry` and `TranslatedStringEntry` interfaces are currently defined here but are candidates for a shared types file.)
+*   **`project.ts`**: Manages state related to the game project itself: selected folder path, game engine detection results, extracted translatable strings, and any errors during these initial project processing steps. It includes a `$reset()` method to clear its own state and trigger a reset of batch translation state in `translation.ts`, ensuring a clean slate when a new project is chosen.
+*   **`glossary.ts`**: (Future) Glossary terms and management state.
 
 ## 5. Composables
 

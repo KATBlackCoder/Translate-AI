@@ -75,7 +75,7 @@ pub fn extract_translatable_strings_from_project(
                         Ok(mut actor_strings) => all_strings.append(&mut actor_strings),
                         Err(e) => parsing_errors.push(format!("Error parsing {}: {}", relative_file_path, e)),
                     }
-                } else if file_name_str == "Items.json" {
+                } /* else if file_name_str == "Items.json" {
                     match items::extract_strings(&content, &relative_file_path) {
                         Ok(mut item_strings) => all_strings.append(&mut item_strings),
                         Err(e) => parsing_errors.push(format!("Error parsing {}: {}", relative_file_path, e)),
@@ -135,10 +135,12 @@ pub fn extract_translatable_strings_from_project(
                         Ok(mut map_strings) => all_strings.append(&mut map_strings),
                         Err(e) => parsing_errors.push(format!("Error parsing {}: {}", relative_file_path, e)),
                     }
-                } else {
+                } */else {
                     // Placeholder for other files or unhandled files
                     // You might want to log these or handle them specifically later
-                    eprintln!("Skipping file (no specific parser implemented yet): {}", relative_file_path);
+                    if file_name_str != "Actors.json" { // Only log if it's not the one we are processing
+                        eprintln!("Skipping file (no specific parser implemented yet or intentionally skipped): {}", relative_file_path);
+                    }
                 }
             }
             Err(e) => {
