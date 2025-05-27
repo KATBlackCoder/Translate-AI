@@ -1,5 +1,9 @@
 use serde::Deserialize;
 use crate::core::rpgmv::common::TranslatableStringEntry;
+use serde_json::Value;
+use crate::models::translation::TranslatedStringEntryFromFrontend;
+use crate::error::CoreError;
+use crate::utils::json_utils::update_value_at_path;
 
 // --- Structs for deserializing System.json --- 
 
@@ -225,4 +229,204 @@ pub fn extract_strings(
     }
 
     Ok(entries)
+}
+
+pub fn reconstruct_system_json(
+    original_json_str: &str,
+    translations: Vec<&TranslatedStringEntryFromFrontend>,
+) -> Result<String, CoreError> {
+    let mut system_json_object: Value = serde_json::from_str(original_json_str)
+        .map_err(|e| CoreError::JsonParse(format!("Failed to parse System.json: {}", e)))?;
+
+    for entry in translations {
+        // For System.json, object_id is conventionally 0, so we don't check it here.
+        // The json_path is relative to the root of the System.json object.
+        let text_to_insert = if entry.error.is_some() {
+            &entry.text // Original text if translation failed
+        } else {
+            &entry.translated_text
+        };
+
+        match update_value_at_path(&mut system_json_object, &entry.json_path, text_to_insert) {
+            Ok(_) => { /* Successfully updated */ }
+            Err(e) => {
+                eprintln!(
+                    "Warning (System.json): Failed to update path '{}': {}. Skipping update for this field.", 
+                    entry.json_path, e.to_string()
+                );
+            }
+        }
+    }
+
+    serde_json::to_string_pretty(&system_json_object)
+        .map_err(|e| CoreError::JsonSerialize(format!("Failed to serialize System.json: {}", e)))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*; 
+    // No need to re-import TranslatedStringEntryFromFrontend, CoreError, Value as they are in scope
+
+    const TEST_SYSTEM_JSON: &str = r#"{
+        "gameTitle": "My Game",
+        "currencyUnit": "G",
+        "armorTypes": [null, "Light Armor", "Heavy Armor"],
+        "terms": {
+            "basic": [null, "HP", "MP"],
+            "messages": {
+                "actorDamage": "%1 took %2 damage!",
+                "obtainItem": "Obtained %1!"
+            }
+        },
+        "variables": [null, "Var1", ""],
+        "switches": [null, "SwitchA", null]
+    }"#;
+
+    #[test]
+    fn test_reconstruct_system_basic() {
+        let original_json_str = TEST_SYSTEM_JSON;
+        let translations = vec![
+            TranslatedStringEntryFromFrontend {
+                object_id: 0,
+                text: "My Game".to_string(),
+                source_file: "www/data/System.json".to_string(),
+                json_path: "gameTitle".to_string(),
+                translated_text: "Mon Jeu".to_string(),
+                error: None,
+            },
+            TranslatedStringEntryFromFrontend {
+                object_id: 0,
+                text: "G".to_string(),
+                source_file: "www/data/System.json".to_string(),
+                json_path: "currencyUnit".to_string(),
+                translated_text: "Or".to_string(),
+                error: None,
+            },
+            TranslatedStringEntryFromFrontend {
+                object_id: 0,
+                text: "Light Armor".to_string(),
+                source_file: "www/data/System.json".to_string(),
+                json_path: "armorTypes[1]".to_string(),
+                translated_text: "Armure Légère".to_string(),
+                error: None,
+            },
+            TranslatedStringEntryFromFrontend {
+                object_id: 0,
+                text: "HP".to_string(),
+                source_file: "www/data/System.json".to_string(),
+                json_path: "terms.basic[1]".to_string(),
+                translated_text: "PV".to_string(),
+                error: None,
+            },
+            TranslatedStringEntryFromFrontend {
+                object_id: 0,
+                text: "%1 took %2 damage!".to_string(),
+                source_file: "www/data/System.json".to_string(),
+                json_path: "terms.messages.actorDamage".to_string(),
+                translated_text: "%1 a subi %2 dégâts !".to_string(),
+                error: None,
+            },
+             TranslatedStringEntryFromFrontend {
+                object_id: 0,
+                text: "".to_string(), // test empty original string in variables
+                source_file: "www/data/System.json".to_string(),
+                json_path: "variables[2]".to_string(),
+                translated_text: "Translated Var".to_string(),
+                error: None,
+            },
+        ];
+        let translations_ref: Vec<&TranslatedStringEntryFromFrontend> = translations.iter().collect();
+
+        let result = reconstruct_system_json(&original_json_str, translations_ref);
+        assert!(result.is_ok(), "reconstruct_system_json failed: {:?}", result.err());
+        let reconstructed_json_str = result.unwrap();
+        let reconstructed_json: Value = serde_json::from_str(&reconstructed_json_str).expect("Failed to parse reconstructed JSON");
+
+        assert_eq!(reconstructed_json["gameTitle"].as_str().unwrap(), "Mon Jeu");
+        assert_eq!(reconstructed_json["currencyUnit"].as_str().unwrap(), "Or");
+        assert_eq!(reconstructed_json["armorTypes"][1].as_str().unwrap(), "Armure Légère");
+        assert_eq!(reconstructed_json["armorTypes"][2].as_str().unwrap(), "Heavy Armor"); // Unchanged
+        assert!(reconstructed_json["armorTypes"][0].is_null()); // Null preserved
+        assert_eq!(reconstructed_json["terms"]["basic"][1].as_str().unwrap(), "PV");
+        assert_eq!(reconstructed_json["terms"]["messages"]["actorDamage"].as_str().unwrap(), "%1 a subi %2 dégâts !");
+        assert_eq!(reconstructed_json["variables"][2].as_str().unwrap(), "Translated Var");
+        assert!(reconstructed_json["switches"][2].is_null()); // Untranslated null preserved
+
+    }
+
+    #[test]
+    fn test_reconstruct_system_with_translation_error() {
+        let original_json_str = TEST_SYSTEM_JSON;
+        let translations = vec![
+            TranslatedStringEntryFromFrontend {
+                object_id: 0,
+                text: "My Game".to_string(),
+                source_file: "www/data/System.json".to_string(),
+                json_path: "gameTitle".to_string(),
+                translated_text: "Jeu Raté".to_string(),
+                error: Some("AI failed".to_string()),
+            },
+            TranslatedStringEntryFromFrontend {
+                object_id: 0,
+                text: "G".to_string(),
+                source_file: "www/data/System.json".to_string(),
+                json_path: "currencyUnit".to_string(),
+                translated_text: "Gold".to_string(), 
+                error: None,
+            },
+        ];
+        let translations_ref: Vec<&TranslatedStringEntryFromFrontend> = translations.iter().collect();
+        let result = reconstruct_system_json(&original_json_str, translations_ref);
+        assert!(result.is_ok());
+        let reconstructed_json: Value = serde_json::from_str(&result.unwrap()).unwrap();
+
+        assert_eq!(reconstructed_json["gameTitle"].as_str().unwrap(), "My Game"); // Original due to error
+        assert_eq!(reconstructed_json["currencyUnit"].as_str().unwrap(), "Gold"); // Translated
+    }
+
+    #[test]
+    fn test_reconstruct_system_non_existent_json_path() {
+        let original_json_str = TEST_SYSTEM_JSON;
+        let translations = vec![
+            TranslatedStringEntryFromFrontend {
+                object_id: 0,
+                text: "Data".to_string(),
+                source_file: "www/data/System.json".to_string(),
+                json_path: "inventedField.subField[0]".to_string(),
+                translated_text: "Donnée Fantôme".to_string(),
+                error: None,
+            },
+        ];
+        let translations_ref: Vec<&TranslatedStringEntryFromFrontend> = translations.iter().collect();
+        let result = reconstruct_system_json(&original_json_str, translations_ref);
+        assert!(result.is_ok());
+        let reconstructed_value: Value = serde_json::from_str(&result.unwrap()).expect("Failed to parse reconstructed");
+        let original_value: Value = serde_json::from_str(original_json_str).expect("Failed to parse original");
+        assert_eq!(reconstructed_value, original_value); // Expect no change
+    }
+
+    #[test]
+    fn test_reconstruct_system_empty_translations_list() {
+        let original_json_str = TEST_SYSTEM_JSON;
+        let translations: Vec<TranslatedStringEntryFromFrontend> = Vec::new();
+        let translations_ref: Vec<&TranslatedStringEntryFromFrontend> = translations.iter().collect();
+        let result = reconstruct_system_json(&original_json_str, translations_ref);
+        assert!(result.is_ok());
+        let reconstructed_value: Value = serde_json::from_str(&result.unwrap()).expect("Failed to parse reconstructed");
+        let original_value: Value = serde_json::from_str(original_json_str).expect("Failed to parse original");
+        assert_eq!(reconstructed_value, original_value);
+    }
+
+    #[test]
+    fn test_reconstruct_system_invalid_original_json() {
+        let original_json_str = r#"{"gameTitle": "My Game", "terms": broken }"#;
+        let translations = vec![/* ... */];
+        let translations_ref: Vec<&TranslatedStringEntryFromFrontend> = translations.iter().collect();
+        let result = reconstruct_system_json(original_json_str, translations_ref);
+        assert!(result.is_err());
+        match result.err().unwrap() {
+            CoreError::JsonParse(_) => { /* Expected */ }
+            other => panic!("Expected JsonParse error, got {:?}", other),
+        }
+    }
 } 

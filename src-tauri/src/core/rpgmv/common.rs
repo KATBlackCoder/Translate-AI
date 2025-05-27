@@ -183,4 +183,103 @@ pub fn extract_translatable_strings_from_event_command_list(
         }
     }
     entries
+}
+
+use crate::models::translation::TranslatedStringEntryFromFrontend;
+use crate::error::CoreError;
+use crate::utils::json_utils::update_value_at_path;
+
+/// Reconstructs an event command list by injecting translations.
+///
+/// # Arguments
+/// * `command_list_value_array` - A mutable reference to `Vec<Value>`, representing the command list.
+/// * `parent_object_id` - The ID of the parent object (e.g., Common Event ID, Map Event ID).
+/// * `translations` - A slice of `TranslatedStringEntryFromFrontend` relevant to this command list.
+/// * `json_path_prefix_for_command_list` - The JSON path prefix for this command list (e.g., "[1].list").
+///
+/// # Returns
+/// `Ok(())` if reconstruction was successful for all applicable entries, or `CoreError` if a 
+/// critical error occurred during processing (though most path errors are logged and skipped).
+pub fn reconstruct_event_command_list(
+    command_list_value_array: &mut Vec<Value>, // Mutably borrow the array of commands
+    parent_object_id: u32,
+    translations: &[&TranslatedStringEntryFromFrontend],
+    json_path_prefix_for_command_list: &str, // e.g. "[1].list"
+) -> Result<(), CoreError> { // Return a Result, CoreError for now can be generic or specific
+    for entry in translations {
+        if entry.object_id != parent_object_id {
+            // This check might be redundant if translations are pre-filtered,
+            // but good for safety.
+            eprintln!(
+                "Warning (reconstruct_event_command_list): Translation entry object_id {} does not match parent_object_id {}. Skipping entry: {:?}.",
+                entry.object_id, parent_object_id, entry
+            );
+            continue;
+        }
+
+        // The entry.json_path is absolute from the root of the file (e.g., "[1].list.[0].parameters.[4]")
+        // We need to derive the path relative to an individual command in the list.
+        let path_within_command_list = entry.json_path.trim_start_matches(json_path_prefix_for_command_list);
+        
+        // path_within_command_list should now be like ".[0].parameters.[4]"
+        // We need to parse out the command index and the path within that command.
+        let parts: Vec<&str> = path_within_command_list.trim_start_matches('.').splitn(2, '.').collect();
+        
+        if parts.len() < 1 || !parts[0].starts_with('[') || !parts[0].ends_with(']') {
+            eprintln!(
+                "Warning (reconstruct_event_command_list): Could not parse command index from path {}. Original path: {}, Prefix: {}. Skipping entry: {:?}.",
+                path_within_command_list, entry.json_path, json_path_prefix_for_command_list, entry
+            );
+            continue;
+        }
+
+        let cmd_index_str = &parts[0][1..parts[0].len()-1];
+        let cmd_index: usize = match cmd_index_str.parse() {
+            Ok(idx) => idx,
+            Err(_) => {
+                eprintln!(
+                    "Warning (reconstruct_event_command_list): Failed to parse command index '{}' from path {}. Skipping entry: {:?}.",
+                    cmd_index_str, entry.json_path, entry
+                );
+                continue;
+            }
+        };
+
+        if cmd_index >= command_list_value_array.len() {
+            eprintln!(
+                "Warning (reconstruct_event_command_list): Command index {} out of bounds (list len {}). Path: {}. Skipping entry: {:?}.",
+                cmd_index, command_list_value_array.len(), entry.json_path, entry
+            );
+            continue;
+        }
+
+        let path_within_command_params = if parts.len() > 1 { parts[1] } else { "" };
+        if path_within_command_params.is_empty() {
+            eprintln!(
+                "Warning (reconstruct_event_command_list): Path within command parameters is empty for {}. Skipping entry: {:?}.",
+                entry.json_path, entry
+            );
+            continue;
+        }
+
+        let text_to_insert = if entry.error.is_some() {
+            &entry.text
+        } else {
+            &entry.translated_text
+        };
+
+        if let Some(command_value_mut) = command_list_value_array.get_mut(cmd_index) {
+            // Now use update_value_at_path on command_value_mut with path_within_command_params
+            match update_value_at_path(command_value_mut, path_within_command_params, text_to_insert) {
+                Ok(_) => { /* Successfully updated */ }
+                Err(e) => {
+                    eprintln!(
+                        "Warning (reconstruct_event_command_list): Failed to update path '{}' within command at index {} (id: {}, original full path: {}): {}. Skipping update for this field.", 
+                        path_within_command_params, cmd_index, parent_object_id, entry.json_path, e.to_string()
+                    );
+                }
+            }
+        } // else: cmd_index out of bounds, already handled above
+    }
+    Ok(())
 } 

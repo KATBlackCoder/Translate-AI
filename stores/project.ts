@@ -60,7 +60,7 @@ export const useProjectStore = defineStore('project', () => {
         if (projectDetectionResult.value && projectDetectionResult.value !== 'NotDetected') {
           await extractProjectStrings(); 
         }
-      } 
+      }
     } catch (err) {
       selectedProjectFolderPath.value = null;
       projectDetectionResult.value = null;
@@ -84,7 +84,7 @@ export const useProjectStore = defineStore('project', () => {
     if (projectDetectionResult.value === 'NotDetected' || projectDetectionResult.value === null) {
         extractionError.value = 'Project not detected or detection failed. Cannot extract strings.'
         toast.add({ title: 'Error', description: extractionError.value, color: 'error' })
-        return
+      return
     }
 
     isLoadingExtractedStrings.value = true

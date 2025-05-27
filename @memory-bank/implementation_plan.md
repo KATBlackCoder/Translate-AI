@@ -92,7 +92,7 @@ This document outlines a phased approach to developing the AI Game Translator ap
             *   This module (`core::rpgmv::project`) is the main entry point for RPGMV project operations.
             *   It will use the `walkdir` crate to iterate through the `www/data/` subdirectory of the project path.
             *   It will identify RPG Maker MV `.json` files (e.g., `Actors.json`, `Items.json`, `MapXXX.json`, `CommonEvents.json`, `System.json`, etc.).
-            *   For each identified file, it will read its content and call specialized parsing functions from its sibling modules within `src-tauri/src/core/rpgmv/` (e.g., `actors::extract_strings(...)`, `items::extract_strings(...)`).
+            *   For each identified file, it will read its content and call specialized parsing functions from its sibling modules within `src-tauri/src/core/rpgmv/` (e.g., `actors::extract_strings(...)`, `items::extract_strings(...)`). (This dispatch logic is now fully implemented and active).
         *   **`common.rs`:**
             *   This module (`core::rpgmv::common`) will house common data structures (like the `TranslatableStringEntry` struct) and shared helper functions specific to RPG Maker MV JSON structures, used by `project.rs` and other parser modules.
         *   **Specific Parsers (e.g., `actors.rs`, `items.rs`, `maps.rs`):**
@@ -123,8 +123,8 @@ This document outlines a phased approach to developing the AI Game Translator ap
     *   **MapInfos.json Parser:** Implemented parser in `src-tauri/src/core/rpgmv/map_infos.rs` for `MapInfos.json`. Extracts map `name` for each entry. Integrated into `project.rs`.
     *   **Classes.json Parser:** Implemented parser in `src-tauri/src/core/rpgmv/classes.rs`. Extracts class `name`, `note`, and `learnings[].note` fields. Integrated into `project.rs`. Linter issues resolved by refactoring to not use `RpgMvDataObject` trait and directly constructing `TranslatableStringEntry`.
     *   **States.json Parser:** Implemented parser in `src-tauri/src/core/rpgmv/states.rs`. Extracts state `name`, `note`, and `message1`-`message4` fields. Integrated into `mod.rs` and `project.rs`. Linter issues resolved by refactoring to not use `RpgMvDataObject` trait and directly constructing `TranslatableStringEntry`.
-    *   **Completion of Core Parsing Logic (Phase 3, Task 3):** The entire "File Parsing & String Extraction (Rust)" task, including all core parsing logic and comprehensive integration testing, is **COMPLETE**.
-4.  **Frontend for Batch Workflow (Refactored & In Progress/COMPLETE for core structure):**
+    *   **Completion of Core Parsing Logic (Phase 3, Task 3):** The entire "File Parsing & String Extraction (Rust)" task, including all core parsing logic (individual file parsers and the main orchestrator in `core::rpgmv::project.rs`) and comprehensive integration testing, is **COMPLETE**.
+4.  **Frontend for Batch Workflow (Refactored & COMPLETE - End-to-end workflow manually tested and stable):**
     *   **Define `TranslatableStringEntry` & `TranslatedStringEntry` Interfaces (Frontend):** (COMPLETE - Currently defined in `stores/translation.ts`, consider moving to a shared types file).
     *   **Create `stores/settings.ts` (Pinia Store):**
         *   Manages application-wide settings and selectable options. (COMPLETE)
@@ -149,21 +149,100 @@ This document outlines a phased approach to developing the AI Game Translator ap
         *   Conditionally displays `ProjectStringsReview.vue` or `ProjectStringsResult.vue` based on state from `projectStore` (for extracted strings) and `translationStore` (for batch results/errors).
         *   (COMPLETE)
     *   (Other sub-tasks like `pages/index.vue` and `components/project/ProjectSelector.vue` updates remain COMPLETE as per their last state and are not directly affected by the `settingsStore` introduction, beyond their child `ProjectStringsReview.vue` being updated).
-    *   Manual testing of this refactored flow is ongoing.
+    *   **Manual Testing Summary:** The end-to-end workflow involving project selection, string extraction, review UI (`ProjectStringsReview.vue`), batch translation initiation via Ollama, and results display (`ProjectStringsResult.vue`) has been manually tested. The core functionality is verified, and the UI/UX is deemed acceptable for this stage. Minor UI polish and performance considerations for very large batches (>1000 strings with Ollama) are noted for future enhancements (Phase 6).
 5.  **Batch Translation Logic (Rust):** (COMPLETE - Details omitted for brevity, no changes to Rust logic itself in this refactor)
     *   **Frontend Store Logic (Now split between `stores/project.ts` and `stores/translation.ts`):** (Updated as described above)
     *   **Frontend UI Logic (Handled by `ProjectStringsReview.vue` and `ProjectStringsResult.vue` on `pages/project.vue`):** (Updated as described above)
 6.  **Reconstruct Translated Files (Rust):**
-    *   Logic to take the translated strings and insert them back into copies of the original JSON structures, maintaining the correct keys and overall structure.
-7.  **ZIP Archive Creation (Rust):**
-    *   Tauri command (in `src-tauri/src/commands/project.rs`) using the `zip` crate:
-        *   Takes the reconstructed translated JSON data.
-        *   Creates a `.zip` archive.
-        *   Writes each translated JSON structure to the correct relative path within the zip (e.g., `www/data/Actors.json`), ensuring preservation of the full relative path from the project root.
+    *   **Goal:** To take the batch-translated strings, read the original game files, inject these translations into the correct places within the JSON structures (in memory, non-destructively), and produce the final translated JSON content as strings in memory, ready for ZIP packaging.
+    *   **Sub-Task 6.1: Define `TranslatedStringEntryFromFrontend` Struct (Rust):**
+        *   Define the struct in `src-tauri/src/models/translation.rs` to match the data structure sent from the frontend (includes `objectId`, `text` (original), `sourceFile`, `jsonPath`, `translatedText`, and `error` option). (COMPLETE)
+    *   **Sub-Task 6.2: Implement `reconstruct_translated_project_files` Tauri Command (Rust):**
+        *   Create in `src-tauri/src/commands/project.rs`.
+        *   Accepts `project_path` and `Vec<TranslatedStringEntryFromFrontend>`.
+        *   Groups translations by `source_file`.
+        *   For each file: reads original content, then calls core reconstruction logic (Sub-Task 6.3) - *currently a placeholder call*.
+        *   Returns a `HashMap<String, String>` of {relative_file_path: translated_json_string} - *currently with placeholder content*.
+        *   Add command to `lib.rs` invoke_handler. (COMPLETE - Basic command structure with placeholder logic)
+    *   **Sub-Task 6.3: Implement Core Reconstruction Logic Dispatcher (Rust):**
+        *   Create `reconstruct_file_content` function in `src-tauri/src/core/rpgmv/project.rs`.
+        *   Takes original JSON string, `relative_file_path`, and relevant `Vec<&TranslatedStringEntryFromFrontend>`.
+        *   Dispatches to specific file-type reconstructor (Sub-Task 6.4) based on `relative_file_path`. (COMPLETE - Dispatcher implemented; specific reconstructor calls are placeholders returning `CoreError::Unimplemented`)
+        *   Define `CoreError` enum in `src-tauri/src/error.rs` and register `error.rs` in `lib.rs`. (COMPLETE)
+    *   **Sub-Task 6.4: Implement Specific Reconstructor Functions (Rust):**
+        *   For each RPGMV file type module (e.g., `core/rpgmv/actors.rs`), add a `reconstruct_<filetype>_json` function.
+        *   Parses original JSON string to mutable `serde_json::Value`.
+        *   Uses `object_id` and `json_path` from each `TranslatedStringEntryFromFrontend` to locate and update fields in the `Value` (leveraging the `update_value_at_path` helper from Sub-Task 6.5 where applicable).
+        *   If translation failed (error present), inserts original text back.
+        *   Serializes modified `Value` back to a JSON string.
+        *   Status:
+            *   `Actors.json`: COMPLETE (includes `note` field, uses `update_value_at_path` helper, unit tests passed).
+            *   `Items.json`: COMPLETE (uses `update_value_at_path` helper, unit tests passed).
+            *   `Armors.json`: COMPLETE (uses `update_value_at_path` helper, unit tests passed).
+            *   `Weapons.json`: COMPLETE (uses `update_value_at_path` helper, unit tests passed).
+            *   `Skills.json`: COMPLETE (uses `update_value_at_path` helper, unit tests passed).
+            *   `Enemies.json`: COMPLETE (uses `update_value_at_path` helper, unit tests passed).
+            *   `CommonEvents.json`: COMPLETE (uses `update_value_at_path` for name, `reconstruct_event_command_list` helper for list, unit tests passed).
+            *   `Troops.json`: COMPLETE (uses `update_value_at_path` for name, `reconstruct_event_command_list` helper for pages, unit tests passed).
+            *   `System.json`: COMPLETE (uses `update_value_at_path` helper for all fields, unit tests passed).
+            *   `MapInfos.json`: COMPLETE (uses `update_value_at_path` helper for name, unit tests passed).
+            *   `Classes.json`: COMPLETE (uses `update_value_at_path` helper for name, note, and learnings notes, unit tests passed).
+            *   `States.json`: COMPLETE (uses `update_value_at_path` helper for name, note, and messages, unit tests passed).
+            *   `MapXXX.json`: COMPLETE (uses `update_value_at_path` for event names, `reconstruct_event_command_list` helper for event command lists, unit tests passed).
+            *   All planned reconstructors complete (`Tilesets.json` reconstruction deferred as its parsing was deferred).
+    *   **Sub-Task 6.5: Implement `serde_json::Value` Navigation/Update Helper (Rust):**
+        *   Develop a helper function (e.g., `update_value_at_path` in `src-tauri/src/utils/json_utils.rs`).
+        *   This function will take a mutable `serde_json::Value`, a `json_path` string, and the new text.
+        *   It will parse the `json_path` (dot notation for objects, brackets for arrays) and navigate/update the `Value`.
+        *   (COMPLETE - Initial version with basic path handling and tests implemented in `utils/json_utils.rs`)
+    *   **Sub-Task 6.6: Implement `reconstruct_event_command_list` Helper (Rust):**
+        *   (COMPLETE - Helper function in `core/rpgmv/common.rs` for reconstructing event command lists, used by relevant reconstructors.)
+7.  **ZIP Archive Creation (Rust):** (COMPLETE)
+    *   `zip` crate (`zip = "4.0.0"`) was already in `src-tauri/Cargo.toml`.
+    *   Created `src-tauri/src/services/zip_service.rs` and declared module in `services/mod.rs` (and `services` in `lib.rs`).
+    *   Implemented `create_zip_archive_from_memory(data: &HashMap<String, String>, output_zip_path: &Path) -> Result<(), CoreError>` in `zip_service.rs`:
+        *   Uses `zip::ZipWriter` and `zip::CompressionMethod::Deflated`.
+        *   Iterates through `data`, using keys as relative paths (e.g., `www/data/Actors.json`) and values as content to write into the ZIP.
+        *   Ensures preservation of the full relative path within the ZIP (Option A: no top-level project folder in ZIP).
+    *   Updated the `reconstruct_translated_project_files` Tauri command in `src-tauri/src/commands/project.rs`:
+        *   Obtains the `HashMap<String, String>` of reconstructed translated files.
+        *   Uses a fixed temporary output path for the ZIP file (`src-tauri/target/translated_project_output.zip`).
+        *   Calls `services::zip_service::create_zip_archive_from_memory`.
+        *   Returns the path to the created ZIP file to the frontend.
+    *   Basic unit tests for `zip_service.rs` implemented and passing.
 8.  **Save & Show Output (Frontend & Rust):**
-    *   Frontend UI to trigger saving the ZIP (e.g., "Export Translations" button).
-    *   `tauri-plugin-dialog` to ask user where to save the `.zip` file.
-    *   Frontend button "Show Output in Folder" using `tauri-plugin-opener`.
+    *   **Frontend UI & State:**
+        *   In `ProjectStringsResult.vue` (or a similar results component on `pages/project.vue`), add an "Export Translated Project" button.
+        *   This button is enabled only after the `reconstruct_translated_project_files` command successfully returns the temporary ZIP path.
+        *   Store the temporary ZIP path in `translationStore`.
+        *   Add a new state property in `translationStore` for the final saved ZIP path (e.g., `finalZipSavedPath: Ref<string | null>`).
+        *   Add a "Show in Folder" button, enabled only after `finalZipSavedPath` is set.
+    *   **Backend `save_zip_archive_command` (Rust):**
+        *   Create a new command `save_zip_archive_command` in `src-tauri/src/commands/project.rs`.
+        *   Takes `app_handle: tauri::AppHandle` and `temp_zip_path: String` as input.
+        *   Uses `app_handle.dialog().file().save_file().add_filter("zip", &["zip"]).show().await` to prompt the user for a save location and filename (suggest a default like `translated_project.zip`).
+        *   If the user selects a path:
+            *   Move the ZIP file from `temp_zip_path` to the user-selected path using `std::fs::rename`. Consider error handling if rename fails (e.g., across different filesystems, might need copy then delete).
+            *   Return `Ok(Some(final_path_string))`.
+        *   If the user cancels, return `Ok(None)`.
+        *   If an error occurs, return `Err(CoreError::Io(...))`.
+    *   **Frontend Logic for Saving:**
+        *   When "Export Translated Project" is clicked, the frontend calls `save_zip_archive_command` with the temporary ZIP path from `translationStore`.
+        *   On success (`Ok(Some(path))`), update `translationStore.finalZipSavedPath` with the returned path and show a success toast.
+        *   On cancellation (`Ok(None)`), do nothing or show a gentle notification.
+        *   On error, show an error toast.
+    *   **Backend `open_folder_command` (Rust):**
+        *   Create a new command `open_folder_command` in `src-tauri/src/commands/project.rs`.
+        *   Takes `app_handle: tauri::AppHandle` and `folder_path: String` (this will be the directory containing the saved ZIP) as input.
+        *   Uses `app_handle.opener().open(folder_path)` to open the containing folder in the system's file explorer. (Note: `tauri-plugin-opener` opens paths, so ensure you pass the directory, not the file path itself, if you want to reveal the file in its folder).
+        *   Alternatively, if `tauri-plugin-shell`'s `open` is more appropriate for revealing a file, that could be used (e.g., `app_handle.shell().open(file_path_to_reveal, None)`). Check plugin capabilities.
+        *   Return `Result<(), String>` for error reporting.
+        *   **Frontend Logic for Showing:**
+            *   When "Show in Folder" is clicked, the frontend gets the directory of `translationStore.finalZipSavedPath`.
+            *   Calls `open_folder_command` with this directory path.
+            *   Handle potential errors with a toast.
+        *   **Temporary File Cleanup (Rust - Optional but Recommended):**
+            *   Consider deleting the temporary ZIP file from `src-tauri/target/` after it's successfully moved or if the user cancels/an error occurs before moving.
 
 ## Phase 4: Glossary Feature
 

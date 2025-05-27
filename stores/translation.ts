@@ -75,7 +75,7 @@ export const useTranslationStore = defineStore('translation', () => {
       } else if (successCount === 0) {
         toast.add({ title: 'Batch Translation Failed', description: `All ${failureCount} string(s) failed to translate. Check individual errors.`, color: 'error' });
       } else {
-        toast.add({ 
+      toast.add({ 
           title: 'Batch Translation Partially Successful',
           description: `Translated ${successCount} string(s). ${failureCount} string(s) failed. Check results for details.`,
           color: 'warning' 

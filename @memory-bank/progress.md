@@ -60,6 +60,7 @@ Phase 1 (Project Setup & Core UI Shell for Project Translation) is complete. Cor
     *   The `extract_project_strings_command` is defined in `commands/project.rs` and registered.
     *   RPG Maker MV parsing module structure implemented in `src-tauri/src/core/rpgmv/`.
     *   All planned RPG Maker MV JSON file parsers (`Actors`, `Items`, `Armors`, `Weapons`, `Skills`, `Enemies`, `CommonEvents`, `Troops`, `System`, `MapXXX`, `MapInfos`, `Classes`, `States`) and associated refactorings for string extraction are implemented. (`Tilesets.json` parsing deferred).
+    *   The core dispatch logic in `src-tauri/src/core/rpgmv/project.rs` (function `extract_translatable_strings_from_project`) now correctly calls all individual file parsers.
     *   **Integration Testing for Parsers (COMPLETE):**
         *   All Rust integration tests for individual RPG Maker MV JSON file types (`Actors.json`, `Armors.json`, `Classes.json`, `CommonEvents.json`, `Enemies.json`, `Items.json`, `MapInfos.json`, `MapXXX.json`, `Skills.json`, `States.json`, `System.json`, `Troops.json`, `Weapons.json`) have been successfully refactored into separate files under `src-tauri/src/tests/integration/`.
         *   The common helper function `setup_and_extract_all_strings` has been centralized in `src-tauri/src/tests/common_test_utils.rs`.
@@ -77,12 +78,52 @@ Phase 1 (Project Setup & Core UI Shell for Project Translation) is complete. Cor
         *   `ProjectStringsReview.vue` uses `projectStore` for strings, `settingsStore` for options, and `translationStore` for batch action/state. **(COMPLETE)**.
         *   `ProjectStringsResult.vue` uses `translationStore` for results. **(COMPLETE)**.
         *   `pages/project.vue` orchestrates review/results using all three stores as needed. **(COMPLETE)**.
-    *   **Task 5: Batch Translation Logic (Manual Testing & Refinement - In Progress with refactored UI):**
-        *   Currently performing manual testing of the end-to-end project selection, string extraction (auto-triggered), review, batch translation (Ollama), and results display workflow with the new component structure.
-        *   String extraction limitations for testing (e.g., `Actors.json` only) can be managed in `src-tauri/src/core/rpgmv/project.rs` as before.
-        *   UI for review (`ProjectStringsReview.vue`) and results (`ProjectStringsResult.vue`) is in place.
-        *   Prompt quality for translations is noted as an area for future improvement (Phase 6).
-        *   Adjustments and refinements to UI/UX and backend logic will be made based on test findings before proceeding to file reconstruction.
+    *   **Task 5: Batch Translation Logic (Manual Testing & Refinement - COMPLETE):**
+        *   Successfully completed manual testing of the end-to-end project selection, string extraction, review, batch translation (Ollama), and results display workflow with the refactored UI components.
+        *   Core functionality is verified. UI/UX is deemed acceptable for this stage.
+        *   Minor UI polish (e.g., transitions, disabling more elements during loading) noted for future enhancement (Phase 6).
+        *   Error handling for Ollama unavailability and invalid project paths confirmed.
+        *   Performance observation: Ollama translation can become slow when processing a very large number of strings (e.g., >1000). This will be a consideration for future optimization (Phase 6 or later).
+        *   Some specific error conditions (e.g., individual string translation errors, corrupted project files) were not tested due to lack of specific test data but can be addressed later if encountered or during more targeted testing phases.
+    *   **Task 6: Reconstruct Translated Files (Rust):**
+        *   **Sub-Task 6.1: Define `TranslatedStringEntryFromFrontend` Struct (Rust) - COMPLETE**
+        *   **Sub-Task 6.2: Implement `reconstruct_translated_project_files` Tauri Command (Rust) - COMPLETE - Basic command structure with placeholder logic**
+        *   **Sub-Task 6.3: Implement Core Reconstruction Logic Dispatcher (Rust) - COMPLETE - Dispatcher implemented; specific reconstructor calls are placeholders returning `CoreError::Unimplemented`**
+        *   Sub-Task 6.4: Implement Specific Reconstructor Functions (Rust)
+            *   `Actors.json` reconstructor: COMPLETE (includes `note` field, uses `update_value_at_path` helper, unit tests passed)
+            *   `Items.json` reconstructor: COMPLETE (uses `update_value_at_path` helper, unit tests passed)
+            *   `Armors.json` reconstructor: COMPLETE (uses `update_value_at_path` helper, unit tests passed)
+            *   `Weapons.json` reconstructor: COMPLETE (uses `update_value_at_path` helper, unit tests passed)
+            *   `Skills.json` reconstructor: COMPLETE (uses `update_value_at_path` helper, unit tests passed)
+            *   `Enemies.json` reconstructor: COMPLETE (uses `update_value_at_path` helper, unit tests passed)
+            *   `CommonEvents.json` reconstructor: COMPLETE (uses `update_value_at_path` for name, `reconstruct_event_command_list` helper for list, unit tests passed)
+            *   `Troops.json` reconstructor: COMPLETE (uses `update_value_at_path` for name, `reconstruct_event_command_list` helper for pages, unit tests passed)
+            *   `System.json` reconstructor: COMPLETE (uses `update_value_at_path` helper for all fields, unit tests passed)
+            *   `MapInfos.json` reconstructor: COMPLETE (uses `update_value_at_path` helper for name, unit tests passed)
+            *   `Classes.json` reconstructor: COMPLETE (uses `update_value_at_path` helper for name, note, and learnings notes, unit tests passed)
+            *   `States.json` reconstructor: COMPLETE (uses `update_value_at_path` helper for name, note, and messages, unit tests passed)
+            *   `MapXXX.json` reconstructor: COMPLETE (uses `update_value_at_path` for event names, `reconstruct_event_command_list` helper for event command lists, unit tests passed)
+            *   All planned reconstructors complete (`Tilesets.json` reconstruction deferred as its parsing was deferred).
+        *   **Sub-Task 6.5: Implement `serde_json::Value` Navigation/Update Helper (Rust) - COMPLETE - Initial version with basic path handling and tests implemented in `utils/json_utils.rs`**
+        *   **Sub-Task 6.6: Implement `reconstruct_event_command_list` Helper (Rust) - COMPLETE - Helper function in `core/rpgmv/common.rs` for reconstructing event command lists, used by `CommonEvents.json` and future event-based files.**
+    *   **Task 7: ZIP Archive Creation (Rust): COMPLETE**
+        *   Implemented ZIP creation using the `zip` crate (`zip = "4.0.0"` already in `Cargo.toml`).
+        *   Created `src-tauri/src/services/zip_service.rs` with `create_zip_archive_from_memory` function.
+        *   Unit tests for `zip_service.rs` are passing.
+        *   `create_zip_archive_from_memory` takes `HashMap<String, String>` (relative_path: content) and output path.
+        *   ZIP structure is Option A (no top-level project folder, `www/data/...` directly at ZIP root).
+        *   Updated `reconstruct_translated_project_files` command in `commands/project.rs` to use this service.
+        *   Command outputs ZIP to a fixed path (`src-tauri/target/translated_project_output.zip`) for now.
+    *   **Task 8: Save & Show Output (Frontend & Rust):**
+        *   Planned: Frontend UI ("Export Translated Project" button) enabled after ZIP creation.
+        *   Planned: Frontend calls new `save_zip_archive_command` with temporary ZIP path.
+        *   Planned: Backend `save_zip_archive_command` (in `commands/project.rs`):
+            *   Uses `tauri-plugin-dialog` for user to select save destination/name.
+            *   Moves ZIP from temporary path to user-selected path (`std::fs::rename` or copy+delete).
+            *   Returns final save path or error/cancellation to frontend.
+        *   Planned: Frontend enables "Show in Folder" button on successful save.
+        *   Planned: Frontend calls new `open_folder_command` with final save path.
+        *   Planned: Backend `open_folder_command` (in `commands/project.rs`) uses `tauri-plugin-opener`.
 
 ## Next Major Goals (Adjusted from Implementation Plan):
 

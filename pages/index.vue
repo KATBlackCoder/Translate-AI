@@ -1,15 +1,15 @@
 <template>
   <UCard variant="outline">
-    <template #header>
+      <template #header>
       <p class="text-lg font-semibold">Project Selection</p>
       <p class="text-sm text-gray-500 dark:text-gray-400">
         Select an RPG Maker MV project folder to begin.
       </p>
-    </template>
+      </template>
     <ProjectSelector />
     <!-- SingleTextTranslator removed -->
     <!-- Navigation to /review is handled by projectStore after successful extraction -->
-  </UCard>
+    </UCard>
 </template>
 
 <script lang="ts" setup>

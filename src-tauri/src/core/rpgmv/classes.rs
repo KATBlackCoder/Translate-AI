@@ -84,6 +84,80 @@ pub fn extract_strings(
     Ok(entries)
 }
 
+use serde_json::Value;
+use crate::models::translation::TranslatedStringEntryFromFrontend;
+use crate::error::CoreError;
+use crate::utils::json_utils::update_value_at_path;
+
+pub fn reconstruct_classes_json(
+    original_json_str: &str,
+    translations: Vec<&TranslatedStringEntryFromFrontend>,
+) -> Result<String, CoreError> {
+    let mut classes_json_array: Vec<Value> = serde_json::from_str(original_json_str)
+        .map_err(|e| CoreError::JsonParse(format!("Failed to parse Classes.json: {}", e)))?;
+
+    for entry in translations {
+        // Examples: "[1].name", "[1].note", "[1].learnings[0].note"
+        let parts: Vec<&str> = entry.json_path.splitn(2, '.').collect();
+        if parts.len() < 2 || !parts[0].starts_with('[') || !parts[0].ends_with(']') {
+            eprintln!("Warning (Classes.json): Invalid json_path format for entry (top level index): {:?}. Skipping.", entry);
+            continue;
+        }
+
+        let index_str = &parts[0][1..parts[0].len()-1];
+        let class_index: usize = match index_str.parse() {
+            Ok(idx) => idx,
+            Err(_) => {
+                eprintln!("Warning (Classes.json): Failed to parse class index from path: {}. Skipping.", entry.json_path);
+                continue;
+            }
+        };
+
+        if class_index >= classes_json_array.len() || classes_json_array[class_index].is_null() {
+            eprintln!("Warning (Classes.json): Class index {} out of bounds or null. Skipping entry: {:?}.", class_index, entry);
+            continue;
+        }
+        
+        if let Some(class_value_mut) = classes_json_array.get_mut(class_index) {
+            if let Some(id_val) = class_value_mut.get("id").and_then(|id| id.as_u64()) {
+                if id_val != entry.object_id as u64 {
+                    eprintln!(
+                        "Warning (Classes.json): Mismatched object_id for class_index {}. Expected {}, found in translation {}. Skipping entry: {:?}.",
+                        class_index, id_val, entry.object_id, entry
+                    );
+                    continue;
+                }
+            } else {
+                eprintln!("Warning (Classes.json): Could not read id for class_index {}. Skipping id check for entry: {:?}.", class_index, entry);
+            }
+
+            let text_to_insert = if entry.error.is_some() {
+                &entry.text
+            } else {
+                &entry.translated_text
+            };
+            
+            // The remaining part of json_path after "[index]." is the actual path within the class object.
+            // e.g., "name", "note", "learnings[0].note"
+            let path_within_class = parts[1];
+
+            match update_value_at_path(class_value_mut, path_within_class, text_to_insert) {
+                Ok(_) => { /* Successfully updated */ }
+                Err(e) => {
+                    eprintln!(
+                        "Warning (Classes.json): Failed to update path '{}' for class id {}: {}. Skipping update for this field.", 
+                        entry.json_path, entry.object_id, e.to_string()
+                    );
+                }
+            }
+        } // else already handled by bounds check
+    }
+
+    serde_json::to_string_pretty(&classes_json_array)
+        .map_err(|e| CoreError::JsonSerialize(format!("Failed to serialize Classes.json: {}", e)))
+}
+
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -185,5 +259,219 @@ mod tests {
         };
         assert!(result.contains(&expected_warrior_name));
         assert!(result.contains(&expected_warrior_note));
+    }
+
+    // Tests for reconstruct_classes_json
+    const TEST_CLASSES_JSON_FOR_RECONSTRUCTION: &str = r#"[
+        null,
+        {
+            "id": 1,
+            "expParams": [30,20,30,30],
+            "traits": [],
+            "learnings": [
+                {"level": 1, "note": "Initial Note 1", "skillId": 8},
+                {"level": 5, "note": "", "skillId": 10},
+                {"level": 10, "note": "Initial Note 3", "skillId": 12}
+            ],
+            "name": "Hero",
+            "note": "The main protagonist.",
+            "params": []
+        },
+        {
+            "id": 2,
+            "expParams": [25,25,25,25],
+            "traits": [],
+            "learnings": [],
+            "name": "Sidekick",
+            "note": "A trusty companion.",
+            "params": []
+        }
+    ]"#;
+
+    #[test]
+    fn test_reconstruct_classes_basic() {
+        let original_json_str = TEST_CLASSES_JSON_FOR_RECONSTRUCTION;
+        let translations = vec![
+            TranslatedStringEntryFromFrontend {
+                object_id: 1,
+                text: "Hero".to_string(),
+                source_file: "www/data/Classes.json".to_string(),
+                json_path: "[1].name".to_string(),
+                translated_text: "Héroe".to_string(),
+                error: None,
+            },
+            TranslatedStringEntryFromFrontend {
+                object_id: 1,
+                text: "The main protagonist.".to_string(),
+                source_file: "www/data/Classes.json".to_string(),
+                json_path: "[1].note".to_string(),
+                translated_text: "El protagonista principal.".to_string(),
+                error: None,
+            },
+            TranslatedStringEntryFromFrontend {
+                object_id: 1,
+                text: "Initial Note 1".to_string(),
+                source_file: "www/data/Classes.json".to_string(),
+                json_path: "[1].learnings[0].note".to_string(),
+                translated_text: "Nota Inicial 1 Traducida".to_string(),
+                error: None,
+            },
+            TranslatedStringEntryFromFrontend { // Test translating an empty learning note
+                object_id: 1,
+                text: "".to_string(), // Original was empty
+                source_file: "www/data/Classes.json".to_string(),
+                json_path: "[1].learnings[1].note".to_string(),
+                translated_text: "Nota Aprendizaje 2 Traducida".to_string(),
+                error: None,
+            },
+            TranslatedStringEntryFromFrontend {
+                object_id: 2,
+                text: "Sidekick".to_string(),
+                source_file: "www/data/Classes.json".to_string(),
+                json_path: "[2].name".to_string(),
+                translated_text: "Compañero".to_string(),
+                error: None,
+            },
+        ];
+        let translations_ref: Vec<&TranslatedStringEntryFromFrontend> = translations.iter().collect();
+        let result = reconstruct_classes_json(&original_json_str, translations_ref);
+        assert!(result.is_ok(), "reconstruct_classes_json failed: {:?}", result.err());
+        let reconstructed_json: Value = serde_json::from_str(&result.unwrap()).expect("Failed to parse reconstructed JSON");
+
+        assert_eq!(reconstructed_json[1]["name"].as_str().unwrap(), "Héroe");
+        assert_eq!(reconstructed_json[1]["note"].as_str().unwrap(), "El protagonista principal.");
+        assert_eq!(reconstructed_json[1]["learnings"][0]["note"].as_str().unwrap(), "Nota Inicial 1 Traducida");
+        assert_eq!(reconstructed_json[1]["learnings"][1]["note"].as_str().unwrap(), "Nota Aprendizaje 2 Traducida");
+        assert_eq!(reconstructed_json[1]["learnings"][2]["note"].as_str().unwrap(), "Initial Note 3"); // Unchanged
+
+        assert_eq!(reconstructed_json[2]["name"].as_str().unwrap(), "Compañero");
+        assert_eq!(reconstructed_json[2]["note"].as_str().unwrap(), "A trusty companion."); // Unchanged
+    }
+
+    #[test]
+    fn test_reconstruct_classes_with_translation_error() {
+        let original_json_str = TEST_CLASSES_JSON_FOR_RECONSTRUCTION;
+        let translations = vec![
+            TranslatedStringEntryFromFrontend {
+                object_id: 1,
+                text: "Hero".to_string(),
+                source_file: "www/data/Classes.json".to_string(),
+                json_path: "[1].name".to_string(),
+                translated_text: "FailName".to_string(),
+                error: Some("AI error".to_string()),
+            },
+            TranslatedStringEntryFromFrontend {
+                object_id: 1,
+                text: "Initial Note 1".to_string(),
+                source_file: "www/data/Classes.json".to_string(),
+                json_path: "[1].learnings[0].note".to_string(),
+                translated_text: "GoodLearningNote".to_string(),
+                error: None,
+            },
+        ];
+        let translations_ref: Vec<&TranslatedStringEntryFromFrontend> = translations.iter().collect();
+        let result = reconstruct_classes_json(&original_json_str, translations_ref);
+        assert!(result.is_ok());
+        let reconstructed_json: Value = serde_json::from_str(&result.unwrap()).unwrap();
+
+        assert_eq!(reconstructed_json[1]["name"].as_str().unwrap(), "Hero"); // Original due to error
+        assert_eq!(reconstructed_json[1]["learnings"][0]["note"].as_str().unwrap(), "GoodLearningNote"); // Translated
+    }
+
+    #[test]
+    fn test_reconstruct_classes_non_existent_id() {
+        let original_json_str = TEST_CLASSES_JSON_FOR_RECONSTRUCTION;
+        let translations = vec![
+            TranslatedStringEntryFromFrontend {
+                object_id: 999, 
+                text: "Phantom Class".to_string(),
+                source_file: "www/data/Classes.json".to_string(),
+                json_path: "[1].name".to_string(), // Path points to existing class, but ID is wrong
+                translated_text: "Fantasma".to_string(),
+                error: None,
+            },
+        ];
+        let translations_ref: Vec<&TranslatedStringEntryFromFrontend> = translations.iter().collect();
+        let result = reconstruct_classes_json(&original_json_str, translations_ref);
+        assert!(result.is_ok());
+        let reconstructed_value: Value = serde_json::from_str(&result.unwrap()).unwrap();
+        let original_value: Value = serde_json::from_str(original_json_str).unwrap();
+        assert_eq!(reconstructed_value, original_value); // Should not change due to ID mismatch
+    }
+
+    #[test]
+    fn test_reconstruct_classes_non_existent_json_path_index() {
+        let original_json_str = TEST_CLASSES_JSON_FOR_RECONSTRUCTION;
+        let translations = vec![
+            TranslatedStringEntryFromFrontend {
+                object_id: 1,
+                text: "Value".to_string(),
+                source_file: "www/data/Classes.json".to_string(),
+                json_path: "[99].name".to_string(), // Class index 99 does not exist
+                translated_text: "Translated Mystery".to_string(),
+                error: None,
+            },
+        ];
+        let translations_ref: Vec<&TranslatedStringEntryFromFrontend> = translations.iter().collect();
+        let result = reconstruct_classes_json(&original_json_str, translations_ref);
+        assert!(result.is_ok());
+        let reconstructed_value: Value = serde_json::from_str(&result.unwrap()).unwrap();
+        let original_value: Value = serde_json::from_str(original_json_str).unwrap();
+        assert_eq!(reconstructed_value, original_value); // No change expected
+    }
+    
+    #[test]
+    fn test_reconstruct_classes_non_existent_json_path_field() {
+        let original_json_str = TEST_CLASSES_JSON_FOR_RECONSTRUCTION;
+        let translations = vec![
+            TranslatedStringEntryFromFrontend {
+                object_id: 1,
+                text: "Value".to_string(),
+                source_file: "www/data/Classes.json".to_string(),
+                json_path: "[1].unknownField".to_string(), // Field "unknownField" does not exist
+                translated_text: "Translated Unknown".to_string(),
+                error: None,
+            },
+            TranslatedStringEntryFromFrontend {
+                object_id: 1,
+                text: "Value".to_string(),
+                source_file: "www/data/Classes.json".to_string(),
+                json_path: "[1].learnings[0].unknownSubField".to_string(), // Field "unknownSubField" does not exist
+                translated_text: "Translated Deep Unknown".to_string(),
+                error: None,
+            },
+        ];
+        let translations_ref: Vec<&TranslatedStringEntryFromFrontend> = translations.iter().collect();
+        let result = reconstruct_classes_json(&original_json_str, translations_ref);
+        assert!(result.is_ok());
+        let reconstructed_value: Value = serde_json::from_str(&result.unwrap()).unwrap();
+        let original_value: Value = serde_json::from_str(original_json_str).unwrap();
+        // update_value_at_path will log an error and not modify if path is invalid
+        assert_eq!(reconstructed_value, original_value); 
+    }
+
+    #[test]
+    fn test_reconstruct_classes_empty_translations_list() {
+        let original_json_str = TEST_CLASSES_JSON_FOR_RECONSTRUCTION;
+        let translations: Vec<TranslatedStringEntryFromFrontend> = Vec::new();        
+        let translations_ref: Vec<&TranslatedStringEntryFromFrontend> = translations.iter().collect();
+        let result = reconstruct_classes_json(&original_json_str, translations_ref);
+        assert!(result.is_ok());
+        let reconstructed_value: Value = serde_json::from_str(&result.unwrap()).unwrap();
+        let original_value: Value = serde_json::from_str(original_json_str).unwrap();
+        assert_eq!(reconstructed_value, original_value);
+    }
+
+    #[test]
+    fn test_reconstruct_classes_invalid_original_json() {
+        let original_json_str = r#"[null, {"id":1, "name":"Hero", "note":"Broken"#; 
+        let translations = vec![/* ... */];
+        let translations_ref: Vec<&TranslatedStringEntryFromFrontend> = translations.iter().collect();
+        let result = reconstruct_classes_json(original_json_str, translations_ref);
+        assert!(result.is_err());
+        match result.err().unwrap() {
+            CoreError::JsonParse(_) => { /* Expected */ },
+            other => panic!("Expected JsonParse error, got {:?}", other),
+        }
     }
 } 

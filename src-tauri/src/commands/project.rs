@@ -9,6 +9,11 @@ use crate::core::game_detection::{detect_rpg_maker_mv, RpgMakerDetectionResult};
 // Import the TranslatableStringEntry for the command's return type
 use crate::core::rpgmv::common::{TranslatableStringEntry, TranslatedStringEntry};
 use crate::commands::translation::translate_text_command;
+use std::collections::HashMap;
+use tokio::fs;
+use std::path::Path;
+use crate::models::translation::TranslatedStringEntryFromFrontend;
+// Potentially: use crate::error::CoreError; // If we define and use it here
 
 #[derive(serde::Serialize)]
 pub struct BatchTranslateResult {
@@ -103,6 +108,101 @@ pub async fn batch_translate_strings_command(
     }
 
     Ok(results)
+}
+
+#[tauri::command]
+pub async fn reconstruct_translated_project_files(
+    project_path: String,
+    translated_entries: Vec<TranslatedStringEntryFromFrontend>,
+) -> Result<String, String> {
+    let mut grouped_translations: HashMap<String, Vec<&TranslatedStringEntryFromFrontend>> = HashMap::new();
+    for entry in &translated_entries {
+        grouped_translations.entry(entry.source_file.clone()).or_default().push(entry);
+    }
+
+    let mut all_reconstructed_content: HashMap<String, String> = HashMap::new();
+    let mut reconstruction_errors: Vec<String> = Vec::new();
+
+    for (relative_file_path, entries_for_file) in grouped_translations {
+        let original_file_full_path = Path::new(&project_path).join(&relative_file_path);
+
+        let original_content_bytes = match fs::read(&original_file_full_path).await {
+            Ok(bytes) => bytes,
+            Err(e) => {
+                let error_msg = format!(
+                    "Failed to read original file {}: {}",
+                    original_file_full_path.display(),
+                    e
+                );
+                eprintln!("{}", error_msg);
+                reconstruction_errors.push(error_msg);
+                continue; // Skip this file
+            }
+        };
+        
+        let original_content_str = String::from_utf8_lossy(&original_content_bytes).to_string();
+
+        match crate::core::rpgmv::project::reconstruct_file_content(
+            &original_content_str, 
+            &relative_file_path, 
+            entries_for_file
+        ) {
+            Ok(reconstructed_json_string) => {
+                all_reconstructed_content.insert(relative_file_path.clone(), reconstructed_json_string);
+            }
+            Err(core_error) => {
+                let error_msg = format!(
+                    "Error reconstructing file {}: {}", 
+                    relative_file_path, 
+                    core_error.to_string()
+                );
+                eprintln!("{}", error_msg);
+                reconstruction_errors.push(error_msg);
+                // Continue to attempt other files
+            }
+        }
+    }
+
+    if !reconstruction_errors.is_empty() && all_reconstructed_content.is_empty() {
+        // All files failed reconstruction or reading
+        return Err(format!("All file processing failed. Errors: {}", reconstruction_errors.join("; ")));
+    }
+    
+    if all_reconstructed_content.is_empty() && !translated_entries.is_empty() {
+        return Err("No files were successfully reconstructed, though translated entries were provided.".to_string());
+    }
+    if all_reconstructed_content.is_empty() && translated_entries.is_empty() {
+        // This is not an error, just means nothing to zip.
+        // However, the frontend should ideally not call this if there are no entries.
+        // For now, let's return an empty path or a specific signal if we decide so.
+        // Or, let the zip creation handle an empty map (it should create an empty zip).
+        println!("No reconstructed content to package into ZIP.");
+        // To create an empty zip, we'd still proceed. If an error is preferred:
+        // return Err("No content to package.".to_string()); 
+    }
+
+    // Define output path for the ZIP file (temporary for now)
+    // Ensure the target directory exists or handle its creation.
+    let target_dir = Path::new("src-tauri").join("target");
+    if !target_dir.exists() {
+        if let Err(e) = std::fs::create_dir_all(&target_dir) {
+            return Err(format!("Failed to create target directory for ZIP: {:?}: {}", target_dir, e));
+        }
+    }
+    let output_zip_file_path = target_dir.join("translated_project_output.zip");
+
+    match crate::services::zip_service::create_zip_archive_from_memory(&all_reconstructed_content, &output_zip_file_path) {
+        Ok(_) => {
+            if !reconstruction_errors.is_empty() {
+                // Partial success: ZIP created, but some files had errors
+                // The frontend should be notified of these errors separately.
+                // For now, returning the ZIP path but logging errors.
+                eprintln!("ZIP created with some reconstruction errors: {}", reconstruction_errors.join("; "));
+            }
+            Ok(output_zip_file_path.to_string_lossy().into_owned())
+        }
+        Err(e) => Err(format!("Failed to create ZIP archive: {}", e.to_string())),
+    }
 }
 
 // Example (to be implemented in Task 1.2 of Phase 3):

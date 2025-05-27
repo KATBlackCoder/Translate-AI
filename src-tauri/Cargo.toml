@@ -24,13 +24,14 @@ log = "0.4"
 tauri = { version = "2.5.0", features = [] }
 tauri-plugin-log = "2.0.0-rc"
 reqwest = { version = "0.12.4", features = ["json"] }
-zip = "2.6.1"
+zip = "4.0.0"
 walkdir = "2.5.0"
 tokio = { version = "1", features = ["full"] }
 tauri-plugin-store = "2"
 tauri-plugin-dialog = "2"
 tauri-plugin-fs = "2"
 ollama-rs = "0.3.1"
+tempfile = "3.20.0"
 
 [features]
 # This feature is used for production builds or when `devPath` points to the filesystem

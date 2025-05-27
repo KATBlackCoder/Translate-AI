@@ -2,6 +2,9 @@
 pub mod commands; // Declare the commands module
 pub mod services; // Declare the services module
 pub mod core;     // Declare the new core module
+pub mod models;
+pub mod error;
+pub mod utils;
 
 #[cfg(test)]
 mod tests; // Added for integration tests
@@ -48,7 +51,8 @@ pub fn run() {
             commands::project::select_project_folder_command,
             commands::project::detect_rpg_maker_mv_project_command,
             commands::project::extract_project_strings_command,
-            commands::project::batch_translate_strings_command
+            commands::project::batch_translate_strings_command,
+            commands::project::reconstruct_translated_project_files
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
