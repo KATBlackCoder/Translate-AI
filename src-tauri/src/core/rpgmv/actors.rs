@@ -2,7 +2,8 @@ use serde::Deserialize; // Keep Deserialize for the Actor struct
 use super::common::{
     TranslatableStringEntry, 
     RpgMvDataObject, 
-    extract_strings_from_json_array
+    extract_strings_from_json_array,
+    reconstruct_object_array_by_id // Add the new common function here
 };
 use serde_json::Value;
 // No, TranslatedStringEntryFromFrontend is in crate::models::translation
@@ -52,46 +53,12 @@ pub fn reconstruct_actors_json(
     original_json_str: &str,
     translations: Vec<&TranslatedStringEntryFromFrontend>,
 ) -> Result<String, CoreError> {
-    let mut actors_json_array: Vec<Value> = serde_json::from_str(original_json_str)
-        .map_err(|e| CoreError::JsonParse(format!("Failed to parse Actors.json: {}", e)))?;
-
-    for entry in translations {
-        let actor_id_to_find = entry.object_id;
-
-        if let Some(actor_value_mut) = actors_json_array.iter_mut().find(|val| {
-            // Actors.json can have null entries, so check if it's an object first
-            val.is_object() && val.get("id").and_then(|id_val| id_val.as_u64()).map_or(false, |id| id == actor_id_to_find as u64)
-        }) {
-            // actor_value_mut is now the specific actor object (as a mutable Value)
-            // The json_path for actors (e.g., "name", "profile") is relative to this actor object.
-            
-            let text_to_insert = if entry.error.is_some() {
-                &entry.text // Original text if translation failed
-            } else {
-                &entry.translated_text
-            };
-
-            // Use the helper function to update the field within the actor_value_mut
-            match update_value_at_path(actor_value_mut, &entry.json_path, text_to_insert) {
-                Ok(_) => { /* Successfully updated */ }
-                Err(e) => {
-                    // Log the error and continue. The field will remain unchanged.
-                    eprintln!(
-                        "Warning (Actors.json): Failed to update path '{}' for actor id {}: {}. Skipping update for this field.", 
-                        entry.json_path, actor_id_to_find, e.to_string()
-                    );
-                }
-            }
-        } else {
-            eprintln!(
-                "Warning (Actors.json): Actor with id {} not found for reconstruction. Path: {}. Skipping update for this entry.", 
-                actor_id_to_find, entry.json_path
-            );
-        }
-    }
-
-    serde_json::to_string_pretty(&actors_json_array)
-        .map_err(|e| CoreError::JsonSerialize(format!("Failed to serialize Actors.json: {}", e)))
+    // Call the generic reconstruction function from common.rs
+    super::common::reconstruct_object_array_by_id(
+        original_json_str,
+        &translations, // Pass as slice
+        "Actors.json"  // Identifier for logging purposes
+    )
 }
 
 #[cfg(test)]

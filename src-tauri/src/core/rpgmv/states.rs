@@ -1,5 +1,6 @@
 use serde::Deserialize;
 use crate::core::rpgmv::common::TranslatableStringEntry;
+use super::common::reconstruct_object_array_by_path_index;
 
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -116,66 +117,11 @@ pub fn reconstruct_states_json(
     original_json_str: &str,
     translations: Vec<&TranslatedStringEntryFromFrontend>,
 ) -> Result<String, CoreError> {
-    let mut states_json_array: Vec<Value> = serde_json::from_str(original_json_str)
-        .map_err(|e| CoreError::JsonParse(format!("Failed to parse States.json: {}", e)))?;
-
-    for entry in translations {
-        // Example json_path: "[1].name", "[1].message1"
-        let parts: Vec<&str> = entry.json_path.splitn(2, '.').collect();
-        if parts.len() < 2 || !parts[0].starts_with('[') || !parts[0].ends_with(']') {
-            eprintln!("Warning (States.json): Invalid json_path format for entry (top level index): {:?}. Skipping.", entry);
-            continue;
-        }
-
-        let index_str = &parts[0][1..parts[0].len()-1];
-        let state_index: usize = match index_str.parse() {
-            Ok(idx) => idx,
-            Err(_) => {
-                eprintln!("Warning (States.json): Failed to parse state index from path: {}. Skipping.", entry.json_path);
-                continue;
-            }
-        };
-
-        if state_index >= states_json_array.len() || states_json_array[state_index].is_null() {
-            eprintln!("Warning (States.json): State index {} out of bounds or null. Skipping entry: {:?}.", state_index, entry);
-            continue;
-        }
-
-        if let Some(state_value_mut) = states_json_array.get_mut(state_index) {
-            if let Some(id_val) = state_value_mut.get("id").and_then(|id| id.as_u64()) {
-                if id_val != entry.object_id as u64 {
-                    eprintln!(
-                        "Warning (States.json): Mismatched object_id for state_index {}. Expected {}, found in translation {}. Skipping entry: {:?}.",
-                        state_index, id_val, entry.object_id, entry
-                    );
-                    continue;
-                }
-            } else {
-                eprintln!("Warning (States.json): Could not read id for state_index {}. Skipping id check for entry: {:?}.", state_index, entry);
-            }
-
-            let text_to_insert = if entry.error.is_some() {
-                &entry.text
-            } else {
-                &entry.translated_text
-            };
-            
-            let path_within_state = parts[1]; // e.g., "name", "note", "message1"
-
-            match update_value_at_path(state_value_mut, path_within_state, text_to_insert) {
-                Ok(_) => { /* Successfully updated */ }
-                Err(e) => {
-                    eprintln!(
-                        "Warning (States.json): Failed to update path '{}' for state id {}: {}. Skipping update for this field.", 
-                        entry.json_path, entry.object_id, e.to_string()
-                    );
-                }
-            }
-        } // else already handled by bounds check
-    }
-
-    serde_json::to_string_pretty(&states_json_array)
-        .map_err(|e| CoreError::JsonSerialize(format!("Failed to serialize States.json: {}", e)))
+    super::common::reconstruct_object_array_by_path_index(
+        original_json_str,
+        &translations,
+        "States.json"
+    )
 }
 
 

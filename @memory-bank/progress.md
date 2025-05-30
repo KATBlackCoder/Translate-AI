@@ -71,12 +71,12 @@ Phase 1 (Project Setup & Core UI Shell for Project Translation) is complete. Cor
 *   **RPG Maker MV Project Translation (Batch) - (Formerly Phase 3)**
     *   **Task 4: Frontend for Batch Workflow (Refactored - Core Structure COMPLETE):**
         *   `stores/settings.ts` created to manage `languageOptions` and `engineOptions`. **(COMPLETE)**.
-        *   `stores/project.ts` focuses on project selection, detection, string extraction, and navigation. Its `$reset()` calls `translationStore.$resetBatchState()`. **(COMPLETE)**.
-        *   `stores/translation.ts` focuses on batch translation operation (state, action). (Currently defines shared `TranslatableStringEntry` & `TranslatedStringEntry` interfaces). **(COMPLETE)**.
+        *   `stores/project.ts` focuses on project selection, detection, string extraction, navigation, and now also manages the state and actions for the final ZIP output (reconstruction, packaging, saving, opening folder). Its `$reset()` calls `translationStore.$resetBatchState()`. **(COMPLETE)**.
+        *   `stores/translation.ts` now focuses solely on the batch translation operation (state for loading, results, errors) and its specific reset. (Currently defines shared `TranslatableStringEntry` & `TranslatedStringEntry` interfaces). **(COMPLETE)**.
         *   `pages/index.vue` uses `ProjectSelector.vue`. **(COMPLETE)**.
         *   `ProjectSelector.vue` triggers extraction via `projectStore`. **(COMPLETE)**.
         *   `ProjectStringsReview.vue` uses `projectStore` for strings, `settingsStore` for options, and `translationStore` for batch action/state. **(COMPLETE)**.
-        *   `ProjectStringsResult.vue` uses `translationStore` for results. **(COMPLETE)**.
+        *   `ProjectStringsResult.vue` uses `translationStore` for results, and `projectStore` for ZIP output actions/state. **(COMPLETE)**.
         *   `pages/project.vue` orchestrates review/results using all three stores as needed. **(COMPLETE)**.
     *   **Task 5: Batch Translation Logic (Manual Testing & Refinement - COMPLETE):**
         *   Successfully completed manual testing of the end-to-end project selection, string extraction, review, batch translation (Ollama), and results display workflow with the refactored UI components.
@@ -106,6 +106,26 @@ Phase 1 (Project Setup & Core UI Shell for Project Translation) is complete. Cor
             *   All planned reconstructors complete (`Tilesets.json` reconstruction deferred as its parsing was deferred).
         *   **Sub-Task 6.5: Implement `serde_json::Value` Navigation/Update Helper (Rust) - COMPLETE - Initial version with basic path handling and tests implemented in `utils/json_utils.rs`**
         *   **Sub-Task 6.6: Implement `reconstruct_event_command_list` Helper (Rust) - COMPLETE - Helper function in `core/rpgmv/common.rs` for reconstructing event command lists, used by `CommonEvents.json` and future event-based files.**
+        *   **Sub-Task 6.7: Refactor Reconstruction Logic (Rust) - COMPLETE**
+            *   Added generic `reconstruct_json_generically` function to `core/rpgmv/common.rs`.
+            *   Added generic `reconstruct_object_array_by_id` function to `core/rpgmv/common.rs`.
+            *   Added generic `reconstruct_object_array_by_path_index` function to `core/rpgmv/common.rs`.
+            *   Refactored the following files to use the new common reconstruction functions:
+                *   `actors.rs` (uses `reconstruct_object_array_by_id`)
+                *   `items.rs` (uses `reconstruct_object_array_by_id`)
+                *   `armors.rs` (uses `reconstruct_object_array_by_id`)
+                *   `weapons.rs` (uses `reconstruct_object_array_by_id`)
+                *   `skills.rs` (uses `reconstruct_object_array_by_id`)
+                *   `enemies.rs` (uses `reconstruct_object_array_by_id`)
+                *   `classes.rs` (uses `reconstruct_object_array_by_path_index`)
+                *   `map_infos.rs` (uses `reconstruct_object_array_by_path_index`)
+                *   `states.rs` (uses `reconstruct_object_array_by_path_index`)
+                *   `system.rs` (uses `reconstruct_json_generically`)
+            *   The following files retain their specific reconstruction logic (which internally use `reconstruct_event_command_list` helper where appropriate) due to their more complex, nested structures:
+                *   `common_events.rs`
+                *   `troops.rs`
+                *   `maps.rs`
+            *   The main dispatcher `core::rpgmv::project::reconstruct_file_content` correctly calls the refactored or specific reconstruction functions. All relevant unit tests are passing.
     *   **Task 7: ZIP Archive Creation (Rust): COMPLETE**
         *   Implemented ZIP creation using the `zip` crate (`zip = "4.0.0"` already in `Cargo.toml`).
         *   Created `src-tauri/src/services/zip_service.rs` with `create_zip_archive_from_memory` function.
@@ -114,16 +134,12 @@ Phase 1 (Project Setup & Core UI Shell for Project Translation) is complete. Cor
         *   ZIP structure is Option A (no top-level project folder, `www/data/...` directly at ZIP root).
         *   Updated `reconstruct_translated_project_files` command in `commands/project.rs` to use this service.
         *   Command outputs ZIP to a fixed path (`src-tauri/target/translated_project_output.zip`) for now.
-    *   **Task 8: Save & Show Output (Frontend & Rust):**
-        *   Planned: Frontend UI ("Export Translated Project" button) enabled after ZIP creation.
-        *   Planned: Frontend calls new `save_zip_archive_command` with temporary ZIP path.
-        *   Planned: Backend `save_zip_archive_command` (in `commands/project.rs`):
-            *   Uses `tauri-plugin-dialog` for user to select save destination/name.
-            *   Moves ZIP from temporary path to user-selected path (`std::fs::rename` or copy+delete).
-            *   Returns final save path or error/cancellation to frontend.
-        *   Planned: Frontend enables "Show in Folder" button on successful save.
-        *   Planned: Frontend calls new `open_folder_command` with final save path.
-        *   Planned: Backend `open_folder_command` (in `commands/project.rs`) uses `tauri-plugin-opener`.
+    *   **Task 8: Save & Show Output (Frontend & Rust): COMPLETE**
+        *   Frontend UI in `ProjectStringsResult.vue` enables "Save Project ZIP" and "Show in Folder" buttons, interacting with `projectStore`.
+        *   Pinia store `stores/project.ts` (formerly `stores/translation.ts` for this part) now manages state (`tempZipPath`, `finalZipSavedPath`, `saveZipError`, `openFolderError`, `isLoadingSaveZip`) and actions (`saveProjectZip`, `showProjectZipInFolder`).
+        *   Backend `save_zip_archive_command` in `commands/project.rs` uses `tauri-plugin-dialog` for user to select save destination and moves the ZIP.
+        *   Backend `open_folder_command` in `commands/project.rs` uses `tauri-plugin-opener` to show the ZIP in the file explorer.
+        *   Error handling and user feedback via toasts are implemented for these operations.
 
 ## Next Major Goals (Adjusted from Implementation Plan):
 

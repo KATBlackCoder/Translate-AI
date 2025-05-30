@@ -2,7 +2,8 @@ use serde::Deserialize;
 use super::common::{
     TranslatableStringEntry,
     RpgMvDataObject,
-    extract_strings_from_json_array
+    extract_strings_from_json_array,
+    reconstruct_object_array_by_id
 };
 
 use serde_json::Value;
@@ -55,40 +56,11 @@ pub fn reconstruct_skills_json(
     original_json_str: &str,
     translations: Vec<&TranslatedStringEntryFromFrontend>,
 ) -> Result<String, CoreError> {
-    let mut skills_json_array: Vec<Value> = serde_json::from_str(original_json_str)
-        .map_err(|e| CoreError::JsonParse(format!("Failed to parse Skills.json: {}", e)))?;
-
-    for entry in translations {
-        let skill_id_to_find = entry.object_id;
-
-        if let Some(skill_value_mut) = skills_json_array.iter_mut().find(|val| {
-            val.is_object() && val.get("id").and_then(|id_val| id_val.as_u64()).map_or(false, |id| id == skill_id_to_find as u64)
-        }) {
-            let text_to_insert = if entry.error.is_some() {
-                &entry.text // Original text if translation failed
-            } else {
-                &entry.translated_text
-            };
-
-            match update_value_at_path(skill_value_mut, &entry.json_path, text_to_insert) {
-                Ok(_) => { /* Successfully updated */ }
-                Err(e) => {
-                    eprintln!(
-                        "Warning (Skills.json): Failed to update path '{}' for skill id {}: {}. Skipping update for this field.", 
-                        entry.json_path, skill_id_to_find, e.to_string()
-                    );
-                }
-            }
-        } else {
-            eprintln!(
-                "Warning (Skills.json): Skill with id {} not found for reconstruction. Path: {}. Skipping update for this entry.", 
-                skill_id_to_find, entry.json_path
-            );
-        }
-    }
-
-    serde_json::to_string_pretty(&skills_json_array)
-        .map_err(|e| CoreError::JsonSerialize(format!("Failed to serialize Skills.json: {}", e)))
+    super::common::reconstruct_object_array_by_id(
+        original_json_str,
+        &translations,
+        "Skills.json"
+    )
 }
 
 #[cfg(test)]

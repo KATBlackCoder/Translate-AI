@@ -2,7 +2,7 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { useToast, navigateTo } from '#imports'
-import type { TranslatableStringEntry } from './translation'
+import type { TranslatableStringEntry, TranslatedStringEntry } from './translation'
 import { useTranslationStore } from './translation'
 
 // Define the enum/type for the detection result on the frontend
@@ -25,10 +25,19 @@ export const useProjectStore = defineStore('project', () => {
   const extractedStrings = ref<TranslatableStringEntry[]>([])
   const extractionError = ref<string | null>(null)
 
-  // Batch translation state and actions are moved to stores/translation.ts
+  const isLoadingReconstruction = ref(false)
+  const reconstructionError = ref<string | null>(null)
+
+  // State for ZIP file paths (moved from translation.ts)
+  const tempZipPath = ref<string | null>(null)
+  const finalZipSavedPath = ref<string | null>(null)
+  const saveZipError = ref<string | null>(null)
+  const openFolderError = ref<string | null>(null)
+  const isLoadingSaveZip = ref(false)
 
   // --- Toast (initialized once) ---
   const toast = useToast()
+  const translationStore = useTranslationStore() // Keep for $resetBatchState and translatedEntries
 
   // --- Helper for error messages ---
   const getErrorMessage = (err: unknown, context: string): string => {
@@ -39,7 +48,7 @@ export const useProjectStore = defineStore('project', () => {
 
   // --- Actions ---
   async function selectProjectFolder() {
-    $reset(); // This will now also call translationStore.$resetBatchState()
+    $reset();
     isLoadingProjectFolder.value = true; 
 
     try {
@@ -64,7 +73,7 @@ export const useProjectStore = defineStore('project', () => {
     } catch (err) {
       selectedProjectFolderPath.value = null;
       projectDetectionResult.value = null;
-      extractionError.value = getErrorMessage(err, 'folder selection'); // Use helper
+      extractionError.value = getErrorMessage(err, 'folder selection');
       toast.add({ 
         title: 'Error Selecting Folder',
         description: extractionError.value,
@@ -111,7 +120,7 @@ export const useProjectStore = defineStore('project', () => {
       }
       await navigateTo('/project');
     } catch (err) {
-      extractionError.value = getErrorMessage(err, 'extraction'); // Use helper
+      extractionError.value = getErrorMessage(err, 'extraction');
       extractedStrings.value = [] 
       toast.add({ 
         title: 'Extraction Failed',
@@ -123,7 +132,102 @@ export const useProjectStore = defineStore('project', () => {
     }
   }
 
-  // performBatchTranslation action removed
+  async function reconstructAndPackageFiles(translatedEntries: TranslatedStringEntry[]) {
+    if (!selectedProjectFolderPath.value) {
+      toast.add({ title: 'Error', description: 'Project path is missing.', color: 'error' });
+      return;
+    }
+    if (!translatedEntries || translatedEntries.length === 0) {
+      toast.add({ title: 'Info', description: 'No translated entries to reconstruct.', color: 'info' });
+      // Still allow packaging if there are no translated entries, might result in an empty or original zip
+    }
+
+    isLoadingReconstruction.value = true;
+    reconstructionError.value = null;
+    tempZipPath.value = null; // Reset temp path before new operation
+    finalZipSavedPath.value = null; // Reset final saved path too
+
+    try {
+      const tempZipFilePath: string = await invoke('reconstruct_translated_project_files', {
+        projectPath: selectedProjectFolderPath.value,
+        translatedEntries: translatedEntries, 
+      });
+
+      if (tempZipFilePath) {
+        tempZipPath.value = tempZipFilePath; // Set the new temp path here
+        toast.add({ 
+          title: 'Reconstruction Successful', 
+          description: `Project files reconstructed and packaged into a temporary ZIP.`,
+          color: 'success'
+        });
+      } else {
+        reconstructionError.value = "Reconstruction command returned an empty path without error.";
+        toast.add({ title: 'Reconstruction Warning', description: reconstructionError.value, color: 'warning' });
+      }
+    } catch (err) {
+      reconstructionError.value = getErrorMessage(err, 'reconstruction and packaging');
+      toast.add({ title: 'Reconstruction Failed', description: reconstructionError.value, color: 'error' });
+    } finally {
+      isLoadingReconstruction.value = false;
+    }
+  }
+
+  async function saveProjectZip() {
+    if (!tempZipPath.value) {
+      toast.add({ title: 'Error', description: 'No temporary ZIP path available to save.', color: 'error' });
+      return;
+    }
+    isLoadingSaveZip.value = true;
+    saveZipError.value = null;
+    finalZipSavedPath.value = null; // Clear previous final path
+
+    try {
+      const result: string | null = await invoke('save_zip_archive_command', {
+        tempZipPath: tempZipPath.value,
+      });
+
+      if (result) {
+        finalZipSavedPath.value = result;
+        toast.add({ title: 'Success', description: `Project ZIP saved to: ${result}`, color: 'success' });
+      } else {
+        // User cancelled save dialog - not an error, but clear final path
+        finalZipSavedPath.value = null;
+        toast.add({ title: 'Save Cancelled', description: 'Save operation was cancelled by the user.', color: 'info' });
+      }
+    } catch (err) {
+      saveZipError.value = getErrorMessage(err, 'saving ZIP file');
+      toast.add({ title: 'Save ZIP Error', description: saveZipError.value, color: 'error' });
+      finalZipSavedPath.value = null;
+    } finally {
+      isLoadingSaveZip.value = false;
+    }
+  }
+
+  async function showProjectZipInFolder() {
+    if (!finalZipSavedPath.value) {
+      toast.add({ title: 'Error', description: 'No final ZIP path available to show.', color: 'error' });
+      return;
+    }
+    openFolderError.value = null;
+
+    try {
+      const lastSlash = finalZipSavedPath.value.lastIndexOf('/');
+      const lastBackslash = finalZipSavedPath.value.lastIndexOf('\\');
+      const index = Math.max(lastSlash, lastBackslash);
+      let directoryPath = "."; 
+      if (index > -1) {
+        directoryPath = finalZipSavedPath.value.substring(0, index);
+      }
+      
+      await invoke('open_folder_command', {
+        folderPath: directoryPath,
+      });
+      toast.add({ title: 'Action Sent', description: `Attempting to open folder: ${directoryPath}`, color: 'info' });
+    } catch (err) {
+      openFolderError.value = getErrorMessage(err, 'opening folder');
+      toast.add({ title: 'Open Folder Error', description: openFolderError.value, color: 'error' });
+    }
+  }
 
   // --- Reset Action ---
   function $reset() {
@@ -134,9 +238,16 @@ export const useProjectStore = defineStore('project', () => {
     isLoadingExtractedStrings.value = false;
     extractedStrings.value = [];
     extractionError.value = null;
+    isLoadingReconstruction.value = false;
+    reconstructionError.value = null;
 
-    // Reset batch state in translationStore as well
-    const translationStore = useTranslationStore();
+    // Reset new ZIP related state
+    tempZipPath.value = null;
+    finalZipSavedPath.value = null;
+    saveZipError.value = null;
+    openFolderError.value = null;
+    isLoadingSaveZip.value = false;
+
     translationStore.$resetBatchState();
   }
 
@@ -147,8 +258,19 @@ export const useProjectStore = defineStore('project', () => {
     isLoadingExtractedStrings,
     extractedStrings,
     extractionError,
+    isLoadingReconstruction,
+    reconstructionError,
+    // Expose new state and actions
+    tempZipPath,
+    finalZipSavedPath,
+    saveZipError,
+    openFolderError,
+    isLoadingSaveZip,
     selectProjectFolder,
     extractProjectStrings,
+    reconstructAndPackageFiles,
+    saveProjectZip,
+    showProjectZipInFolder,
     $reset,
   }
 })

@@ -1,5 +1,6 @@
 use serde::Deserialize;
 use crate::core::rpgmv::common::TranslatableStringEntry;
+use super::common::reconstruct_object_array_by_path_index;
 use serde_json::Value;
 use crate::models::translation::TranslatedStringEntryFromFrontend;
 use crate::error::CoreError;
@@ -55,67 +56,11 @@ pub fn reconstruct_map_infos_json(
     original_json_str: &str,
     translations: Vec<&TranslatedStringEntryFromFrontend>,
 ) -> Result<String, CoreError> {
-    let mut map_infos_json_array: Vec<Value> = serde_json::from_str(original_json_str)
-        .map_err(|e| CoreError::JsonParse(format!("Failed to parse MapInfos.json: {}", e)))?;
-
-    for entry in translations {
-        // Example json_path: "[1].name"
-        let parts: Vec<&str> = entry.json_path.splitn(2, '.').collect();
-        if parts.len() < 2 || !parts[0].starts_with('[') || !parts[0].ends_with(']') || parts[1] != "name" {
-            eprintln!("Warning (MapInfos.json): Invalid json_path format for entry: {:?}. Skipping.", entry);
-            continue;
-        }
-
-        let index_str = &parts[0][1..parts[0].len()-1];
-        let map_info_index: usize = match index_str.parse() {
-            Ok(idx) => idx,
-            Err(_) => {
-                eprintln!("Warning (MapInfos.json): Failed to parse map info index from path: {}. Skipping.", entry.json_path);
-                continue;
-            }
-        };
-
-        if map_info_index >= map_infos_json_array.len() || map_infos_json_array[map_info_index].is_null() {
-            eprintln!("Warning (MapInfos.json): Map info index {} out of bounds or null. Skipping entry: {:?}.", map_info_index, entry);
-            continue;
-        }
-
-        if let Some(map_info_value_mut) = map_infos_json_array.get_mut(map_info_index) {
-            // Verify object_id if it's consistently available and reliable for MapInfos
-            // For MapInfos, the `id` field in the JSON should match `entry.object_id`
-            if let Some(id_val) = map_info_value_mut.get("id").and_then(|id| id.as_u64()) {
-                if id_val != entry.object_id as u64 {
-                    eprintln!(
-                        "Warning (MapInfos.json): Mismatched object_id for map_info_index {}. Expected {}, found in translation {}. Skipping entry: {:?}.",
-                        map_info_index, id_val, entry.object_id, entry
-                    );
-                    continue;
-                }
-            } else {
-                eprintln!("Warning (MapInfos.json): Could not read id for map_info_index {}. Skipping id check for entry: {:?}.", map_info_index, entry);
-                // Proceeding without id check might be risky if indices can change, but MapInfos are usually stable.
-            }
-
-            let text_to_insert = if entry.error.is_some() {
-                &entry.text // Original text if translation failed
-            } else {
-                &entry.translated_text
-            };
-
-            match update_value_at_path(map_info_value_mut, parts[1], text_to_insert) {
-                Ok(_) => { /* Successfully updated */ }
-                Err(e) => {
-                    eprintln!(
-                        "Warning (MapInfos.json): Failed to update path '{}' for map info id {}: {}. Skipping update for this field.", 
-                        entry.json_path, entry.object_id, e.to_string()
-                    );
-                }
-            }
-        } // else already handled by bounds check
-    }
-
-    serde_json::to_string_pretty(&map_infos_json_array)
-        .map_err(|e| CoreError::JsonSerialize(format!("Failed to serialize MapInfos.json: {}", e)))
+    super::common::reconstruct_object_array_by_path_index(
+        original_json_str,
+        &translations,
+        "MapInfos.json"
+    )
 }
 
 #[cfg(test)]
@@ -282,7 +227,7 @@ mod tests {
         let original_json_str = r#"[null, {"id":1, "name":"Map1" broken}]"#;
         let translations = vec![/* ... */];
         let translations_ref: Vec<&TranslatedStringEntryFromFrontend> = translations.iter().collect();
-        let result = reconstruct_map_infos_json(original_json_str, translations_ref);
+        let result = reconstruct_map_infos_json(&original_json_str, translations_ref);
         assert!(result.is_err());
         match result.err().unwrap() {
             CoreError::JsonParse(_) => { /* Expected */ }

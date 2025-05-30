@@ -1,5 +1,6 @@
 use serde::Deserialize;
 use crate::core::rpgmv::common::TranslatableStringEntry;
+use super::common::reconstruct_object_array_by_path_index;
 
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -93,68 +94,11 @@ pub fn reconstruct_classes_json(
     original_json_str: &str,
     translations: Vec<&TranslatedStringEntryFromFrontend>,
 ) -> Result<String, CoreError> {
-    let mut classes_json_array: Vec<Value> = serde_json::from_str(original_json_str)
-        .map_err(|e| CoreError::JsonParse(format!("Failed to parse Classes.json: {}", e)))?;
-
-    for entry in translations {
-        // Examples: "[1].name", "[1].note", "[1].learnings[0].note"
-        let parts: Vec<&str> = entry.json_path.splitn(2, '.').collect();
-        if parts.len() < 2 || !parts[0].starts_with('[') || !parts[0].ends_with(']') {
-            eprintln!("Warning (Classes.json): Invalid json_path format for entry (top level index): {:?}. Skipping.", entry);
-            continue;
-        }
-
-        let index_str = &parts[0][1..parts[0].len()-1];
-        let class_index: usize = match index_str.parse() {
-            Ok(idx) => idx,
-            Err(_) => {
-                eprintln!("Warning (Classes.json): Failed to parse class index from path: {}. Skipping.", entry.json_path);
-                continue;
-            }
-        };
-
-        if class_index >= classes_json_array.len() || classes_json_array[class_index].is_null() {
-            eprintln!("Warning (Classes.json): Class index {} out of bounds or null. Skipping entry: {:?}.", class_index, entry);
-            continue;
-        }
-        
-        if let Some(class_value_mut) = classes_json_array.get_mut(class_index) {
-            if let Some(id_val) = class_value_mut.get("id").and_then(|id| id.as_u64()) {
-                if id_val != entry.object_id as u64 {
-                    eprintln!(
-                        "Warning (Classes.json): Mismatched object_id for class_index {}. Expected {}, found in translation {}. Skipping entry: {:?}.",
-                        class_index, id_val, entry.object_id, entry
-                    );
-                    continue;
-                }
-            } else {
-                eprintln!("Warning (Classes.json): Could not read id for class_index {}. Skipping id check for entry: {:?}.", class_index, entry);
-            }
-
-            let text_to_insert = if entry.error.is_some() {
-                &entry.text
-            } else {
-                &entry.translated_text
-            };
-            
-            // The remaining part of json_path after "[index]." is the actual path within the class object.
-            // e.g., "name", "note", "learnings[0].note"
-            let path_within_class = parts[1];
-
-            match update_value_at_path(class_value_mut, path_within_class, text_to_insert) {
-                Ok(_) => { /* Successfully updated */ }
-                Err(e) => {
-                    eprintln!(
-                        "Warning (Classes.json): Failed to update path '{}' for class id {}: {}. Skipping update for this field.", 
-                        entry.json_path, entry.object_id, e.to_string()
-                    );
-                }
-            }
-        } // else already handled by bounds check
-    }
-
-    serde_json::to_string_pretty(&classes_json_array)
-        .map_err(|e| CoreError::JsonSerialize(format!("Failed to serialize Classes.json: {}", e)))
+    super::common::reconstruct_object_array_by_path_index(
+        original_json_str,
+        &translations,
+        "Classes.json"
+    )
 }
 
 

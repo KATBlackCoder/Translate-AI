@@ -2,7 +2,8 @@ use serde::Deserialize;
 use super::common::{
     TranslatableStringEntry,
     RpgMvDataObject,
-    extract_strings_from_json_array
+    extract_strings_from_json_array,
+    reconstruct_object_array_by_id
 };
 use serde_json::Value;
 use crate::models::translation::TranslatedStringEntryFromFrontend;
@@ -43,44 +44,11 @@ pub fn reconstruct_items_json(
     original_json_str: &str,
     translations: Vec<&TranslatedStringEntryFromFrontend>,
 ) -> Result<String, CoreError> {
-    let mut items_json_array: Vec<Value> = serde_json::from_str(original_json_str)
-        .map_err(|e| CoreError::JsonParse(format!("Failed to parse Items.json: {}", e)))?;
-
-    for entry in translations {
-        let item_id_to_find = entry.object_id;
-
-        if let Some(item_value_mut) = items_json_array.iter_mut().find(|val| {
-            // Items.json can also have null entries, so check if it's an object first
-            val.is_object() && val.get("id").and_then(|id_val| id_val.as_u64()).map_or(false, |id| id == item_id_to_find as u64)
-        }) {
-            let text_to_insert = if entry.error.is_some() {
-                &entry.text // Original text if translation failed
-            } else {
-                &entry.translated_text
-            };
-
-            // Use the helper function to update the field within the item_value_mut
-            // The json_path for items (e.g., "name", "description", "note") is relative to this item object.
-            match update_value_at_path(item_value_mut, &entry.json_path, text_to_insert) {
-                Ok(_) => { /* Successfully updated */ }
-                Err(e) => {
-                    // Log the error and continue. The field will remain unchanged.
-                    eprintln!(
-                        "Warning (Items.json): Failed to update path '{}' for item id {}: {}. Skipping update for this field.", 
-                        entry.json_path, item_id_to_find, e.to_string()
-                    );
-                }
-            }
-        } else {
-            eprintln!(
-                "Warning (Items.json): Item with id {} not found for reconstruction. Path: {}. Skipping update for this entry.", 
-                item_id_to_find, entry.json_path
-            );
-        }
-    }
-
-    serde_json::to_string_pretty(&items_json_array)
-        .map_err(|e| CoreError::JsonSerialize(format!("Failed to serialize Items.json: {}", e)))
+    super::common::reconstruct_object_array_by_id(
+        original_json_str,
+        &translations,
+        "Items.json"
+    )
 }
 
 #[cfg(test)]

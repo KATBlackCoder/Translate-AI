@@ -68,7 +68,7 @@ Holds all reusable Vue.js components. These are auto-imported by Nuxt 3.
 *   **`project/`**: Components for the project translation feature. This includes:
     *   `ProjectSelector.vue` (renamed from `ProjectTranslator.vue`): Handles project folder selection and initiates automatic string extraction.
     *   `ProjectStringsReview.vue`: Allows users to review extracted strings and configure/start the batch translation process.
-    *   `ProjectStringsResult.vue` (renamed from `BatchTranslationControls.vue`): Displays the results of the batch translation, including any errors.
+    *   `ProjectStringsResult.vue` (renamed from `BatchTranslationControls.vue`): Displays the results of the batch translation, including any errors. Also includes buttons to trigger reconstruction/packaging, saving the ZIP, and showing the saved ZIP in the folder.
 *   **`settings/`**: (Future) Components for the application settings page/modal.
 *   **`glossary/`**: (Future) Components for the glossary management interface.
 
@@ -98,7 +98,7 @@ Stores static assets that are served directly from the root and are not processe
 Houses Pinia store modules for state management. These are also auto-imported.
 *   `settings.ts`: Manages application-wide settings and relatively static selectable options. This includes available `languageOptions` and `engineOptions`. (Future: API keys, default preferences, theme settings).
 *   `translation.ts`: Manages the state and actions directly related to performing a translation task, specifically batch translation (loading status, results, errors). (The `TranslatableStringEntry` and `TranslatedStringEntry` interfaces are currently defined here but are candidates for a shared types file.)
-*   `project.ts`: Manages state for project selection, game engine detection, and string extraction. Includes a `$reset()` method that also triggers a reset of batch state in `translation.ts`.
+*   `project.ts`: Manages state for project selection, game engine detection, string extraction, and the subsequent reconstruction, packaging (ZIP creation), saving, and opening of the translated project. This includes state like `tempZipPath`, `finalZipSavedPath`, `saveZipError`, `openFolderError`, and `isLoadingSaveZip`, as well as actions like `reconstructAndPackageFiles`, `saveProjectZip`, and `showProjectZipInFolder`. Its `$reset()` method clears project-specific state and also calls `$resetBatchState()` in `translation.ts`.
 *   (Future) `glossary.ts`.
 
 ## 3. Key UI Sections & Global Components (Conceptual)
@@ -111,7 +111,7 @@ The application will feature several key UI sections, corresponding to pages and
 *   **Main Translation Interface:** (`pages/index.vue` is now focused on project selection. The single text translation feature has been removed/deferred.)
     *   Project selection is handled by `ProjectSelector.vue` on `pages/index.vue`.
 *   **Project Translation View:** (`pages/project.vue`)
-    *   Conditionally displays `ProjectStringsReview.vue` (for reviewing extracted strings and configuring/starting batch translation) or `ProjectStringsResult.vue` (for displaying batch translation results).
+    *   Conditionally displays `ProjectStringsReview.vue` (for reviewing extracted strings and configuring/starting batch translation) or `ProjectStringsResult.vue` (for displaying batch translation results and handling ZIP export/saving).
 *   **Glossary Management:** (`pages/glossary.vue` - Later Phase)
     *   Interface to add, edit, and delete glossary terms.
 *   **Settings Panel:** (`pages/settings.vue` - Later Phase)
@@ -128,7 +128,7 @@ Pinia stores will be used to manage:
 
 *   **`settings.ts`**: Holds application-level settings and configuration data. This includes lists of available languages (`languageOptions`) and translation engines (`engineOptions`) for selection in the UI. In the future, it will also manage user preferences like API keys, default language selections, themes, etc.
 *   **`translation.ts`**: Focuses on the operational aspects of performing a translation. It handles the state for an active batch translation process: loading indicators, storing the translated strings (including any errors per string), and any overall errors from the batch translation command. (The `TranslatableStringEntry` and `TranslatedStringEntry` interfaces are currently defined here but are candidates for a shared types file.)
-*   **`project.ts`**: Manages state related to the game project itself: selected folder path, game engine detection results, extracted translatable strings, and any errors during these initial project processing steps. It includes a `$reset()` method to clear its own state and trigger a reset of batch translation state in `translation.ts`, ensuring a clean slate when a new project is chosen.
+*   **`project.ts`**: Manages state related to the game project itself: selected folder path, game engine detection results, extracted translatable strings, and any errors during these initial project processing steps. It also handles the state and actions for the output ZIP file: `tempZipPath` (path after backend reconstruction), `finalZipSavedPath` (path after user saves it), `saveZipError`, `openFolderError`, and `isLoadingSaveZip`. It includes actions like `selectProjectFolder`, `extractProjectStrings`, `reconstructAndPackageFiles`, `saveProjectZip`, and `showProjectZipInFolder`. Its `$reset()` method clears its own state and triggers a reset of batch translation state in `translation.ts`, ensuring a clean slate when a new project is chosen.
 *   **`glossary.ts`**: (Future) Glossary terms and management state.
 
 ## 5. Composables

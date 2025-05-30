@@ -2,7 +2,8 @@ use serde::Deserialize;
 use super::common::{
     TranslatableStringEntry, 
     RpgMvDataObject, 
-    extract_strings_from_json_array
+    extract_strings_from_json_array,
+    reconstruct_object_array_by_id
 };
 
 #[derive(Deserialize, Debug)]
@@ -33,7 +34,7 @@ pub fn extract_strings(
     source_file: &str,
 ) -> Result<Vec<TranslatableStringEntry>, String> {
     extract_strings_from_json_array::<Armor>(file_content, source_file, "Armors.json")
-}
+} 
 
 use serde_json::Value;
 use crate::models::translation::TranslatedStringEntryFromFrontend;
@@ -44,40 +45,11 @@ pub fn reconstruct_armors_json(
     original_json_str: &str,
     translations: Vec<&TranslatedStringEntryFromFrontend>,
 ) -> Result<String, CoreError> {
-    let mut armors_json_array: Vec<Value> = serde_json::from_str(original_json_str)
-        .map_err(|e| CoreError::JsonParse(format!("Failed to parse Armors.json: {}", e)))?;
-
-    for entry in translations {
-        let armor_id_to_find = entry.object_id;
-
-        if let Some(armor_value_mut) = armors_json_array.iter_mut().find(|val| {
-            val.is_object() && val.get("id").and_then(|id_val| id_val.as_u64()).map_or(false, |id| id == armor_id_to_find as u64)
-        }) {
-            let text_to_insert = if entry.error.is_some() {
-                &entry.text // Original text if translation failed
-            } else {
-                &entry.translated_text
-            };
-
-            match update_value_at_path(armor_value_mut, &entry.json_path, text_to_insert) {
-                Ok(_) => { /* Successfully updated */ }
-                Err(e) => {
-                    eprintln!(
-                        "Warning (Armors.json): Failed to update path '{}' for armor id {}: {}. Skipping update for this field.", 
-                        entry.json_path, armor_id_to_find, e.to_string()
-                    );
-                }
-            }
-        } else {
-            eprintln!(
-                "Warning (Armors.json): Armor with id {} not found for reconstruction. Path: {}. Skipping update for this entry.", 
-                armor_id_to_find, entry.json_path
-            );
-        }
-    }
-
-    serde_json::to_string_pretty(&armors_json_array)
-        .map_err(|e| CoreError::JsonSerialize(format!("Failed to serialize Armors.json: {}", e)))
+    super::common::reconstruct_object_array_by_id(
+        original_json_str,
+        &translations,
+        "Armors.json"
+    )
 }
 
 #[cfg(test)]

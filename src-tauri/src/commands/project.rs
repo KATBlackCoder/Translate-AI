@@ -2,23 +2,18 @@
 
 use tauri::AppHandle;
 use tauri_plugin_dialog::{DialogExt, FilePath};
+use tauri_plugin_opener::OpenerExt;
 // walkdir, std::fs, std::path::Path are now primarily used in the core module
 
 // Import the detection result and function from the core module
 use crate::core::game_detection::{detect_rpg_maker_mv, RpgMakerDetectionResult};
 // Import the TranslatableStringEntry for the command's return type
-use crate::core::rpgmv::common::{TranslatableStringEntry, TranslatedStringEntry};
-use crate::commands::translation::translate_text_command;
+use crate::core::rpgmv::common::TranslatableStringEntry;
 use std::collections::HashMap;
 use tokio::fs;
 use std::path::Path;
 use crate::models::translation::TranslatedStringEntryFromFrontend;
 // Potentially: use crate::error::CoreError; // If we define and use it here
-
-#[derive(serde::Serialize)]
-pub struct BatchTranslateResult {
-    // Define later if needed, for now Vec<TranslatedStringEntry> is fine
-}
 
 #[tauri::command]
 pub async fn select_project_folder_command(app_handle: AppHandle) -> Result<Option<(String, RpgMakerDetectionResult)>, ()> {
@@ -64,50 +59,6 @@ pub async fn detect_rpg_maker_mv_project_command(project_path: String) -> Result
 pub async fn extract_project_strings_command(project_path: String) -> Result<Vec<TranslatableStringEntry>, String> {
     // The command now delegates to the new core RPGMV project logic
     crate::core::rpgmv::project::extract_translatable_strings_from_project(&project_path)
-}
-
-#[tauri::command]
-pub async fn batch_translate_strings_command(
-    entries: Vec<TranslatableStringEntry>,
-    source_language: String,
-    target_language: String,
-    // TODO: engine_name will be used later to select between Ollama, DeepL, etc.
-    _engine_name: String // For now, it's implicitly Ollama
-) -> Result<Vec<TranslatedStringEntry>, String> {
-    let mut results: Vec<TranslatedStringEntry> = Vec::new();
-
-    for entry in entries {
-        match translate_text_command(
-            entry.text.clone(), // text to translate
-            source_language.clone(), 
-            target_language.clone()
-        ).await {
-            Ok(translated_text) => {
-                results.push(TranslatedStringEntry {
-                    object_id: entry.object_id,
-                    original_text: entry.text,
-                    translated_text,
-                    source_file: entry.source_file,
-                    json_path: entry.json_path,
-                    translation_source: "ollama".to_string(), // Placeholder
-                    error: None,
-                });
-            }
-            Err(e) => {
-                results.push(TranslatedStringEntry {
-                    object_id: entry.object_id,
-                    original_text: entry.text,
-                    translated_text: String::new(), // No translation
-                    source_file: entry.source_file,
-                    json_path: entry.json_path,
-                    translation_source: "ollama".to_string(), // Attempted source
-                    error: Some(e.to_string()),
-                });
-            }
-        }
-    }
-
-    Ok(results)
 }
 
 #[tauri::command]
@@ -202,6 +153,68 @@ pub async fn reconstruct_translated_project_files(
             Ok(output_zip_file_path.to_string_lossy().into_owned())
         }
         Err(e) => Err(format!("Failed to create ZIP archive: {}", e.to_string())),
+    }
+}
+
+#[tauri::command]
+pub async fn save_zip_archive_command(app_handle: AppHandle, temp_zip_path: String) -> Result<Option<String>, String> {
+    let temp_path = Path::new(&temp_zip_path);
+    let file_name = temp_path.file_name().unwrap_or_else(|| std::ffi::OsStr::new("translated_project.zip"));
+
+    let dialog_result = app_handle
+        .dialog()
+        .file()
+        .add_filter("ZIP Archive", &["zip"])
+        .set_file_name(file_name.to_string_lossy().as_ref())
+        .blocking_save_file();
+
+    match dialog_result {
+        Some(target_file_path_wrapper) => {
+            match target_file_path_wrapper {
+                FilePath::Path(target_path_buf) => {
+                    match std::fs::rename(&temp_zip_path, &target_path_buf) {
+                        Ok(_) => Ok(Some(target_path_buf.to_string_lossy().into_owned())),
+                        Err(e) => {
+                            // Attempt copy and delete if rename fails (e.g., across filesystems)
+                            match std::fs::copy(&temp_zip_path, &target_path_buf) {
+                                Ok(_) => {
+                                    if let Err(del_err) = std::fs::remove_file(&temp_zip_path) {
+                                        eprintln!("Failed to delete temporary ZIP after copy: {}", del_err);
+                                        // Still return success as copy worked
+                                        Ok(Some(target_path_buf.to_string_lossy().into_owned()))
+                                    } else {
+                                        Ok(Some(target_path_buf.to_string_lossy().into_owned()))
+                                    }
+                                }
+                                Err(copy_err) => {
+                                    let err_msg = format!("Failed to move/copy ZIP file from {} to {:?}: Rename error: {}, Copy error: {}", temp_zip_path, target_path_buf, e, copy_err);
+                                    eprintln!("{}", err_msg);
+                                    Err(err_msg)
+                                }
+                            }
+                        }
+                    }
+                }
+                _ => {
+                    eprintln!("Unexpected FilePath variant from save dialog on desktop.");
+                    Err("Save dialog returned an unexpected path format.".to_string())
+                }
+            }
+        }
+        None => Ok(None), // User cancelled the save dialog
+    }
+}
+
+#[tauri::command]
+pub async fn open_folder_command(app_handle: AppHandle, folder_path: String) -> Result<(), String> {
+    // Ensure opener is available (it should be if plugin is registered)
+    match app_handle.opener().open_path(folder_path.clone(), None::<&str>) {
+        Ok(_) => Ok(()),
+        Err(e) => {
+            let err_msg = format!("Failed to open folder {}: {}", folder_path, e.to_string());
+            eprintln!("{}", err_msg);
+            Err(err_msg)
+        }
     }
 }
 

@@ -282,4 +282,183 @@ pub fn reconstruct_event_command_list(
         } // else: cmd_index out of bounds, already handled above
     }
     Ok(())
+}
+
+/// Generic function to reconstruct a JSON string by applying translated text entries.
+/// This function is suitable for simple JSON structures where translations are applied
+/// directly based on `json_path` relative to the root of the JSON document.
+pub fn reconstruct_json_generically(
+    original_json_str: &str,
+    translations: &[&TranslatedStringEntryFromFrontend], // All translations for this file
+) -> Result<String, CoreError> {
+    let mut value: serde_json::Value = serde_json::from_str(original_json_str)
+        .map_err(|e| CoreError::JsonParse(format!("Failed to parse original JSON for generic reconstruction: {}. Snippet: {:.100}", e, original_json_str.chars().take(100).collect::<String>())))?;
+
+    for trans_entry in translations {
+        // Use translated_text if available and not empty, and no error; otherwise use the original text.
+        let text_to_insert = 
+            if trans_entry.error.is_some() || trans_entry.translated_text.is_empty() {
+                trans_entry.text.as_str()
+            } else {
+                trans_entry.translated_text.as_str()
+            };
+        
+        match crate::utils::json_utils::update_value_at_path(
+            &mut value,
+            &trans_entry.json_path,
+            text_to_insert, // Pass &str directly
+        ) {
+            Ok(_) => { /* Successfully updated path */ }
+            Err(e) => {
+                eprintln!(
+                    "Failed to update path {} for object_id {} in file {}: {}. Using original text.", 
+                    trans_entry.json_path, trans_entry.object_id, trans_entry.source_file, e
+                );
+            }
+        }
+    }
+
+    serde_json::to_string_pretty(&value) // Using pretty print for better readability of output files
+        .map_err(|e| CoreError::JsonSerialize(format!("Failed to serialize reconstructed JSON (generically): {}", e)))
+}
+
+/// Generic function to reconstruct a JSON array of objects where each object is identified by its `id` field.
+/// The `json_path` in translations is relative to the found object.
+pub fn reconstruct_object_array_by_id(
+    original_json_str: &str,
+    translations: &[&TranslatedStringEntryFromFrontend],
+    file_type_name_for_logging: &str, // e.g., "Actors.json"
+) -> Result<String, CoreError> {
+    let mut json_array: Vec<Value> = serde_json::from_str(original_json_str)
+        .map_err(|e| CoreError::JsonParse(format!("Failed to parse {} as array: {}", file_type_name_for_logging, e)))?;
+
+    for entry in translations {
+        let target_id = entry.object_id;
+        let mut found_object = false;
+
+        for item_value in json_array.iter_mut() {
+            if item_value.is_null() {
+                continue;
+            }
+            if let Some(id_val) = item_value.get("id").and_then(|id| id.as_u64()) {
+                if id_val == target_id as u64 {
+                    found_object = true;
+                    let text_to_insert = 
+                        if entry.error.is_some() || entry.translated_text.is_empty() {
+                            entry.text.as_str()
+                        } else {
+                            entry.translated_text.as_str()
+                        };
+
+                    match update_value_at_path(item_value, &entry.json_path, text_to_insert) {
+                        Ok(_) => { /* Successfully updated */ }
+                        Err(e) => {
+                            eprintln!(
+                                "Warning ({}): Failed to update path '{}' for id {}: {}. Skipping update.", 
+                                file_type_name_for_logging, entry.json_path, target_id, e
+                            );
+                        }
+                    }
+                    break; // Found and processed the object, move to next translation entry
+                }
+            }
+        }
+
+        if !found_object {
+            eprintln!(
+                "Warning ({}): Object with id {} not found for reconstruction. Path: '{}'. Skipping.", 
+                file_type_name_for_logging, target_id, entry.json_path
+            );
+        }
+    }
+
+    serde_json::to_string_pretty(&json_array)
+        .map_err(|e| CoreError::JsonSerialize(format!("Failed to serialize reconstructed {} (by id): {}", file_type_name_for_logging, e)))
+}
+
+/// Generic function to reconstruct a JSON array of objects where objects are targeted by an index in `json_path`.
+/// It also verifies `object_id` if the target object has an `id` field.
+/// The `json_path` has the format `"[index].field.subfield"`.
+pub fn reconstruct_object_array_by_path_index(
+    original_json_str: &str,
+    translations: &[&TranslatedStringEntryFromFrontend],
+    file_type_name_for_logging: &str, // e.g., "Classes.json"
+) -> Result<String, CoreError> {
+    let mut json_array: Vec<Value> = serde_json::from_str(original_json_str)
+        .map_err(|e| CoreError::JsonParse(format!("Failed to parse {} as array: {}", file_type_name_for_logging, e)))?;
+
+    for entry in translations {
+        // Extract array index and relative path from entry.json_path (e.g., "[1].name" -> index 1, path "name")
+        let parts: Vec<&str> = entry.json_path.splitn(2, '.').collect();
+        if parts.len() < 1 || !parts[0].starts_with('[') || !parts[0].ends_with(']') {
+            eprintln!(
+                "Warning ({}): Invalid json_path format for entry (top level index missing): '{}'. Skipping.", 
+                file_type_name_for_logging, entry.json_path
+            );
+            continue;
+        }
+
+        let index_str = &parts[0][1..parts[0].len()-1];
+        let item_index: usize = match index_str.parse() {
+            Ok(idx) => idx,
+            Err(_) => {
+                eprintln!(
+                    "Warning ({}): Failed to parse index from path: '{}'. Skipping.", 
+                    file_type_name_for_logging, entry.json_path
+                );
+                continue;
+            }
+        };
+
+        if item_index >= json_array.len() || json_array[item_index].is_null() {
+            eprintln!(
+                "Warning ({}): Index {} out of bounds or null for path '{}'. Skipping.", 
+                file_type_name_for_logging, item_index, entry.json_path
+            );
+            continue;
+        }
+        
+        let path_within_object = if parts.len() > 1 { parts[1] } else {
+            eprintln!(
+                "Warning ({}): json_path '{}' lacks field part after index. Skipping.", 
+                file_type_name_for_logging, entry.json_path
+            );
+            continue;
+        };
+
+        if let Some(item_value_mut) = json_array.get_mut(item_index) {
+            // Optional: Verify object_id if applicable and present
+            if let Some(id_val) = item_value_mut.get("id").and_then(|id| id.as_u64()) {
+                if id_val != entry.object_id as u64 {
+                    eprintln!(
+                        "Warning ({}): Mismatched object_id for index {}. Expected id {}, translation entry has id {}. Path: '{}'. Skipping.",
+                        file_type_name_for_logging, item_index, id_val, entry.object_id, entry.json_path
+                    );
+                    continue;
+                }
+            }
+            // If no "id" field, we proceed based on index alone.
+
+            let text_to_insert = 
+                if entry.error.is_some() || entry.translated_text.is_empty() {
+                    entry.text.as_str()
+                } else {
+                    entry.translated_text.as_str()
+                };
+
+            match update_value_at_path(item_value_mut, path_within_object, text_to_insert) {
+                Ok(_) => { /* Successfully updated */ }
+                Err(e) => {
+                    eprintln!(
+                        "Warning ({}): Failed to update path '{}' (relative: '{}') for index {}: {}. Skipping update.", 
+                        file_type_name_for_logging, entry.json_path, path_within_object, item_index, e
+                    );
+                }
+            }
+        } 
+        // item_value_mut will exist due to bounds check, so no else needed here.
+    }
+
+    serde_json::to_string_pretty(&json_array)
+        .map_err(|e| CoreError::JsonSerialize(format!("Failed to serialize reconstructed {} (by path index): {}", file_type_name_for_logging, e)))
 } 

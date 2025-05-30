@@ -4,6 +4,7 @@ use serde_json::Value;
 use crate::models::translation::TranslatedStringEntryFromFrontend;
 use crate::error::CoreError;
 use crate::utils::json_utils::update_value_at_path;
+use super::common::reconstruct_json_generically;
 
 // --- Structs for deserializing System.json --- 
 
@@ -235,31 +236,10 @@ pub fn reconstruct_system_json(
     original_json_str: &str,
     translations: Vec<&TranslatedStringEntryFromFrontend>,
 ) -> Result<String, CoreError> {
-    let mut system_json_object: Value = serde_json::from_str(original_json_str)
-        .map_err(|e| CoreError::JsonParse(format!("Failed to parse System.json: {}", e)))?;
-
-    for entry in translations {
-        // For System.json, object_id is conventionally 0, so we don't check it here.
-        // The json_path is relative to the root of the System.json object.
-        let text_to_insert = if entry.error.is_some() {
-            &entry.text // Original text if translation failed
-        } else {
-            &entry.translated_text
-        };
-
-        match update_value_at_path(&mut system_json_object, &entry.json_path, text_to_insert) {
-            Ok(_) => { /* Successfully updated */ }
-            Err(e) => {
-                eprintln!(
-                    "Warning (System.json): Failed to update path '{}': {}. Skipping update for this field.", 
-                    entry.json_path, e.to_string()
-                );
-            }
-        }
-    }
-
-    serde_json::to_string_pretty(&system_json_object)
-        .map_err(|e| CoreError::JsonSerialize(format!("Failed to serialize System.json: {}", e)))
+    super::common::reconstruct_json_generically(
+        original_json_str,
+        &translations,
+    )
 }
 
 #[cfg(test)]

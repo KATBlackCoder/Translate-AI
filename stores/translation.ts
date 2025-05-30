@@ -100,7 +100,6 @@ export const useTranslationStore = defineStore('translation', () => {
 
   // --- Return state and actions ---
   return {
-    // languageOptions removed
     isLoadingBatchTranslation,
     batchTranslatedStrings,
     batchTranslationError,

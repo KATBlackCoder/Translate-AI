@@ -87,8 +87,8 @@ This module and its submodules house all functions directly invokable by the fro
 *   They should act as a thin layer, validating inputs and delegating complex business logic to `core/` modules or `services/`.
 *   They handle the conversion of results and errors into types that can be serialized and sent to the frontend.
 *   **Submodules:**
-    *   `translation.rs`: Commands for text translation (e.g., `translate_text_command`).
-    *   `project.rs`: Commands for game project interactions (e.g., `select_project_folder_command`, `detect_rpg_maker_mv_project_command`).
+    *   `translation.rs`: Commands for text translation (e.g., `translate_text_command`, `batch_translate_strings_command`).
+    *   `project.rs`: Commands for game project interactions (e.g., `select_project_folder_command`, `detect_rpg_maker_mv_project_command`, `extract_project_strings_command`, `reconstruct_translated_project_files` which now orchestrates reconstruction and ZIP creation via `zip_service`, returning a temporary ZIP path, `save_zip_archive_command` for saving the ZIP, `open_folder_command` for showing the ZIP in the folder).
     *   `settings.rs`: (Future) Commands for application settings.
 
 #### 2.1.4 `core/`
@@ -97,11 +97,12 @@ Contains the heart of the application's business logic. This code should be, as 
     *   `game_detection.rs`: Implements logic to detect different game engines. For example, `detect_rpg_maker_mv` checks for RPG Maker MV specific files/folders. This can be called by specific game project handlers like `core::rpgmv::project`.
     *   `rpgmv/`: This subdirectory houses all core logic related to RPG Maker MV projects. It acts as a self-contained unit for RPGMV processing.
         *   `mod.rs`: Declares the public interface and sub-modules of `core::rpgmv` (e.g., makes `project.rs` contents accessible).
-        *   `project.rs`: This is the main entry point or orchestrator for RPG Maker MV project-level operations. It handles tasks like directory traversal (using `walkdir`) for `www/data` and delegates the parsing of specific file types to its sibling parser modules.
-        *   `common.rs`: Contains shared data structures (like `TranslatableStringEntry`, `EventCommand`) and common utility functions (like `extract_strings_from_json_array` for generic array parsing, and `extract_translatable_strings_from_event_command_list` for event processing) used by multiple RPGMV file parsers within the `core::rpgmv` module.
-        *   `actors.rs`, `items.rs`, `armors.rs`, `weapons.rs`, `skills.rs`, `enemies.rs`: These parsers utilize the generic `extract_strings_from_json_array` helper from `common.rs` by implementing the `RpgMvDataObject` trait for their specific data structures.
-        *   `common_events.rs`, `troops.rs`, `maps.rs`: These parsers handle more complex structures, including event lists, and use the `extract_translatable_strings_from_event_command_list` helper from `common.rs`.
-        *   `system.rs`, `map_infos.rs`, `classes.rs`, `states.rs`: These parsers have unique structures or specific extraction logic. They directly parse their respective JSON files and construct `TranslatableStringEntry` items without using the `RpgMvDataObject` trait or the generic array parser, though they still use the `TranslatableStringEntry` struct from `common.rs`.
+        *   `project.rs`: This is the main entry point or orchestrator for RPG Maker MV project-level operations. It handles tasks like directory traversal (using `walkdir`) for `www/data` and delegates the parsing and reconstruction of specific file types to its sibling modules. Its `reconstruct_file_content` function acts as the dispatcher for reconstruction.
+        *   `common.rs`: Contains shared data structures (like `TranslatableStringEntry`, `EventCommand`) and common utility functions for both parsing (like `extract_strings_from_json_array`, `extract_translatable_strings_from_event_command_list`) and reconstruction (like `reconstruct_event_command_list`, `reconstruct_json_generically`, `reconstruct_object_array_by_id`, `reconstruct_object_array_by_path_index`) used by multiple RPGMV file modules within `core::rpgmv`.
+        *   `actors.rs`, `items.rs`, `armors.rs`, `weapons.rs`, `skills.rs`, `enemies.rs`: These parsers utilize the generic `extract_strings_from_json_array` helper. Their reconstruction functions (`reconstruct_<filetype>_json`) have been refactored to call `common::reconstruct_object_array_by_id`.
+        *   `classes.rs`, `map_infos.rs`, `states.rs`: These parsers have specific extraction logic. Their reconstruction functions (`reconstruct_<filetype>_json`) have been refactored to call `common::reconstruct_object_array_by_path_index`.
+        *   `system.rs`: This parser has specific extraction logic. Its reconstruction function (`reconstruct_system_json`) has been refactored to call `common::reconstruct_json_generically`.
+        *   `common_events.rs`, `troops.rs`, `maps.rs`: These parsers handle more complex structures, including event lists. They use the `extract_translatable_strings_from_event_command_list` helper for parsing. Their reconstruction functions retain their specific logic, which includes calling the `common::reconstruct_event_command_list` helper, as the new generic reconstruction functions are not suited for their deeply nested structures requiring custom dispatch to the event list helper.
     *   `translation_engine.rs`: (Future) Defines traits or enums for interacting with different AI translation services.
     *   `glossary_manager.rs`: (Future) Implements glossary lookup and application logic.
 
@@ -116,7 +117,7 @@ Defines data structures (structs and enums) used throughout the backend. These a
 Contains modules responsible for interacting with external services or performing complex OS-level tasks that are distinct enough to warrant separation.
 *   **Submodules:**
     *   `ollama_client.rs`: Handles communication with a local Ollama instance.
-    *   `zip_service.rs`: (Future) Encapsulates logic for creating ZIP archives.
+    *   `zip_service.rs`: Encapsulates logic for creating ZIP archives from in-memory reconstructed file content. Used by `commands/project.rs`.
 
 #### 2.1.7 `state/`
 Defines structs that will be managed by Tauri as shared state (`tauri::State`). This allows different parts of the Rust backend (e.g., different commands) to share data or configurations.

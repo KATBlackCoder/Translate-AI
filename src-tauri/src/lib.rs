@@ -35,6 +35,7 @@ pub fn run() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_store::Builder::new().build())
+        .plugin(tauri_plugin_opener::init())
         .setup(|app| {
             if cfg!(debug_assertions) {
                 app.handle().plugin(
@@ -51,8 +52,10 @@ pub fn run() {
             commands::project::select_project_folder_command,
             commands::project::detect_rpg_maker_mv_project_command,
             commands::project::extract_project_strings_command,
-            commands::project::batch_translate_strings_command,
-            commands::project::reconstruct_translated_project_files
+            commands::translation::batch_translate_strings_command,
+            commands::project::reconstruct_translated_project_files,
+            commands::project::save_zip_archive_command,
+            commands::project::open_folder_command
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

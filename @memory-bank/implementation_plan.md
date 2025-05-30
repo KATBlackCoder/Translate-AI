@@ -53,7 +53,7 @@ This document outlines a phased approach to developing the AI Game Translator ap
 ## Phase 3: RPG Maker MV Project Translation (Batch) (Now effectively Phase 2 - Current Phase)
 
 **Goal:** Implement the workflow for selecting an RPG Maker MV project, extracting text, batch translating (using Ollama initially), and saving as a ZIP, with simple progress indication.
-**Definition of Done:** User can select an RPG Maker MV project, detection logic works, JSON files are parsed, strings are extracted and batch translated using Ollama. **Successful manual testing of this entire workflow (extraction and batch translation) confirms functionality and basic usability.** Translated files are correctly reconstructed and saved into a ZIP archive preserving the full relative path (e.g., `www/data/file.json`). A simple indeterminate progress indicator is shown during batch processing. Essential error handling for project detection, file parsing, and ZIP creation is implemented. Unit/integration tests for backend logic are written and passing.
+**Definition of Done:** User can select an RPG Maker MV project, detection logic works, JSON files are parsed, strings are extracted and batch translated using Ollama. **Successful manual testing of this entire workflow (extraction, batch translation, reconstruction, ZIP creation, saving the ZIP, and opening its folder) confirms functionality and basic usability.** Translated files are correctly reconstructed and saved into a ZIP archive preserving the full relative path (e.g., `www/data/file.json`). A simple indeterminate progress indicator is shown during batch processing. Essential error handling for project detection, file parsing, ZIP creation, saving, and folder opening is implemented. Unit/integration tests for backend logic are written and passing.
 
 **Tasks:**
 
@@ -131,11 +131,11 @@ This document outlines a phased approach to developing the AI Game Translator ap
         *   Provides `languageOptions` and `engineOptions`. (COMPLETE)
         *   (Future: API keys, default preferences, theme settings).
     *   **Update `stores/project.ts` (Pinia Store):**
-        *   Focuses on project selection, game engine detection, and string extraction state and actions. (COMPLETE)
-        *   `$reset()` method clears project state and calls `$resetBatchState()` in `translationStore`. (COMPLETE)
+        *   Focuses on project selection, game engine detection, string extraction state and actions, and now also handles the state and actions for ZIP output (reconstruction, packaging, saving, opening folder). (COMPLETE)
+        *   `$reset()` method clears project state (including ZIP state) and calls `$resetBatchState()` in `translationStore`. (COMPLETE)
     *   **Update `stores/translation.ts` (Pinia Store):**
-        *   Focuses on the operational aspects of batch translation (state for loading, results, errors, and the `performBatchTranslation` action). (COMPLETE)
-        *   `$resetBatchState()` method clears batch translation state. (COMPLETE)
+        *   Now focuses solely on the operational aspects of batch translation (state for loading, results, errors, and the `performBatchTranslation` action). (COMPLETE)
+        *   `$resetBatchState()` method clears only batch translation-specific state. (COMPLETE)
         *   (Currently also defines `TranslatableStringEntry` & `TranslatedStringEntry` interfaces).
     *   **Update `components/project/ProjectStringsReview.vue` (Vue Component):
         *   Uses `projectStore` for `extractedStrings`.
@@ -144,14 +144,14 @@ This document outlines a phased approach to developing the AI Game Translator ap
         *   (COMPLETE)
     *   **Update `components/project/ProjectStringsResult.vue` (Vue Component):
         *   Uses `translationStore` for `batchTranslatedStrings` and `batchTranslationError`.
+        *   Uses `projectStore` for ZIP output related state (`tempZipPath`, `finalZipSavedPath`, etc.) and actions (`saveProjectZip`, `showProjectZipInFolder`).
         *   (COMPLETE)
     *   **Update `pages/project.vue` (Vue Page):
         *   Conditionally displays `ProjectStringsReview.vue` or `ProjectStringsResult.vue` based on state from `projectStore` (for extracted strings) and `translationStore` (for batch results/errors).
         *   (COMPLETE)
-    *   (Other sub-tasks like `pages/index.vue` and `components/project/ProjectSelector.vue` updates remain COMPLETE as per their last state and are not directly affected by the `settingsStore` introduction, beyond their child `ProjectStringsReview.vue` being updated).
     *   **Manual Testing Summary:** The end-to-end workflow involving project selection, string extraction, review UI (`ProjectStringsReview.vue`), batch translation initiation via Ollama, and results display (`ProjectStringsResult.vue`) has been manually tested. The core functionality is verified, and the UI/UX is deemed acceptable for this stage. Minor UI polish and performance considerations for very large batches (>1000 strings with Ollama) are noted for future enhancements (Phase 6).
 5.  **Batch Translation Logic (Rust):** (COMPLETE - Details omitted for brevity, no changes to Rust logic itself in this refactor)
-    *   **Frontend Store Logic (Now split between `stores/project.ts` and `stores/translation.ts`):** (Updated as described above)
+    *   **Frontend Store Logic (Now split between `stores/project.ts` for project/output and `stores/translation.ts` for translation process):** (Updated as described above)
     *   **Frontend UI Logic (Handled by `ProjectStringsReview.vue` and `ProjectStringsResult.vue` on `pages/project.vue`):** (Updated as described above)
 6.  **Reconstruct Translated Files (Rust):**
     *   **Goal:** To take the batch-translated strings, read the original game files, inject these translations into the correct places within the JSON structures (in memory, non-destructively), and produce the final translated JSON content as strings in memory, ready for ZIP packaging.
@@ -197,6 +197,20 @@ This document outlines a phased approach to developing the AI Game Translator ap
         *   (COMPLETE - Initial version with basic path handling and tests implemented in `utils/json_utils.rs`)
     *   **Sub-Task 6.6: Implement `reconstruct_event_command_list` Helper (Rust):**
         *   (COMPLETE - Helper function in `core/rpgmv/common.rs` for reconstructing event command lists, used by relevant reconstructors.)
+    *   **Sub-Task 6.7: Refactor Reconstruction Logic (Rust - COMPLETE):**
+        *   Implemented generic reconstruction helpers in `core/rpgmv/common.rs`:
+            *   `reconstruct_json_generically` (COMPLETE).
+            *   `reconstruct_object_array_by_id` (COMPLETE).
+            *   `reconstruct_object_array_by_path_index` (COMPLETE).
+        *   Refactored specific reconstructor functions in the following modules to use these common helpers:
+            *   `actors.rs`, `items.rs`, `armors.rs`, `weapons.rs`, `skills.rs`, `enemies.rs` (all use `reconstruct_object_array_by_id`).
+            *   `classes.rs`, `map_infos.rs`, `states.rs` (all use `reconstruct_object_array_by_path_index`).
+            *   `system.rs` (uses `reconstruct_json_generically`).
+        *   The following modules retain their more specific reconstruction logic (which may internally use `reconstruct_event_command_list`) due to complex nested structures not suitable for the simpler generic helpers:
+            *   `common_events.rs`
+            *   `troops.rs`
+            *   `maps.rs`
+        *   All relevant unit tests for the refactored modules are passing, confirming the changes.
 7.  **ZIP Archive Creation (Rust):** (COMPLETE)
     *   `zip` crate (`zip = "4.0.0"`) was already in `src-tauri/Cargo.toml`.
     *   Created `src-tauri/src/services/zip_service.rs` and declared module in `services/mod.rs` (and `services` in `lib.rs`).
@@ -210,39 +224,32 @@ This document outlines a phased approach to developing the AI Game Translator ap
         *   Calls `services::zip_service::create_zip_archive_from_memory`.
         *   Returns the path to the created ZIP file to the frontend.
     *   Basic unit tests for `zip_service.rs` implemented and passing.
-8.  **Save & Show Output (Frontend & Rust):**
+8.  **Save & Show Output (Frontend & Rust):** (COMPLETE)
     *   **Frontend UI & State:**
-        *   In `ProjectStringsResult.vue` (or a similar results component on `pages/project.vue`), add an "Export Translated Project" button.
-        *   This button is enabled only after the `reconstruct_translated_project_files` command successfully returns the temporary ZIP path.
-        *   Store the temporary ZIP path in `translationStore`.
-        *   Add a new state property in `translationStore` for the final saved ZIP path (e.g., `finalZipSavedPath: Ref<string | null>`).
-        *   Add a "Show in Folder" button, enabled only after `finalZipSavedPath` is set.
+        *   In `ProjectStringsResult.vue`, "Reconstruct & Package Project", "Save Project ZIP", and "Show in Folder" buttons are present.
+        *   Buttons are enabled/disabled based on state in `projectStore` (`tempZipPath`, `finalZipSavedPath`, `isLoadingSaveZip`, `isLoadingReconstruction`).
+        *   `projectStore` manages `tempZipPath`, `finalZipSavedPath`, `saveZipError`, `openFolderError`, `isLoadingSaveZip`.
     *   **Backend `save_zip_archive_command` (Rust):**
-        *   Create a new command `save_zip_archive_command` in `src-tauri/src/commands/project.rs`.
-        *   Takes `app_handle: tauri::AppHandle` and `temp_zip_path: String` as input.
-        *   Uses `app_handle.dialog().file().save_file().add_filter("zip", &["zip"]).show().await` to prompt the user for a save location and filename (suggest a default like `translated_project.zip`).
-        *   If the user selects a path:
-            *   Move the ZIP file from `temp_zip_path` to the user-selected path using `std::fs::rename`. Consider error handling if rename fails (e.g., across different filesystems, might need copy then delete).
-            *   Return `Ok(Some(final_path_string))`.
-        *   If the user cancels, return `Ok(None)`.
-        *   If an error occurs, return `Err(CoreError::Io(...))`.
+        *   Implemented in `src-tauri/src/commands/project.rs`.
+        *   Takes `app_handle: tauri::AppHandle` and `temp_zip_path: String`.
+        *   Uses `app_handle.dialog().file().save_file()` for user to select save location.
+        *   Moves the ZIP file using `std::fs::rename` (with fallback to copy then delete).
+        *   Returns `Ok(Some(final_path_string))` or `Ok(None)` or `Err(CoreError::Io(...))`.
     *   **Frontend Logic for Saving:**
-        *   When "Export Translated Project" is clicked, the frontend calls `save_zip_archive_command` with the temporary ZIP path from `translationStore`.
-        *   On success (`Ok(Some(path))`), update `translationStore.finalZipSavedPath` with the returned path and show a success toast.
-        *   On cancellation (`Ok(None)`), do nothing or show a gentle notification.
-        *   On error, show an error toast.
+        *   `ProjectStringsResult.vue` calls `projectStore.saveProjectZip()`.
+        *   `saveProjectZip` action in `projectStore` calls `save_zip_archive_command`.
+        *   Handles success (updates `finalZipSavedPath`, success toast), cancellation (info toast), and error (error toast).
     *   **Backend `open_folder_command` (Rust):**
-        *   Create a new command `open_folder_command` in `src-tauri/src/commands/project.rs`.
-        *   Takes `app_handle: tauri::AppHandle` and `folder_path: String` (this will be the directory containing the saved ZIP) as input.
-        *   Uses `app_handle.opener().open(folder_path)` to open the containing folder in the system's file explorer. (Note: `tauri-plugin-opener` opens paths, so ensure you pass the directory, not the file path itself, if you want to reveal the file in its folder).
-        *   Alternatively, if `tauri-plugin-shell`'s `open` is more appropriate for revealing a file, that could be used (e.g., `app_handle.shell().open(file_path_to_reveal, None)`). Check plugin capabilities.
-        *   Return `Result<(), String>` for error reporting.
-        *   **Frontend Logic for Showing:**
-            *   When "Show in Folder" is clicked, the frontend gets the directory of `translationStore.finalZipSavedPath`.
-            *   Calls `open_folder_command` with this directory path.
-            *   Handle potential errors with a toast.
-        *   **Temporary File Cleanup (Rust - Optional but Recommended):**
-            *   Consider deleting the temporary ZIP file from `src-tauri/target/` after it's successfully moved or if the user cancels/an error occurs before moving.
+        *   Implemented in `src-tauri/src/commands/project.rs`.
+        *   Takes `app_handle: tauri::AppHandle` and `folder_path: String`.
+        *   Uses `app_handle.opener().open_path()` to open the containing folder.
+        *   Returns `Result<(), String>`.
+    *   **Frontend Logic for Showing:**
+        *   `ProjectStringsResult.vue` calls `projectStore.showProjectZipInFolder()`.
+        *   `showProjectZipInFolder` action in `projectStore` gets the directory of `finalZipSavedPath` and calls `open_folder_command`.
+        *   Handles potential errors with a toast.
+    *   **Temporary File Cleanup (Rust - Optional but Recommended):**
+        *   Not explicitly implemented yet, but `std::fs::rename` moves the file, and the copy-delete fallback also removes the temp file.
 
 ## Phase 4: Glossary Feature
 
