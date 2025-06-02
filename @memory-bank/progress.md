@@ -71,8 +71,12 @@ Phase 1 (Project Setup & Core UI Shell for Project Translation) is complete. Cor
 *   **RPG Maker MV Project Translation (Batch) - (Formerly Phase 3)**
     *   **Task 4: Frontend for Batch Workflow (Refactored - Core Structure COMPLETE):**
         *   `stores/settings.ts` created to manage `languageOptions` and `engineOptions`. **(COMPLETE)**.
-        *   `stores/project.ts` focuses on project selection, detection, string extraction, navigation, and now also manages the state and actions for the final ZIP output (reconstruction, packaging, saving, opening folder). Its `$reset()` calls `translationStore.$resetBatchState()`. **(COMPLETE)**.
-        *   `stores/translation.ts` now focuses solely on the batch translation operation (state for loading, results, errors) and its specific reset. (Currently defines shared `TranslatableStringEntry` & `TranslatedStringEntry` interfaces). **(COMPLETE)**.
+        *   `stores/project.ts` focuses on project selection, detection, string extraction, navigation, and now also manages the state and actions for the final ZIP output (reconstruction, packaging, saving, opening folder). Its `$reset()` calls `translationStore.$resetBatchState()`. Imports types from `~/types/project.ts` and `~/types/translation.ts`. **(COMPLETE)**.
+        *   `stores/translation.ts` now focuses solely on the batch translation operation (state for loading, results, errors) and its specific reset. Imports types from `~/types/translation.ts`. **(COMPLETE)**.
+        *   Created `types/` directory to house shared TypeScript interfaces/types. **(COMPLETE)**
+            *   `types/translation.ts` created with `SourceStringData` (formerly `TranslatableStringEntry`) and `WorkingTranslation` (formerly `TranslatedStringEntry`) interfaces.
+            *   `types/project.ts` created with `RpgMakerDetectionResultType`.
+            *   `types/setting.ts` created with `LanguageOption` and `EngineOption` interfaces (moved from `stores/settings.ts`). **(COMPLETE)**
         *   `pages/index.vue` uses `ProjectSelector.vue`. **(COMPLETE)**.
         *   `ProjectSelector.vue` triggers extraction via `projectStore`. **(COMPLETE)**.
         *   `ProjectStringsReview.vue` uses `projectStore` for strings, `settingsStore` for options, and `translationStore` for batch action/state. **(COMPLETE)**.
@@ -86,7 +90,7 @@ Phase 1 (Project Setup & Core UI Shell for Project Translation) is complete. Cor
         *   Performance observation: Ollama translation can become slow when processing a very large number of strings (e.g., >1000). This will be a consideration for future optimization (Phase 6 or later).
         *   Some specific error conditions (e.g., individual string translation errors, corrupted project files) were not tested due to lack of specific test data but can be addressed later if encountered or during more targeted testing phases.
     *   **Task 6: Reconstruct Translated Files (Rust):**
-        *   **Sub-Task 6.1: Define `TranslatedStringEntryFromFrontend` Struct (Rust) - COMPLETE**
+        *   **Sub-Task 6.1: Define `WorkingTranslation` (formerly `TranslatedStringEntryFromFrontend`) Struct (Rust) - COMPLETE**
         *   **Sub-Task 6.2: Implement `reconstruct_translated_project_files` Tauri Command (Rust) - COMPLETE - Basic command structure with placeholder logic**
         *   **Sub-Task 6.3: Implement Core Reconstruction Logic Dispatcher (Rust) - COMPLETE - Dispatcher implemented; specific reconstructor calls are placeholders returning `CoreError::Unimplemented`**
         *   Sub-Task 6.4: Implement Specific Reconstructor Functions (Rust)
@@ -126,6 +130,31 @@ Phase 1 (Project Setup & Core UI Shell for Project Translation) is complete. Cor
                 *   `troops.rs`
                 *   `maps.rs`
             *   The main dispatcher `core::rpgmv::project::reconstruct_file_content` correctly calls the refactored or specific reconstruction functions. All relevant unit tests are passing.
+        *   **Sub-Task 6.8: Implement `reconstruct_translated_project_files` Tauri Command (Rust) - COMPLETE - Basic command structure with placeholder logic**
+        *   **Sub-Task 6.9: Implement Core Reconstruction Logic Dispatcher (Rust) - COMPLETE - Dispatcher implemented; specific reconstructor calls are placeholders returning `CoreError::Unimplemented`**
+        *   Sub-Task 6.10: Implement Specific Reconstructor Functions (Rust)
+            *   `Actors.json` reconstructor: COMPLETE (includes `note` field, uses `update_value_at_path` helper, unit tests passed)
+            *   `Items.json` reconstructor: COMPLETE (uses `update_value_at_path` helper, unit tests passed)
+            *   `Armors.json` reconstructor: COMPLETE (uses `update_value_at_path` helper, unit tests passed)
+            *   `Weapons.json` reconstructor: COMPLETE (uses `update_value_at_path` helper, unit tests passed)
+            *   `Skills.json` reconstructor: COMPLETE (uses `update_value_at_path` helper, unit tests passed)
+            *   `Enemies.json` reconstructor: COMPLETE (uses `update_value_at_path` helper, unit tests passed)
+            *   `CommonEvents.json` reconstructor: COMPLETE (uses `update_value_at_path` for name, `reconstruct_event_command_list` helper for list, unit tests passed)
+            *   `Troops.json` reconstructor: COMPLETE (uses `update_value_at_path` for name, `reconstruct_event_command_list` helper for pages, unit tests passed)
+            *   `System.json` reconstructor: COMPLETE (uses `update_value_at_path` helper for all fields, unit tests passed)
+            *   `MapInfos.json` reconstructor: COMPLETE (uses `update_value_at_path` helper for name, unit tests passed)
+            *   `Classes.json` reconstructor: COMPLETE (uses `update_value_at_path` helper for name, note, and learnings notes, unit tests passed)
+            *   `States.json` reconstructor: COMPLETE (uses `update_value_at_path` helper for name, note, and messages, unit tests passed)
+            *   `MapXXX.json` reconstructor: COMPLETE (uses `update_value_at_path` for event names, `reconstruct_event_command_list` helper for event command lists, unit tests passed)
+            *   All planned reconstructors complete (`Tilesets.json` reconstruction deferred as its parsing was deferred).
+        *   **Sub-Task 6.11: Implement `serde_json::Value` Navigation/Update Helper (Rust) - COMPLETE - Initial version with basic path handling and tests implemented in `utils/json_utils.rs`**
+        *   **Sub-Task 6.12: Implement `reconstruct_event_command_list` Helper (Rust) - COMPLETE - Helper function in `core/rpgmv/common.rs` for reconstructing event command lists, used by `CommonEvents.json` and future event-based files.**
+        *   **Sub-Task 6.13: Refactor Backend Data Structures & Parsers/Reconstructors (Rust) - COMPLETE**
+            *   Renamed `TranslatableStringEntry` to `SourceStringData` and `TranslatedStringEntryFromFrontend` to `WorkingTranslation` in `models/translation.rs`.
+            *   All RPG Maker MV file parser modules in `core/rpgmv/` (actors, armors, classes, common_events, enemies, items, map_infos, maps, skills, states, system, troops, weapons) and the main `core/rpgmv/project.rs` dispatcher have been updated to use these new structs and their fields.
+            *   Associated unit tests for all parsers and reconstructors have been updated and are passing. This includes resolving all linter errors in integration test files (e.g., `actors_test.rs`, `common_test_utils.rs`, `enemies_test.rs`, etc.) and shared test utilities stemming from the rename of `TranslatableStringEntry` to `SourceStringData` and its field `text` to `original_text`.
+            *   Generic reconstruction helpers in `core/rpgmv/common.rs` (`reconstruct_json_generically`, `reconstruct_object_array_by_id`, `reconstruct_object_array_by_path_index`) now correctly use `WorkingTranslation`.
+            *   The main dispatcher `core::rpgmv::project::reconstruct_file_content` correctly calls the refactored or specific reconstruction functions using `WorkingTranslation`.
     *   **Task 7: ZIP Archive Creation (Rust): COMPLETE**
         *   Implemented ZIP creation using the `zip` crate (`zip = "4.0.0"` already in `Cargo.toml`).
         *   Created `src-tauri/src/services/zip_service.rs` with `create_zip_archive_from_memory` function.

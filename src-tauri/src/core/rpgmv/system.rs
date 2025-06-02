@@ -1,9 +1,6 @@
 use serde::Deserialize;
-use crate::core::rpgmv::common::TranslatableStringEntry;
-use serde_json::Value;
-use crate::models::translation::TranslatedStringEntryFromFrontend;
+use crate::models::translation::{SourceStringData, WorkingTranslation};
 use crate::error::CoreError;
-use crate::utils::json_utils::update_value_at_path;
 use super::common::reconstruct_json_generically;
 
 // --- Structs for deserializing System.json --- 
@@ -103,16 +100,16 @@ struct SystemData {
 
 // --- Helper function to add entries --- 
 fn add_entry_if_some(
-    entries: &mut Vec<TranslatableStringEntry>,
+    entries: &mut Vec<SourceStringData>,
     text_option: &Option<String>,
     source_file: &str,
     json_path: String,
 ) {
     if let Some(text) = text_option {
         if !text.trim().is_empty() {
-            entries.push(TranslatableStringEntry {
+            entries.push(SourceStringData {
                 object_id: 0, // Using 0 as a convention for system-wide terms
-                text: text.clone(),
+                original_text: text.clone(),
                 source_file: source_file.to_string(),
                 json_path,
             });
@@ -121,7 +118,7 @@ fn add_entry_if_some(
 }
 
 fn add_entries_from_string_array(
-    entries: &mut Vec<TranslatableStringEntry>,
+    entries: &mut Vec<SourceStringData>,
     array_option: &Option<Vec<Option<String>>>,
     source_file: &str,
     base_json_path: &str,
@@ -147,7 +144,7 @@ fn add_entries_from_string_array(
 pub fn extract_strings(
     file_content: &str,
     source_file: &str,
-) -> Result<Vec<TranslatableStringEntry>, String> {
+) -> Result<Vec<SourceStringData>, String> {
     let system_data: SystemData = serde_json::from_str(file_content)
         .map_err(|e| format!("Failed to parse System.json: {}. Content snippet: {:.100}", e, file_content.chars().take(100).collect::<String>()))?;
 
@@ -234,9 +231,9 @@ pub fn extract_strings(
 
 pub fn reconstruct_system_json(
     original_json_str: &str,
-    translations: Vec<&TranslatedStringEntryFromFrontend>,
+    translations: Vec<&WorkingTranslation>,
 ) -> Result<String, CoreError> {
-    super::common::reconstruct_json_generically(
+    reconstruct_json_generically(
         original_json_str,
         &translations,
     )
@@ -244,8 +241,8 @@ pub fn reconstruct_system_json(
 
 #[cfg(test)]
 mod tests {
-    use super::*; 
-    // No need to re-import TranslatedStringEntryFromFrontend, CoreError, Value as they are in scope
+    use super::*;
+    use serde_json::Value;
 
     const TEST_SYSTEM_JSON: &str = r#"{
         "gameTitle": "My Game",
@@ -266,56 +263,62 @@ mod tests {
     fn test_reconstruct_system_basic() {
         let original_json_str = TEST_SYSTEM_JSON;
         let translations = vec![
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation {
                 object_id: 0,
-                text: "My Game".to_string(),
+                original_text: "My Game".to_string(),
                 source_file: "www/data/System.json".to_string(),
                 json_path: "gameTitle".to_string(),
                 translated_text: "Mon Jeu".to_string(),
+                translation_source: "test".to_string(),
                 error: None,
             },
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation {
                 object_id: 0,
-                text: "G".to_string(),
+                original_text: "G".to_string(),
                 source_file: "www/data/System.json".to_string(),
                 json_path: "currencyUnit".to_string(),
                 translated_text: "Or".to_string(),
+                translation_source: "test".to_string(),
                 error: None,
             },
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation {
                 object_id: 0,
-                text: "Light Armor".to_string(),
+                original_text: "Light Armor".to_string(),
                 source_file: "www/data/System.json".to_string(),
                 json_path: "armorTypes[1]".to_string(),
                 translated_text: "Armure Légère".to_string(),
+                translation_source: "test".to_string(),
                 error: None,
             },
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation {
                 object_id: 0,
-                text: "HP".to_string(),
+                original_text: "HP".to_string(),
                 source_file: "www/data/System.json".to_string(),
                 json_path: "terms.basic[1]".to_string(),
                 translated_text: "PV".to_string(),
+                translation_source: "test".to_string(),
                 error: None,
             },
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation {
                 object_id: 0,
-                text: "%1 took %2 damage!".to_string(),
+                original_text: "%1 took %2 damage!".to_string(),
                 source_file: "www/data/System.json".to_string(),
                 json_path: "terms.messages.actorDamage".to_string(),
                 translated_text: "%1 a subi %2 dégâts !".to_string(),
+                translation_source: "test".to_string(),
                 error: None,
             },
-             TranslatedStringEntryFromFrontend {
+             WorkingTranslation {
                 object_id: 0,
-                text: "".to_string(), // test empty original string in variables
+                original_text: "".to_string(),
                 source_file: "www/data/System.json".to_string(),
                 json_path: "variables[2]".to_string(),
                 translated_text: "Translated Var".to_string(),
+                translation_source: "test".to_string(),
                 error: None,
             },
         ];
-        let translations_ref: Vec<&TranslatedStringEntryFromFrontend> = translations.iter().collect();
+        let translations_ref: Vec<&WorkingTranslation> = translations.iter().collect();
 
         let result = reconstruct_system_json(&original_json_str, translations_ref);
         assert!(result.is_ok(), "reconstruct_system_json failed: {:?}", result.err());
@@ -338,24 +341,26 @@ mod tests {
     fn test_reconstruct_system_with_translation_error() {
         let original_json_str = TEST_SYSTEM_JSON;
         let translations = vec![
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation {
                 object_id: 0,
-                text: "My Game".to_string(),
+                original_text: "My Game".to_string(),
                 source_file: "www/data/System.json".to_string(),
                 json_path: "gameTitle".to_string(),
                 translated_text: "Jeu Raté".to_string(),
+                translation_source: "test".to_string(),
                 error: Some("AI failed".to_string()),
             },
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation {
                 object_id: 0,
-                text: "G".to_string(),
+                original_text: "G".to_string(),
                 source_file: "www/data/System.json".to_string(),
                 json_path: "currencyUnit".to_string(),
                 translated_text: "Gold".to_string(), 
+                translation_source: "test".to_string(),
                 error: None,
             },
         ];
-        let translations_ref: Vec<&TranslatedStringEntryFromFrontend> = translations.iter().collect();
+        let translations_ref: Vec<&WorkingTranslation> = translations.iter().collect();
         let result = reconstruct_system_json(&original_json_str, translations_ref);
         assert!(result.is_ok());
         let reconstructed_json: Value = serde_json::from_str(&result.unwrap()).unwrap();
@@ -368,16 +373,17 @@ mod tests {
     fn test_reconstruct_system_non_existent_json_path() {
         let original_json_str = TEST_SYSTEM_JSON;
         let translations = vec![
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation {
                 object_id: 0,
-                text: "Data".to_string(),
+                original_text: "Data".to_string(),
                 source_file: "www/data/System.json".to_string(),
                 json_path: "inventedField.subField[0]".to_string(),
                 translated_text: "Donnée Fantôme".to_string(),
+                translation_source: "test".to_string(),
                 error: None,
             },
         ];
-        let translations_ref: Vec<&TranslatedStringEntryFromFrontend> = translations.iter().collect();
+        let translations_ref: Vec<&WorkingTranslation> = translations.iter().collect();
         let result = reconstruct_system_json(&original_json_str, translations_ref);
         assert!(result.is_ok());
         let reconstructed_value: Value = serde_json::from_str(&result.unwrap()).expect("Failed to parse reconstructed");
@@ -388,8 +394,8 @@ mod tests {
     #[test]
     fn test_reconstruct_system_empty_translations_list() {
         let original_json_str = TEST_SYSTEM_JSON;
-        let translations: Vec<TranslatedStringEntryFromFrontend> = Vec::new();
-        let translations_ref: Vec<&TranslatedStringEntryFromFrontend> = translations.iter().collect();
+        let translations: Vec<WorkingTranslation> = Vec::new();
+        let translations_ref: Vec<&WorkingTranslation> = translations.iter().collect();
         let result = reconstruct_system_json(&original_json_str, translations_ref);
         assert!(result.is_ok());
         let reconstructed_value: Value = serde_json::from_str(&result.unwrap()).expect("Failed to parse reconstructed");
@@ -401,7 +407,7 @@ mod tests {
     fn test_reconstruct_system_invalid_original_json() {
         let original_json_str = r#"{"gameTitle": "My Game", "terms": broken }"#;
         let translations = vec![/* ... */];
-        let translations_ref: Vec<&TranslatedStringEntryFromFrontend> = translations.iter().collect();
+        let translations_ref: Vec<&WorkingTranslation> = translations.iter().collect();
         let result = reconstruct_system_json(original_json_str, translations_ref);
         assert!(result.is_err());
         match result.err().unwrap() {

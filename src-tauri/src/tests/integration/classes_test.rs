@@ -1,74 +1,91 @@
 #[cfg(test)]
-mod classes_extraction_tests {
-    // use std::path::Path;
-    use crate::core::rpgmv::common::TranslatableStringEntry;
-    // use crate::core::rpgmv::project::extract_translatable_strings_from_project;
-    use crate::tests::common_test_utils::setup_and_extract_all_strings;
+mod tests {
+    use crate::core::rpgmv::classes;
+    use crate::models::translation::{SourceStringData, WorkingTranslation};
+    use crate::tests::common_test_utils::setup_project_and_extract_strings;
+    use serde_json::json;
+
+    const TEST_PROJECT_SUBPATH: &str = "test_projects/rpg_mv_project_1";
+    const CLASSES_JSON_FILENAME: &str = "Classes.json";
+    const CLASSES_JSON_FIXTURE_PATH: &str = "www/data/Classes.json";
+
+    fn create_class_translation(
+        object_id: u32, 
+        original_text: &str, 
+        translated_text: &str, 
+        json_path: &str,
+        source_file: &str
+    ) -> WorkingTranslation {
+        WorkingTranslation {
+            object_id,
+            original_text: original_text.to_string(),
+            translated_text: translated_text.to_string(),
+            source_file: source_file.to_string(),
+            json_path: json_path.to_string(),
+            translation_source: "test_engine".to_string(),
+            error: None,
+        }
+    }
 
     #[test]
-    fn test_classes_extraction() {
-        let all_extracted_strings = setup_and_extract_all_strings();
-
-        let class_strings: Vec<&TranslatableStringEntry> = all_extracted_strings
-            .iter()
-            .filter(|e| e.source_file.ends_with("Classes.json"))
-            .collect();
-
-        // --- CLASSES.JSON --- 
-        let expected_class_strings_count = 12; // Updated based on test output
-        if class_strings.len() != expected_class_strings_count {
-            eprintln!("Found {} strings from Classes.json, but expected {}.", class_strings.len(), expected_class_strings_count);
-            for (i, entry) in class_strings.iter().take(15).enumerate() { // Show more if count is off
-                eprintln!("  Class String Example {}: {:?}", i + 1, entry);
-            }
-        }
-        assert_eq!(class_strings.len(), expected_class_strings_count, "Incorrect number of strings extracted from Classes.json.");
-
-        // Spot check for Class ID 1, name "勇者"
-        let expected_class_id_1 = 1;
-        let expected_class_name_1 = "勇者";
-        let expected_json_path_name_1 = "[1].name";
-        
-        let class_name_entry_1 = class_strings.iter().find(|e| 
-            e.object_id == expected_class_id_1 && e.json_path == expected_json_path_name_1
+    fn test_extract_classes_strings() {
+        let (_temp_dir, _project_root_path, extracted_strings) = setup_project_and_extract_strings(
+            TEST_PROJECT_SUBPATH, 
+            &[CLASSES_JSON_FIXTURE_PATH], 
+            CLASSES_JSON_FILENAME
         );
-        assert!(class_name_entry_1.is_some(), "Could not find class name for ID {} with path {}", expected_class_id_1, expected_json_path_name_1);
-        assert_eq!(class_name_entry_1.unwrap().text, expected_class_name_1, "Incorrect text for class name spot check (ID {}, path {}).", expected_class_id_1, expected_json_path_name_1);
 
-        // Spot check for Class ID 7, note "<経験値テーブル:2>"
-        let expected_class_id_7 = 7;
-        let expected_class_note_7 = "<経験値テーブル:2>";
-        let expected_json_path_note_7 = "[7].note";
-        
-        let class_note_entry_7 = class_strings.iter().find(|e| 
-            e.object_id == expected_class_id_7 && e.json_path == expected_json_path_note_7
+        // Based on test_projects/rpg_mv_project_1/www/data/Classes.json
+        // ID 1 (Hero): name, learnings[0].note, learnings[1].note (3)
+        // ID 2 (Warrior): name (1)
+        // ID 3 (Mage): name (1)
+        // ID 4 (Priest): name (1)
+        // Note: The `note` field for the class itself is empty for all these.
+        // Total = 3 + 1 + 1 + 1 = 6 strings
+        assert_eq!(extracted_strings.len(), 6, "Incorrect number of strings from Classes.json");
+
+        let hero_name = extracted_strings.iter().find(|s| s.object_id == 1 && s.json_path == "[1].name").unwrap();
+        assert_eq!(hero_name.original_text, "Hero");
+        assert_eq!(hero_name.source_file, "www/data/Classes.json");
+
+        let hero_learning_1_note = extracted_strings.iter().find(|s| s.object_id == 1 && s.json_path == "[1].learnings[0].note").unwrap();
+        assert_eq!(hero_learning_1_note.original_text, "Learns Double Attack at level 1.");
+
+        let hero_learning_2_note = extracted_strings.iter().find(|s| s.object_id == 1 && s.json_path == "[1].learnings[1].note").unwrap();
+        assert_eq!(hero_learning_2_note.original_text, "Learns Triple Attack at level 5.");
+    }
+
+    #[test]
+    fn test_reconstruct_classes_json() {
+        let (temp_dir, project_root_path, _) = setup_project_and_extract_strings(
+            TEST_PROJECT_SUBPATH, 
+            &[CLASSES_JSON_FIXTURE_PATH], 
+            CLASSES_JSON_FILENAME
         );
-        assert!(class_note_entry_7.is_some(), "Could not find class note for ID {} with path {}", expected_class_id_7, expected_json_path_note_7);
-        assert_eq!(class_note_entry_7.unwrap().text, expected_class_note_7, "Incorrect text for class note spot check (ID {}, path {}).", expected_class_id_7, expected_json_path_note_7);
+        let original_json_path = project_root_path.join("www/data").join(CLASSES_JSON_FILENAME);
+        let original_json_str = std::fs::read_to_string(original_json_path).unwrap();
 
-        // Spot check for Class ID 8, name "特別教育枠"
-        let expected_class_id_8 = 8;
-        let expected_class_name_8 = "特別教育枠";
-        let expected_json_path_name_8 = "[8].name";
-        
-        let class_name_entry_8 = class_strings.iter().find(|e| 
-            e.object_id == expected_class_id_8 && e.json_path == expected_json_path_name_8
-        );
-        assert!(class_name_entry_8.is_some(), "Could not find class name for ID {} with path {}", expected_class_id_8, expected_json_path_name_8);
-        assert_eq!(class_name_entry_8.unwrap().text, expected_class_name_8, "Incorrect text for class name spot check (ID {}, path {}).", expected_class_id_8, expected_json_path_name_8);
-        
-        // You should also check your Classes.json for any `learnings[].note` that are non-empty
-        // and add a spot check for at least one if they exist and should be extracted.
-        // Example structure for a learning note (if Class ID 1, first learning had a note):
-        // let expected_learning_note_1_0 = "スキルを早く覚える"; // Replace with actual learning note
-        // let expected_json_path_learning_note_1_0 = "[1].learnings[0].note"; // Confirm JSON path
-        // 
-        // let learning_note_entry_1_0 = class_strings.iter().find(|e| 
-        //     e.object_id == expected_class_id_1 && e.json_path == expected_json_path_learning_note_1_0
-        // );
-        // assert!(learning_note_entry_1_0.is_some(), "Could not find learning note for Class ID {} at path {}", expected_class_id_1, expected_json_path_learning_note_1_0);
-        // assert_eq!(learning_note_entry_1_0.unwrap().text, expected_learning_note_1_0, "Incorrect text for learning note spot check (Class ID {}, path {}).", expected_class_id_1, expected_json_path_learning_note_1_0);
+        let relative_path_for_translation = format!("www/data/{}", CLASSES_JSON_FILENAME);
 
-        println!("Successfully validated {} strings from Classes.json.", class_strings.len());
+        let translations = vec![
+            create_class_translation(1, "Hero", "Héroe", "[1].name", &relative_path_for_translation),
+            create_class_translation(1, "Learns Double Attack at level 1.", "Aprende Doble Ataque en nivel 1.", "[1].learnings[0].note", &relative_path_for_translation),
+            // Skip hero_learning_2_note translation to test partial reconstruction
+            create_class_translation(2, "Warrior", "Guerrero", "[2].name", &relative_path_for_translation),
+        ];
+        let translations_refs: Vec<&WorkingTranslation> = translations.iter().collect();
+
+        let result = classes::reconstruct_classes_json(&original_json_str, translations_refs);
+        assert!(result.is_ok(), "Reconstruction failed: {:?}", result.err());
+        let reconstructed_json_str = result.unwrap();
+        let recon_val: serde_json::Value = serde_json::from_str(&reconstructed_json_str).unwrap();
+
+        assert_eq!(recon_val[1]["name"].as_str().unwrap(), "Héroe");
+        assert_eq!(recon_val[1]["learnings"][0]["note"].as_str().unwrap(), "Aprende Doble Ataque en nivel 1.");
+        assert_eq!(recon_val[1]["learnings"][1]["note"].as_str().unwrap(), "Learns Triple Attack at level 5."); // Original
+        assert_eq!(recon_val[2]["name"].as_str().unwrap(), "Guerrero");
+        assert_eq!(recon_val[3]["name"].as_str().unwrap(), "Mage"); // Untranslated
+
+        temp_dir.close().unwrap();
     }
 } 

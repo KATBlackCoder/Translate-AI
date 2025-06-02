@@ -1,22 +1,18 @@
 use serde::Deserialize;
-use super::common::{
-    TranslatableStringEntry,
+use crate::models::translation::{SourceStringData, WorkingTranslation};
+use crate::error::CoreError;
+use super::common::{    
     RpgMvDataObject,
     extract_strings_from_json_array,
     reconstruct_object_array_by_id
 };
-
-use serde_json::Value;
-use crate::models::translation::TranslatedStringEntryFromFrontend;
-use crate::error::CoreError;
-use crate::utils::json_utils::update_value_at_path;
+// Value and update_value_at_path are not directly used here, handled by common helper
 
 #[derive(Deserialize, Debug)]
 struct Enemy {
     id: u32,
     name: String,
     note: String,
-    // Other fields like battlerHue, battlerName, actions, dropItems, etc., are not needed for translation
 }
 
 impl RpgMvDataObject for Enemy {
@@ -35,15 +31,15 @@ impl RpgMvDataObject for Enemy {
 pub fn extract_strings(
     file_content: &str,
     source_file: &str,
-) -> Result<Vec<TranslatableStringEntry>, String> {
+) -> Result<Vec<SourceStringData>, String> { // Updated return type
     extract_strings_from_json_array::<Enemy>(file_content, source_file, "Enemies.json")
 }
 
 pub fn reconstruct_enemies_json(
     original_json_str: &str,
-    translations: Vec<&TranslatedStringEntryFromFrontend>,
+    translations: Vec<&WorkingTranslation>, // Updated parameter type
 ) -> Result<String, CoreError> {
-    super::common::reconstruct_object_array_by_id(
+    reconstruct_object_array_by_id( // Direct call
         original_json_str,
         &translations,
         "Enemies.json"
@@ -53,7 +49,7 @@ pub fn reconstruct_enemies_json(
 #[cfg(test)]
 mod tests {
     use super::*;
-    // Imports are already at the top of the module (Value, TranslatedStringEntryFromFrontend, CoreError)
+    use serde_json::Value; // Value is used in tests for assertions
 
     const TEST_ENEMIES_JSON: &str = r#"[
         null,
@@ -66,40 +62,44 @@ mod tests {
     fn test_reconstruct_enemies_basic() {
         let original_json_str = TEST_ENEMIES_JSON;
         let translations = vec![
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation { // Updated struct and fields
                 object_id: 1,
-                text: "こうもり".to_string(),
+                original_text: "こうもり".to_string(),
                 source_file: "www/data/Enemies.json".to_string(),
                 json_path: "name".to_string(),
                 translated_text: "Bat (EN)".to_string(),
+                translation_source: "test_source".to_string(),
                 error: None,
             },
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation { // Updated struct and fields
                 object_id: 1,
-                text: "".to_string(),
+                original_text: "".to_string(),
                 source_file: "www/data/Enemies.json".to_string(),
                 json_path: "note".to_string(),
                 translated_text: "A nocturnal flying mammal.".to_string(),
+                translation_source: "test_source".to_string(),
                 error: None,
             },
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation { // Updated struct and fields
                 object_id: 7,
-                text: "サンプルエネミー1".to_string(),
+                original_text: "サンプルエネミー1".to_string(),
                 source_file: "www/data/Enemies.json".to_string(),
                 json_path: "name".to_string(),
                 translated_text: "Sample Enemy 1 (EN)".to_string(),
+                translation_source: "test_source".to_string(),
                 error: None,
             },
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation { // Updated struct and fields
                 object_id: 7,
-                text: "基本攻撃は拘束衣用の攻撃".to_string(),
+                original_text: "基本攻撃は拘束衣用の攻撃".to_string(),
                 source_file: "www/data/Enemies.json".to_string(),
                 json_path: "note".to_string(),
                 translated_text: "Basic attack is for straitjackets.".to_string(),
+                translation_source: "test_source".to_string(),
                 error: None,
             },
         ];
-        let translations_ref: Vec<&TranslatedStringEntryFromFrontend> = translations.iter().collect();
+        let translations_ref: Vec<&WorkingTranslation> = translations.iter().collect();
 
         let result = reconstruct_enemies_json(&original_json_str, translations_ref);
         assert!(result.is_ok(), "reconstruct_enemies_json failed: {:?}", result.err());
@@ -108,7 +108,7 @@ mod tests {
 
         assert_eq!(reconstructed_json[1]["name"].as_str().unwrap(), "Bat (EN)");
         assert_eq!(reconstructed_json[1]["note"].as_str().unwrap(), "A nocturnal flying mammal.");
-        assert_eq!(reconstructed_json[1]["battlerName"].as_str().unwrap(), "Bat"); // Unchanged
+        assert_eq!(reconstructed_json[1]["battlerName"].as_str().unwrap(), "Bat");
 
         assert_eq!(reconstructed_json[3]["name"].as_str().unwrap(), "Sample Enemy 1 (EN)");
         assert_eq!(reconstructed_json[3]["note"].as_str().unwrap(), "Basic attack is for straitjackets.");
@@ -118,101 +118,106 @@ mod tests {
     fn test_reconstruct_enemies_with_translation_error() {
         let original_json_str = TEST_ENEMIES_JSON;
         let translations = vec![
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation { // Updated struct and fields
                 object_id: 1, 
-                text: "こうもり".to_string(), 
+                original_text: "こうもり".to_string(), 
                 source_file: "www/data/Enemies.json".to_string(),
                 json_path: "name".to_string(),
                 translated_text: "BatFail".to_string(),
+                translation_source: "test_source".to_string(),
                 error: Some("AI error".to_string()), 
             },
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation { // Updated struct and fields
                 object_id: 2, 
-                text: "A very slimy creature.".to_string(),
+                original_text: "A very slimy creature.".to_string(),
                 source_file: "www/data/Enemies.json".to_string(),
                 json_path: "note".to_string(),
                 translated_text: "A translation for the slime note.".to_string(), 
+                translation_source: "test_source".to_string(),
                 error: None,
             },
         ];
-        let translations_ref: Vec<&TranslatedStringEntryFromFrontend> = translations.iter().collect();
+        let translations_ref: Vec<&WorkingTranslation> = translations.iter().collect();
         let result = reconstruct_enemies_json(&original_json_str, translations_ref);
         assert!(result.is_ok());
         let reconstructed_json: Value = serde_json::from_str(&result.unwrap()).unwrap();
 
-        assert_eq!(reconstructed_json[1]["name"].as_str().unwrap(), "こうもり"); // Original name due to error
-        assert_eq!(reconstructed_json[2]["note"].as_str().unwrap(), "A translation for the slime note."); // Translated note
-        assert_eq!(reconstructed_json[2]["name"].as_str().unwrap(), "スライム"); // Original name for slime, untouched
+        assert_eq!(reconstructed_json[1]["name"].as_str().unwrap(), "こうもり");
+        assert_eq!(reconstructed_json[2]["note"].as_str().unwrap(), "A translation for the slime note.");
+        assert_eq!(reconstructed_json[2]["name"].as_str().unwrap(), "スライム");
     }
 
     #[test]
     fn test_reconstruct_enemies_non_existent_id() {
         let original_json_str = TEST_ENEMIES_JSON;
         let translations = vec![
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation { // Updated struct and fields
                 object_id: 999, 
-                text: "Unknown Enemy".to_string(),
+                original_text: "Unknown Enemy".to_string(),
                 source_file: "www/data/Enemies.json".to_string(),
                 json_path: "name".to_string(),
                 translated_text: "Phantom Enemy".to_string(),
+                translation_source: "test_source".to_string(),
                 error: None,
             },
         ];
-        let translations_ref: Vec<&TranslatedStringEntryFromFrontend> = translations.iter().collect();
+        let translations_ref: Vec<&WorkingTranslation> = translations.iter().collect();
         let result = reconstruct_enemies_json(&original_json_str, translations_ref);
         assert!(result.is_ok());
         let reconstructed_value: Value = serde_json::from_str(&result.unwrap()).expect("Failed to parse reconstructed");
         let original_value: Value = serde_json::from_str(original_json_str).expect("Failed to parse original");
-        assert_eq!(reconstructed_value, original_value); // Expect no change
+        assert_eq!(reconstructed_value, original_value);
     }
 
     #[test]
     fn test_reconstruct_enemies_non_existent_json_path() {
         let original_json_str = TEST_ENEMIES_JSON;
         let translations = vec![
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation { // Updated struct and fields
                 object_id: 1, 
-                text: "Value".to_string(),
+                original_text: "Value".to_string(),
                 source_file: "www/data/Enemies.json".to_string(),
                 json_path: "inventedField".to_string(), 
                 translated_text: "Translated Invented".to_string(),
+                translation_source: "test_source".to_string(),
                 error: None,
             },
         ];
-        let translations_ref: Vec<&TranslatedStringEntryFromFrontend> = translations.iter().collect();
+        let translations_ref: Vec<&WorkingTranslation> = translations.iter().collect();
         let result = reconstruct_enemies_json(&original_json_str, translations_ref);
         assert!(result.is_ok());
         let reconstructed_value: Value = serde_json::from_str(&result.unwrap()).expect("Failed to parse reconstructed");
         let original_value: Value = serde_json::from_str(original_json_str).expect("Failed to parse original");
-        assert_eq!(reconstructed_value, original_value); // Expect no change
+        assert_eq!(reconstructed_value, original_value);
     }
     
     #[test]
     fn test_reconstruct_enemies_empty_translations_list() {
         let original_json_str = TEST_ENEMIES_JSON;
-        let translations: Vec<TranslatedStringEntryFromFrontend> = Vec::new();        
-        let translations_ref: Vec<&TranslatedStringEntryFromFrontend> = translations.iter().collect();
+        let translations: Vec<WorkingTranslation> = Vec::new(); // Updated type
+        let translations_ref: Vec<&WorkingTranslation> = translations.iter().collect();
         let result = reconstruct_enemies_json(&original_json_str, translations_ref);
         assert!(result.is_ok());
         let reconstructed_value: Value = serde_json::from_str(&result.unwrap()).expect("Failed to parse reconstructed");
         let original_value: Value = serde_json::from_str(original_json_str).expect("Failed to parse original");
-        assert_eq!(reconstructed_value, original_value); // Expect no change
+        assert_eq!(reconstructed_value, original_value);
     }
 
     #[test]
     fn test_reconstruct_enemies_invalid_original_json() {
-        let original_json_str = r#"[null, {"id":1, "name":"Bat", "note":"Broken JSON"#; // Malformed JSON
+        let original_json_str = r#"[null, {"id":1, "name":"Bat", "note":"Broken JSON"#;
         let translations = vec![
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation { // Updated struct and fields
                 object_id: 1,
-                text: "Bat".to_string(),
+                original_text: "Bat".to_string(),
                 source_file: "www/data/Enemies.json".to_string(),
                 json_path: "name".to_string(),
                 translated_text: "こうもり".to_string(),
+                translation_source: "test_source".to_string(),
                 error: None,
             },
         ];
-        let translations_ref: Vec<&TranslatedStringEntryFromFrontend> = translations.iter().collect();
+        let translations_ref: Vec<&WorkingTranslation> = translations.iter().collect();
         let result = reconstruct_enemies_json(original_json_str, translations_ref);
         assert!(result.is_err());
         match result.err().unwrap() {

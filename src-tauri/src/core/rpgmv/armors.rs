@@ -1,6 +1,7 @@
 use serde::Deserialize;
+use crate::models::translation::{SourceStringData, WorkingTranslation};
+use crate::error::CoreError;
 use super::common::{
-    TranslatableStringEntry, 
     RpgMvDataObject, 
     extract_strings_from_json_array,
     reconstruct_object_array_by_id
@@ -32,20 +33,15 @@ impl RpgMvDataObject for Armor {
 pub fn extract_strings(
     file_content: &str,
     source_file: &str,
-) -> Result<Vec<TranslatableStringEntry>, String> {
+) -> Result<Vec<SourceStringData>, String> {
     extract_strings_from_json_array::<Armor>(file_content, source_file, "Armors.json")
 } 
 
-use serde_json::Value;
-use crate::models::translation::TranslatedStringEntryFromFrontend;
-use crate::error::CoreError;
-use crate::utils::json_utils::update_value_at_path;
-
 pub fn reconstruct_armors_json(
     original_json_str: &str,
-    translations: Vec<&TranslatedStringEntryFromFrontend>,
+    translations: Vec<&WorkingTranslation>,
 ) -> Result<String, CoreError> {
-    super::common::reconstruct_object_array_by_id(
+    reconstruct_object_array_by_id(
         original_json_str,
         &translations,
         "Armors.json"
@@ -55,9 +51,7 @@ pub fn reconstruct_armors_json(
 #[cfg(test)]
 mod tests {
     use super::*;
-    // No need to import TranslatedStringEntryFromFrontend again here as it's already imported above
-    // No need to import CoreError again here
-    // No need to import Value again here
+    use serde_json::{json, Value};
 
     const TEST_ARMORS_JSON: &str = r#"[
         null,
@@ -72,49 +66,54 @@ mod tests {
         let original_json_str = TEST_ARMORS_JSON;
 
         let translations = vec![
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation {
                 object_id: 1,
-                text: "盾".to_string(),
+                original_text: "盾".to_string(),
                 source_file: "www/data/Armors.json".to_string(),
                 json_path: "name".to_string(),
                 translated_text: "Shield (EN)".to_string(),
+                translation_source: "test_source".to_string(),
                 error: None,
             },
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation {
                 object_id: 1,
-                text: "".to_string(),
+                original_text: "".to_string(),
                 source_file: "www/data/Armors.json".to_string(),
                 json_path: "description".to_string(),
                 translated_text: "A basic shield.".to_string(),
+                translation_source: "test_source".to_string(),
                 error: None,
             },
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation {
                 object_id: 3,
-                text: "服".to_string(),
+                original_text: "服".to_string(),
                 source_file: "www/data/Armors.json".to_string(),
                 json_path: "name".to_string(),
                 translated_text: "Clothes (EN)".to_string(),
+                translation_source: "test_source".to_string(),
                 error: None,
             },
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation {
                 object_id: 12,
-                text: "教育用拘束衣".to_string(),
+                original_text: "教育用拘束衣".to_string(),
                 source_file: "www/data/Armors.json".to_string(),
                 json_path: "name".to_string(),
                 translated_text: "Training Straitjacket (EN)".to_string(),
+                translation_source: "test_source".to_string(),
                 error: None,
             },
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation {
                 object_id: 12,
-                text: "<拡張説明:”教育用拘束衣”\n身体の自由を奪い、\n立場をわからせる拘束衣。>".to_string(),
+                original_text: "<拡張説明:”教育用拘束衣”\n身体の自由を奪い、\n立場をわからせる拘束衣。>".to_string(),
                 source_file: "www/data/Armors.json".to_string(),
                 json_path: "note".to_string(),
                 translated_text: "<Extended Desc: \"Training Straitjacket\"\nA straitjacket that restricts movement and enforces submission. (EN)>".to_string(),
+                translation_source: "test_source".to_string(),
                 error: None,
             },
         ];
         
-        let translations_ref: Vec<&TranslatedStringEntryFromFrontend> = translations.iter().collect();
+        let translations_ref: Vec<&WorkingTranslation> = translations.iter().collect();
 
         let result = reconstruct_armors_json(&original_json_str, translations_ref);
         assert!(result.is_ok(), "reconstruct_armors_json failed: {:?}", result.err());
@@ -136,47 +135,50 @@ mod tests {
     fn test_reconstruct_armors_with_translation_error() {
         let original_json_str = TEST_ARMORS_JSON;
         let translations = vec![
-            TranslatedStringEntryFromFrontend {
-                object_id: 1, // Shield
-                text: "盾".to_string(), 
+            WorkingTranslation {
+                object_id: 1,
+                original_text: "盾".to_string(),
                 source_file: "www/data/Armors.json".to_string(),
                 json_path: "name".to_string(),
                 translated_text: "ShieldFail".to_string(),
+                translation_source: "test_source".to_string(),
                 error: Some("AI error".to_string()), 
             },
-            TranslatedStringEntryFromFrontend {
-                object_id: 2, // Hat
-                text: "".to_string(), // Original description for Hat is empty
+            WorkingTranslation {
+                object_id: 2,
+                original_text: "".to_string(),
                 source_file: "www/data/Armors.json".to_string(),
                 json_path: "description".to_string(),
                 translated_text: "A simple hat.".to_string(), 
+                translation_source: "test_source".to_string(),
                 error: None,
             },
         ];
-        let translations_ref: Vec<&TranslatedStringEntryFromFrontend> = translations.iter().collect();
+        let translations_ref: Vec<&WorkingTranslation> = translations.iter().collect();
         let result = reconstruct_armors_json(&original_json_str, translations_ref);
         assert!(result.is_ok());
         let reconstructed_json: Value = serde_json::from_str(&result.unwrap()).unwrap();
 
-        assert_eq!(reconstructed_json[1]["name"].as_str().unwrap(), "盾"); // Original due to error
-        assert_eq!(reconstructed_json[2]["description"].as_str().unwrap(), "A simple hat."); // Translated
-        assert_eq!(reconstructed_json[2]["name"].as_str().unwrap(), "帽子"); // Original name for hat, untouched
+        assert_eq!(reconstructed_json[1]["name"].as_str().unwrap(), "盾");
+        assert_eq!(reconstructed_json[2]["description"].as_str().unwrap(), "A simple hat.");
+        assert_eq!(reconstructed_json[2]["name"].as_str().unwrap(), "帽子");
     }
 
     #[test]
     fn test_reconstruct_armors_non_existent_id() {
         let original_json_str = TEST_ARMORS_JSON;
         let translations = vec![
-            TranslatedStringEntryFromFrontend {
-                object_id: 999, 
-                text: "Unknown Armor".to_string(),
+            WorkingTranslation {
+                object_id: 999,
+                original_text: "Unknown Armor".to_string(),
                 source_file: "www/data/Armors.json".to_string(),
                 json_path: "name".to_string(),
                 translated_text: "Phantom Armor".to_string(),
+                translation_source: "test_source".to_string(),
                 error: None,
             },
         ];
-        let translations_ref: Vec<&TranslatedStringEntryFromFrontend> = translations.iter().collect();
+        let translations_ref: Vec<&WorkingTranslation> = translations.iter().collect();
         let result = reconstruct_armors_json(&original_json_str, translations_ref);
         assert!(result.is_ok());
         let reconstructed_value: Value = serde_json::from_str(&result.unwrap()).expect("Failed to parse reconstructed");
@@ -188,16 +190,17 @@ mod tests {
     fn test_reconstruct_armors_non_existent_json_path() {
         let original_json_str = TEST_ARMORS_JSON;
         let translations = vec![
-            TranslatedStringEntryFromFrontend {
-                object_id: 1, 
-                text: "Value".to_string(),
+            WorkingTranslation {
+                object_id: 1,
+                original_text: "Value".to_string(),
                 source_file: "www/data/Armors.json".to_string(),
                 json_path: "mysteryField".to_string(), 
                 translated_text: "Translated Mystery".to_string(),
+                translation_source: "test_source".to_string(),
                 error: None,
             },
         ];
-        let translations_ref: Vec<&TranslatedStringEntryFromFrontend> = translations.iter().collect();
+        let translations_ref: Vec<&WorkingTranslation> = translations.iter().collect();
         let result = reconstruct_armors_json(&original_json_str, translations_ref);
         assert!(result.is_ok());
         let reconstructed_value: Value = serde_json::from_str(&result.unwrap()).expect("Failed to parse reconstructed");
@@ -208,8 +211,8 @@ mod tests {
     #[test]
     fn test_reconstruct_armors_empty_translations_list() {
         let original_json_str = TEST_ARMORS_JSON;
-        let translations: Vec<TranslatedStringEntryFromFrontend> = Vec::new();        
-        let translations_ref: Vec<&TranslatedStringEntryFromFrontend> = translations.iter().collect();
+        let translations: Vec<WorkingTranslation> = Vec::new();
+        let translations_ref: Vec<&WorkingTranslation> = translations.iter().collect();
         let result = reconstruct_armors_json(&original_json_str, translations_ref);
         assert!(result.is_ok());
         let reconstructed_value: Value = serde_json::from_str(&result.unwrap()).expect("Failed to parse reconstructed");
@@ -221,16 +224,17 @@ mod tests {
     fn test_reconstruct_armors_invalid_original_json() {
         let original_json_str = r#"[null, {"id":1, "name":"Shield", "description":"Broken"#; 
         let translations = vec![
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation {
                 object_id: 1,
-                text: "Shield".to_string(),
+                original_text: "Shield".to_string(),
                 source_file: "www/data/Armors.json".to_string(),
                 json_path: "name".to_string(),
                 translated_text: "盾".to_string(),
+                translation_source: "test_source".to_string(),
                 error: None,
             },
         ];
-        let translations_ref: Vec<&TranslatedStringEntryFromFrontend> = translations.iter().collect();
+        let translations_ref: Vec<&WorkingTranslation> = translations.iter().collect();
         let result = reconstruct_armors_json(original_json_str, translations_ref);
         assert!(result.is_err());
         match result.err().unwrap() {

@@ -1,15 +1,12 @@
 use serde::Deserialize;
 use super::common::{
-    TranslatableStringEntry,
     RpgMvDataObject,
     extract_strings_from_json_array,
     reconstruct_object_array_by_id
 };
 
-use serde_json::Value;
-use crate::models::translation::TranslatedStringEntryFromFrontend;
+use crate::models::translation::{WorkingTranslation, SourceStringData};
 use crate::error::CoreError;
-use crate::utils::json_utils::update_value_at_path;
 
 #[derive(Deserialize, Debug)]
 struct Weapon {
@@ -37,15 +34,15 @@ impl RpgMvDataObject for Weapon {
 pub fn extract_strings(
     file_content: &str,
     source_file: &str,
-) -> Result<Vec<TranslatableStringEntry>, String> {
+) -> Result<Vec<SourceStringData>, String> {
     extract_strings_from_json_array::<Weapon>(file_content, source_file, "Weapons.json")
 }
 
 pub fn reconstruct_weapons_json(
     original_json_str: &str,
-    translations: Vec<&TranslatedStringEntryFromFrontend>,
+    translations: Vec<&WorkingTranslation>,
 ) -> Result<String, CoreError> {
-    super::common::reconstruct_object_array_by_id(
+    reconstruct_object_array_by_id(
         original_json_str,
         &translations,
         "Weapons.json"
@@ -55,7 +52,7 @@ pub fn reconstruct_weapons_json(
 #[cfg(test)]
 mod tests {
     use super::*;
-
+    use serde_json::Value;
     const TEST_WEAPONS_JSON: &str = r#"[
         null,
         {"id":1,"animationId":6,"description":"","etypeId":1,"traits":[{"code":31,"dataId":1,"value":0},{"code":22,"dataId":0,"value":0}],"iconIndex":97,"name":"剣","note":"","params":[0,0,10,0,0,0,0,0],"price":500,"wtypeId":2},
@@ -67,48 +64,53 @@ mod tests {
     fn test_reconstruct_weapons_basic() {
         let original_json_str = TEST_WEAPONS_JSON;
         let translations = vec![
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation {
                 object_id: 1,
-                text: "剣".to_string(),
+                original_text: "剣".to_string(),
                 source_file: "www/data/Weapons.json".to_string(),
                 json_path: "name".to_string(),
                 translated_text: "Sword (EN)".to_string(),
+                translation_source: "test".to_string(),
                 error: None,
             },
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation {
                 object_id: 1,
-                text: "".to_string(),
+                original_text: "".to_string(),
                 source_file: "www/data/Weapons.json".to_string(),
                 json_path: "description".to_string(),
                 translated_text: "A basic sword.".to_string(),
+                translation_source: "test".to_string(),
                 error: None,
             },
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation {
                 object_id: 7,
-                text: "隠し銃剣".to_string(),
+                original_text: "隠し銃剣".to_string(),
                 source_file: "www/data/Weapons.json".to_string(),
                 json_path: "name".to_string(),
                 translated_text: "Hidden Bayonet (EN)".to_string(),
+                translation_source: "test".to_string(),
                 error: None,
             },
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation {
                 object_id: 7,
-                text: "暗殺用の隠し武器。\n右腕に装着する。".to_string(),
+                original_text: "暗殺用の隠し武器。\n右腕に装着する。".to_string(),
                 source_file: "www/data/Weapons.json".to_string(),
                 json_path: "description".to_string(),
                 translated_text: "Concealed weapon for assassination.\nEquipped on the right arm. (EN)".to_string(),
+                translation_source: "test".to_string(),
                 error: None,
             },
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation {
                 object_id: 7,
-                text: "<隠し武器>".to_string(),
+                original_text: "<隠し武器>".to_string(),
                 source_file: "www/data/Weapons.json".to_string(),
                 json_path: "note".to_string(),
                 translated_text: "<HiddenWeaponTag>".to_string(),
+                translation_source: "test".to_string(),
                 error: None,
             },
         ];
-        let translations_ref: Vec<&TranslatedStringEntryFromFrontend> = translations.iter().collect();
+        let translations_ref: Vec<&WorkingTranslation> = translations.iter().collect();
         let result = reconstruct_weapons_json(&original_json_str, translations_ref);
         assert!(result.is_ok(), "reconstruct_weapons_json failed: {:?}", result.err());
         let reconstructed_json_str = result.unwrap();
@@ -128,24 +130,26 @@ mod tests {
     fn test_reconstruct_weapons_with_translation_error() {
         let original_json_str = TEST_WEAPONS_JSON;
         let translations = vec![
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation {
                 object_id: 1, // Sword
-                text: "剣".to_string(), 
+                original_text: "剣".to_string(), 
                 source_file: "www/data/Weapons.json".to_string(),
                 json_path: "name".to_string(),
                 translated_text: "SwordFail".to_string(),
+                translation_source: "test".to_string(),
                 error: Some("AI error".to_string()), 
             },
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation {
                 object_id: 2, // Axe
-                text: "".to_string(), 
+                original_text: "".to_string(), 
                 source_file: "www/data/Weapons.json".to_string(),
                 json_path: "description".to_string(),
-                translated_text: "A mighty axe.".to_string(), 
+                translated_text: "A mighty axe.".to_string(),
+                translation_source: "test".to_string(),
                 error: None,
             },
         ];
-        let translations_ref: Vec<&TranslatedStringEntryFromFrontend> = translations.iter().collect();
+        let translations_ref: Vec<&WorkingTranslation> = translations.iter().collect();
         let result = reconstruct_weapons_json(&original_json_str, translations_ref);
         assert!(result.is_ok());
         let reconstructed_json: Value = serde_json::from_str(&result.unwrap()).unwrap();
@@ -159,16 +163,17 @@ mod tests {
     fn test_reconstruct_weapons_non_existent_id() {
         let original_json_str = TEST_WEAPONS_JSON;
         let translations = vec![
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation {
                 object_id: 999, 
-                text: "Unknown Weapon".to_string(),
+                original_text: "Unknown Weapon".to_string(),
                 source_file: "www/data/Weapons.json".to_string(),
                 json_path: "name".to_string(),
                 translated_text: "Phantom Weapon".to_string(),
+                translation_source: "test".to_string(),
                 error: None,
             },
         ];
-        let translations_ref: Vec<&TranslatedStringEntryFromFrontend> = translations.iter().collect();
+        let translations_ref: Vec<&WorkingTranslation> = translations.iter().collect();
         let result = reconstruct_weapons_json(&original_json_str, translations_ref);
         assert!(result.is_ok());
         let reconstructed_value: Value = serde_json::from_str(&result.unwrap()).expect("Failed to parse reconstructed");
@@ -180,16 +185,17 @@ mod tests {
     fn test_reconstruct_weapons_non_existent_json_path() {
         let original_json_str = TEST_WEAPONS_JSON;
         let translations = vec![
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation {
                 object_id: 1, 
-                text: "Value".to_string(),
+                original_text: "Value".to_string(),
                 source_file: "www/data/Weapons.json".to_string(),
                 json_path: "superPowerLevel".to_string(), 
                 translated_text: "Over 9000".to_string(),
+                translation_source: "test".to_string(),
                 error: None,
             },
         ];
-        let translations_ref: Vec<&TranslatedStringEntryFromFrontend> = translations.iter().collect();
+        let translations_ref: Vec<&WorkingTranslation> = translations.iter().collect();
         let result = reconstruct_weapons_json(&original_json_str, translations_ref);
         assert!(result.is_ok());
         let reconstructed_value: Value = serde_json::from_str(&result.unwrap()).expect("Failed to parse reconstructed");
@@ -200,8 +206,8 @@ mod tests {
     #[test]
     fn test_reconstruct_weapons_empty_translations_list() {
         let original_json_str = TEST_WEAPONS_JSON;
-        let translations: Vec<TranslatedStringEntryFromFrontend> = Vec::new();        
-        let translations_ref: Vec<&TranslatedStringEntryFromFrontend> = translations.iter().collect();
+        let translations: Vec<WorkingTranslation> = Vec::new();        
+        let translations_ref: Vec<&WorkingTranslation> = translations.iter().collect();
         let result = reconstruct_weapons_json(&original_json_str, translations_ref);
         assert!(result.is_ok());
         let reconstructed_value: Value = serde_json::from_str(&result.unwrap()).expect("Failed to parse reconstructed");
@@ -213,16 +219,17 @@ mod tests {
     fn test_reconstruct_weapons_invalid_original_json() {
         let original_json_str = r#"[null, {"id":1, "name":"Sword", "description":"BrokenJson"#;
         let translations = vec![
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation {
                 object_id: 1,
-                text: "Sword".to_string(),
+                original_text: "Sword".to_string(),
                 source_file: "www/data/Weapons.json".to_string(),
                 json_path: "name".to_string(),
                 translated_text: "剣".to_string(),
+                translation_source: "test".to_string(),
                 error: None,
             },
         ];
-        let translations_ref: Vec<&TranslatedStringEntryFromFrontend> = translations.iter().collect();
+        let translations_ref: Vec<&WorkingTranslation> = translations.iter().collect();
         let result = reconstruct_weapons_json(original_json_str, translations_ref);
         assert!(result.is_err());
         match result.err().unwrap() {

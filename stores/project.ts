@@ -2,15 +2,12 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { useToast, navigateTo } from '#imports'
-import type { TranslatableStringEntry, TranslatedStringEntry } from './translation'
+import type { SourceStringData, WorkingTranslation } from '~/types/translation'
 import { useTranslationStore } from './translation'
+import type { RpgMakerDetectionResultType } from '~/types/project'
 
 // Define the enum/type for the detection result on the frontend
 // Matches the RpgMakerDetectionResult enum in Rust
-export type RpgMakerDetectionResultType = 
-  | 'DetectedByProjectFile' 
-  | 'DetectedByWwwData' 
-  | 'NotDetected'
 
 // TranslatableStringEntry and TranslatedStringEntry are now in translation.ts
 // Consider moving to a shared types/ file in the future.
@@ -22,7 +19,7 @@ export const useProjectStore = defineStore('project', () => {
   const isLoadingProjectFolder = ref<boolean>(false)
 
   const isLoadingExtractedStrings = ref(false)
-  const extractedStrings = ref<TranslatableStringEntry[]>([])
+  const extractedStrings = ref<SourceStringData[]>([])
   const extractionError = ref<string | null>(null)
 
   const isLoadingReconstruction = ref(false)
@@ -101,7 +98,7 @@ export const useProjectStore = defineStore('project', () => {
     extractionError.value = null 
 
     try {
-      const result: TranslatableStringEntry[] = await invoke('extract_project_strings_command', {
+      const result: SourceStringData[] = await invoke('extract_project_strings_command', {
         projectPath: selectedProjectFolderPath.value,
       })
       extractedStrings.value = result
@@ -132,7 +129,7 @@ export const useProjectStore = defineStore('project', () => {
     }
   }
 
-  async function reconstructAndPackageFiles(translatedEntries: TranslatedStringEntry[]) {
+  async function reconstructAndPackageFiles(translatedEntries: WorkingTranslation[]) {
     if (!selectedProjectFolderPath.value) {
       toast.add({ title: 'Error', description: 'Project path is missing.', color: 'error' });
       return;

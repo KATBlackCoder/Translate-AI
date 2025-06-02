@@ -1,9 +1,14 @@
 use serde::Deserialize;
 use serde_json::Value; // Required for EventCommand parameters
+use crate::models::translation::{SourceStringData, WorkingTranslation};
 use crate::core::rpgmv::common::{
-    EventCommand, TranslatableStringEntry,
-    extract_translatable_strings_from_event_command_list, // Import the helper
+    EventCommand,
+    extract_translatable_strings_from_event_command_list,
+    reconstruct_event_command_list,
 };
+
+use crate::error::CoreError;
+use crate::utils::json_utils::update_value_at_path;
 
 // Represents an event page within a map event.
 #[derive(Deserialize, Debug, Clone)]
@@ -55,7 +60,7 @@ struct MapData {
 pub fn extract_strings(
     file_content: &str,
     source_file: &str, // e.g., "www/data/Map001.json"
-) -> Result<Vec<TranslatableStringEntry>, String> {
+) -> Result<Vec<SourceStringData>, String> {
     let map_data: MapData = serde_json::from_str(file_content)
         .map_err(|e| format!("Failed to parse {}: {}. Content snippet: {:.100}", source_file, e, file_content.chars().take(100).collect::<String>()))?;
 
@@ -86,9 +91,9 @@ pub fn extract_strings(
 
             // Extract Event Name
             if !event.name.trim().is_empty() {
-                entries.push(TranslatableStringEntry {
+                entries.push(SourceStringData {
                     object_id: event.id, 
-                    text: event.name.clone(),
+                    original_text: event.name.clone(),
                     source_file: source_file.to_string(),
                     json_path: format!("events[{}].name", event_idx), // event_idx is the original index in the JSON array
                 });
@@ -116,14 +121,10 @@ pub fn extract_strings(
     Ok(entries)
 } 
 
-use crate::error::CoreError;
-use crate::models::translation::TranslatedStringEntryFromFrontend;
-use crate::utils::json_utils::update_value_at_path;
-use super::common::reconstruct_event_command_list;
 
 pub fn reconstruct_map_json(
     original_json_str: &str,
-    translations: Vec<&TranslatedStringEntryFromFrontend>,
+    translations: Vec<&WorkingTranslation>,
     source_file_name_for_error_logging: &str, // e.g., "Map001.json"
 ) -> Result<String, CoreError> {
     let mut map_data_json: Value = serde_json::from_str(original_json_str)
@@ -152,7 +153,7 @@ pub fn reconstruct_map_json(
                             continue;
                         }
                         
-                        let text_to_insert = if entry.error.is_some() { &entry.text } else { &entry.translated_text };
+                        let text_to_insert = if entry.error.is_some() { &entry.original_text } else { &entry.translated_text };
                         if let Err(e) = update_value_at_path(&mut events_array[event_idx], "name", text_to_insert) {
                             eprintln!(
                                 "Warning ({}): Failed to update event name for event id {} (index {}): {}. Path: {}. Skipping.",
@@ -190,7 +191,7 @@ pub fn reconstruct_map_json(
                 for page_idx in 0..pages_array.len() {
                     let page_json_path_prefix = format!("events[{}].pages[{}].list", event_idx, page_idx);
                     
-                    let relevant_translations_for_page: Vec<&TranslatedStringEntryFromFrontend> = translations
+                    let relevant_translations_for_page: Vec<&WorkingTranslation> = translations
                         .iter()
                         .filter(|t| t.object_id == current_event_id && t.json_path.starts_with(&page_json_path_prefix))
                         .map(|&t_ref| t_ref)
@@ -227,7 +228,6 @@ pub fn reconstruct_map_json(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::translation::TranslatedStringEntryFromFrontend;
     use serde_json::Value;
 
     const TEST_MAP001_JSON: &str = r#"
@@ -267,53 +267,53 @@ null,
     fn test_reconstruct_map_basic_translations() {
         let original_json_str = TEST_MAP001_JSON;
         let translations_data = vec![
-            // Event Name
-            TranslatedStringEntryFromFrontend {
-                object_id: 1, // EV001
-                text: "EV001".to_string(),
+            WorkingTranslation {
+                object_id: 1, 
+                original_text: "EV001".to_string(),
                 source_file: "www/data/Map001.json".to_string(),
                 json_path: "events[1].name".to_string(),
                 translated_text: "Event One (EN)".to_string(),
+                translation_source: "test".to_string(),
                 error: None,
             },
-            // Dialogue
-            TranslatedStringEntryFromFrontend {
-                object_id: 1, // EV001
-                text: "This is a dialogue.".to_string(),
+            WorkingTranslation {
+                object_id: 1, 
+                original_text: "This is a dialogue.".to_string(),
                 source_file: "www/data/Map001.json".to_string(),
                 json_path: "events[1].pages[0].list[1].parameters[0]".to_string(),
                 translated_text: "C'est un dialogue. (FR)".to_string(),
+                translation_source: "test".to_string(),
                 error: None,
             },
-            // Choice
-            TranslatedStringEntryFromFrontend {
-                object_id: 1, // EV001
-                text: "Choice A".to_string(),
+            WorkingTranslation {
+                object_id: 1, 
+                original_text: "Choice A".to_string(),
                 source_file: "www/data/Map001.json".to_string(),
                 json_path: "events[1].pages[0].list[2].parameters[0].[0]".to_string(),
                 translated_text: "Choix A (FR)".to_string(),
+                translation_source: "test".to_string(),
                 error: None,
             },
-            // Event Name for EV002
-            TranslatedStringEntryFromFrontend {
-                object_id: 2, // EV002
-                text: "EV002".to_string(),
+            WorkingTranslation {
+                object_id: 2, 
+                original_text: "EV002".to_string(),
                 source_file: "www/data/Map001.json".to_string(),
                 json_path: "events[2].name".to_string(),
                 translated_text: "Event Two (DE)".to_string(),
+                translation_source: "test".to_string(),
                 error: None,
             },
-            // Comment in EV002
-            TranslatedStringEntryFromFrontend {
-                object_id: 2, // EV002
-                text: "This is a comment.".to_string(),
+            WorkingTranslation {
+                object_id: 2, 
+                original_text: "This is a comment.".to_string(),
                 source_file: "www/data/Map001.json".to_string(),
                 json_path: "events[2].pages[0].list[0].parameters[0]".to_string(),
                 translated_text: "Das ist ein Kommentar. (DE)".to_string(),
+                translation_source: "test".to_string(),
                 error: None,
             },
         ];
-        let translations_ref: Vec<&TranslatedStringEntryFromFrontend> = translations_data.iter().collect();
+        let translations_ref: Vec<&WorkingTranslation> = translations_data.iter().collect();
 
         let result = reconstruct_map_json(original_json_str, translations_ref, "Map001.json");
         assert!(result.is_ok(), "reconstruct_map_json failed: {:?}", result.err());
@@ -336,24 +336,26 @@ null,
     fn test_reconstruct_map_with_translation_error() {
         let original_json_str = TEST_MAP001_JSON;
         let translations_data = vec![
-            TranslatedStringEntryFromFrontend { // Event name fails
+            WorkingTranslation { 
                 object_id: 1,
-                text: "EV001".to_string(),
+                original_text: "EV001".to_string(),
                 source_file: "www/data/Map001.json".to_string(),
                 json_path: "events[1].name".to_string(),
                 translated_text: "Failed Name".to_string(),
+                translation_source: "test".to_string(),
                 error: Some("AI blew up".to_string()),
             },
-            TranslatedStringEntryFromFrontend { // Dialogue succeeds
+            WorkingTranslation { 
                 object_id: 1,
-                text: "This is a dialogue.".to_string(),
+                original_text: "This is a dialogue.".to_string(),
                 source_file: "www/data/Map001.json".to_string(),
                 json_path: "events[1].pages[0].list[1].parameters[0]".to_string(),
                 translated_text: "Good Dialogue!".to_string(),
+                translation_source: "test".to_string(),
                 error: None,
             },
         ];
-        let translations_ref: Vec<&TranslatedStringEntryFromFrontend> = translations_data.iter().collect();
+        let translations_ref: Vec<&WorkingTranslation> = translations_data.iter().collect();
         let result = reconstruct_map_json(original_json_str, translations_ref, "Map001.json");
         assert!(result.is_ok());
         let reconstructed_json: Value = serde_json::from_str(&result.unwrap()).unwrap();
@@ -366,16 +368,17 @@ null,
     fn test_reconstruct_map_non_existent_event_index_in_path() {
         let original_json_str = TEST_MAP001_JSON;
         let translations_data = vec![
-            TranslatedStringEntryFromFrontend {
-                object_id: 1, // Valid ID, but path is wrong
-                text: "EV001".to_string(),
+            WorkingTranslation {
+                object_id: 1, 
+                original_text: "EV001".to_string(),
                 source_file: "www/data/Map001.json".to_string(),
-                json_path: "events[99].name".to_string(), // Index 99 does not exist
+                json_path: "events[99].name".to_string(), 
                 translated_text: "Phantom Name".to_string(),
+                translation_source: "test".to_string(),
                 error: None,
             },
         ];
-        let translations_ref: Vec<&TranslatedStringEntryFromFrontend> = translations_data.iter().collect();
+        let translations_ref: Vec<&WorkingTranslation> = translations_data.iter().collect();
         let result = reconstruct_map_json(original_json_str, translations_ref, "Map001.json");
         assert!(result.is_ok());
         let reconstructed_value: Value = serde_json::from_str(&result.unwrap()).unwrap();
@@ -387,16 +390,17 @@ null,
     fn test_reconstruct_map_id_mismatch_event_name() {
         let original_json_str = TEST_MAP001_JSON;
         let translations_data = vec![
-            TranslatedStringEntryFromFrontend {
-                object_id: 2, // Translation says it's for event ID 2
-                text: "EV001".to_string(),
+            WorkingTranslation {
+                object_id: 2, 
+                original_text: "EV001".to_string(),
                 source_file: "www/data/Map001.json".to_string(),
-                json_path: "events[1].name".to_string(), // Path points to event ID 1
+                json_path: "events[1].name".to_string(), 
                 translated_text: "Wrong Event Name".to_string(),
+                translation_source: "test".to_string(),
                 error: None,
             },
         ];
-        let translations_ref: Vec<&TranslatedStringEntryFromFrontend> = translations_data.iter().collect();
+        let translations_ref: Vec<&WorkingTranslation> = translations_data.iter().collect();
         let result = reconstruct_map_json(original_json_str, translations_ref, "Map001.json");
         assert!(result.is_ok());
         let reconstructed_value: Value = serde_json::from_str(&result.unwrap()).unwrap();
@@ -408,8 +412,8 @@ null,
     #[test]
     fn test_reconstruct_map_empty_translations() {
         let original_json_str = TEST_MAP001_JSON;
-        let translations_data: Vec<TranslatedStringEntryFromFrontend> = vec![];
-        let translations_ref: Vec<&TranslatedStringEntryFromFrontend> = translations_data.iter().collect();
+        let translations_data: Vec<WorkingTranslation> = vec![];
+        let translations_ref: Vec<&WorkingTranslation> = translations_data.iter().collect();
 
         let result = reconstruct_map_json(original_json_str, translations_ref, "Map001.json");
         assert!(result.is_ok());
@@ -422,8 +426,8 @@ null,
     #[test]
     fn test_reconstruct_map_invalid_original_json() {
         let original_json_str = r#"{"events": [null, {"id":1, name:"broken"}]}"#; // Malformed
-        let translations_data: Vec<TranslatedStringEntryFromFrontend> = vec![];
-        let translations_ref: Vec<&TranslatedStringEntryFromFrontend> = translations_data.iter().collect();
+        let translations_data: Vec<WorkingTranslation> = vec![];
+        let translations_ref: Vec<&WorkingTranslation> = translations_data.iter().collect();
         let result = reconstruct_map_json(original_json_str, translations_ref, "MapBroken.json");
         assert!(result.is_err());
         match result.err().unwrap() {
@@ -436,16 +440,17 @@ null,
     fn test_reconstruct_map_non_existent_internal_path_in_command() {
         let original_json_str = TEST_MAP001_JSON;
         let translations_data = vec![
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation {
                 object_id: 1, 
-                text: "Value".to_string(),
+                original_text: "Value".to_string(),
                 source_file: "www/data/Map001.json".to_string(),
                 json_path: "events[1].pages[0].list[0].parameters.[99]".to_string(), // Non-existent parameter index
                 translated_text: "Translated Deep Invented".to_string(),
+                translation_source: "test".to_string(),
                 error: None,
             },
         ];
-        let translations_ref: Vec<&TranslatedStringEntryFromFrontend> = translations_data.iter().collect();
+        let translations_ref: Vec<&WorkingTranslation> = translations_data.iter().collect();
         let result = reconstruct_map_json(original_json_str, translations_ref, "Map001.json");
         assert!(result.is_ok());
         let reconstructed_value: Value = serde_json::from_str(&result.unwrap()).expect("Failed to parse reconstructed");

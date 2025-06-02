@@ -94,7 +94,7 @@ This document outlines a phased approach to developing the AI Game Translator ap
             *   It will identify RPG Maker MV `.json` files (e.g., `Actors.json`, `Items.json`, `MapXXX.json`, `CommonEvents.json`, `System.json`, etc.).
             *   For each identified file, it will read its content and call specialized parsing functions from its sibling modules within `src-tauri/src/core/rpgmv/` (e.g., `actors::extract_strings(...)`, `items::extract_strings(...)`). (This dispatch logic is now fully implemented and active).
         *   **`common.rs`:**
-            *   This module (`core::rpgmv::common`) will house common data structures (like the `TranslatableStringEntry` struct) and shared helper functions specific to RPG Maker MV JSON structures, used by `project.rs` and other parser modules.
+            *   This module (`core::rpgmv::common`) will house common data structures (like the `SourceStringData` struct) and shared helper functions specific to RPG Maker MV JSON structures, used by `project.rs` and other parser modules.
         *   **Specific Parsers (e.g., `actors.rs`, `items.rs`, `maps.rs`):**
             *   Individual Rust modules for each specific RPG Maker MV JSON file type (e.g., `core::rpgmv::actors`, `core::rpgmv::items`).
             *   Each specific parser module will contain functions to:
@@ -102,12 +102,12 @@ This document outlines a phased approach to developing the AI Game Translator ap
                 *   Extract all translatable string fields from their known JSON structures, including the object's own `id` field (e.g., `actor.id`).
                 *   (Later, in Task 6) Inject translated strings back into a copy of the original JSON structure.
             *   For `MapXXX.json` files, the `maps.rs` module will handle parsing event commands.
-    *   **Data Structure for Return (`core/rpgmv/common.rs`):** The `extract_translatable_strings_from_project` function (in `core::rpgmv::project`) should return a `Result<Vec<TranslatableStringEntry>, String>`. The `TranslatableStringEntry` struct should be defined in `core/rpgmv/common.rs`:
+    *   **Data Structure for Return (`core/rpgmv/common.rs`):** The `extract_translatable_strings_from_project` function (in `core::rpgmv::project`) should return a `Result<Vec<SourceStringData>, String>`. The `SourceStringData` struct should be defined in `core/rpgmv/common.rs`:
         ```rust
         #[derive(serde::Serialize, Debug)] // Add Deserialize if needed later
-        pub struct TranslatableStringEntry {
+        pub struct SourceStringData {
             pub object_id: u32,               // The ID from the JSON object itself (e.g., actor.id)
-            pub text: String,                 // The actual string to be translated
+            pub original_text: String,                 // The actual string to be translated
             pub source_file: String,          // Relative path to the file, e.g., "www/data/Actors.json"
             pub json_path: String,            // A string representing the path within the JSON, e.g., "[1].name"
         }
@@ -121,22 +121,25 @@ This document outlines a phased approach to developing the AI Game Translator ap
     *   **MapXXX.json Parser:** Implemented parser in `src-tauri/src/core/rpgmv/maps.rs` for `MapXXX.json` files. Extracts event `name`s, and text from relevant event commands (101, 401, 102, 105) within event pages. Logic for identifying map files and dispatching them is added to `project.rs`. Integrated into `mod.rs`. The `displayName` field extraction has been temporarily removed to address issues with empty values and will be revisited if necessary.
     *   **Refactoring (Event Command Logic):** A shared helper function `extract_translatable_strings_from_event_command_list` was added to `core::rpgmv::common.rs`. Parsers `common_events.rs`, `troops.rs`, and `maps.rs` have been refactored to use this helper, centralizing event command text extraction.
     *   **MapInfos.json Parser:** Implemented parser in `src-tauri/src/core/rpgmv/map_infos.rs` for `MapInfos.json`. Extracts map `name` for each entry. Integrated into `project.rs`.
-    *   **Classes.json Parser:** Implemented parser in `src-tauri/src/core/rpgmv/classes.rs`. Extracts class `name`, `note`, and `learnings[].note` fields. Integrated into `project.rs`. Linter issues resolved by refactoring to not use `RpgMvDataObject` trait and directly constructing `TranslatableStringEntry`.
-    *   **States.json Parser:** Implemented parser in `src-tauri/src/core/rpgmv/states.rs`. Extracts state `name`, `note`, and `message1`-`message4` fields. Integrated into `mod.rs` and `project.rs`. Linter issues resolved by refactoring to not use `RpgMvDataObject` trait and directly constructing `TranslatableStringEntry`.
+    *   **Classes.json Parser:** Implemented parser in `src-tauri/src/core/rpgmv/classes.rs`. Extracts class `name`, `note`, and `learnings[].note` fields. Integrated into `project.rs`. Linter issues resolved by refactoring to not use `RpgMvDataObject` trait and directly constructing `SourceStringData`.
+    *   **States.json Parser:** Implemented parser in `src-tauri/src/core/rpgmv/states.rs`. Extracts state `name`, `note`, and `message1`-`message4` fields. Integrated into `mod.rs` and `project.rs`. Linter issues resolved by refactoring to not use `RpgMvDataObject` trait and directly constructing `SourceStringData`.
     *   **Completion of Core Parsing Logic (Phase 3, Task 3):** The entire "File Parsing & String Extraction (Rust)" task, including all core parsing logic (individual file parsers and the main orchestrator in `core::rpgmv::project.rs`) and comprehensive integration testing, is **COMPLETE**.
 4.  **Frontend for Batch Workflow (Refactored & COMPLETE - End-to-end workflow manually tested and stable):**
-    *   **Define `TranslatableStringEntry` & `TranslatedStringEntry` Interfaces (Frontend):** (COMPLETE - Currently defined in `stores/translation.ts`, consider moving to a shared types file).
+    *   **Define `SourceStringData` & `WorkingTranslation` Interfaces (Frontend):** (COMPLETE - Moved to `types/translation.ts`).
+    *   **Create `types/` directory and type files:** (COMPLETE)
+        *   `types/translation.ts` created with `SourceStringData` and `WorkingTranslation`.
+        *   `types/project.ts` created with `RpgMakerDetectionResultType`.
+        *   `types/setting.ts` created (now contains `LanguageOption` and `EngineOption` interfaces, COMPLETE).
     *   **Create `stores/settings.ts` (Pinia Store):**
         *   Manages application-wide settings and selectable options. (COMPLETE)
         *   Provides `languageOptions` and `engineOptions`. (COMPLETE)
         *   (Future: API keys, default preferences, theme settings).
     *   **Update `stores/project.ts` (Pinia Store):**
-        *   Focuses on project selection, game engine detection, string extraction state and actions, and now also handles the state and actions for ZIP output (reconstruction, packaging, saving, opening folder). (COMPLETE)
+        *   Focuses on project selection, game engine detection, string extraction state and actions, and now also handles the state and actions for ZIP output (reconstruction, packaging, saving, opening folder). Imports types from `~/types/project.ts` and `~/types/translation.ts`. (COMPLETE)
         *   `$reset()` method clears project state (including ZIP state) and calls `$resetBatchState()` in `translationStore`. (COMPLETE)
     *   **Update `stores/translation.ts` (Pinia Store):**
-        *   Now focuses solely on the operational aspects of batch translation (state for loading, results, errors, and the `performBatchTranslation` action). (COMPLETE)
+        *   Now focuses solely on the operational aspects of batch translation (state for loading, results, errors, and the `performBatchTranslation` action). Imports types from `~/types/translation.ts`. (COMPLETE)
         *   `$resetBatchState()` method clears only batch translation-specific state. (COMPLETE)
-        *   (Currently also defines `TranslatableStringEntry` & `TranslatedStringEntry` interfaces).
     *   **Update `components/project/ProjectStringsReview.vue` (Vue Component):
         *   Uses `projectStore` for `extractedStrings`.
         *   Uses `settingsStore` for `languageOptions` and `engineOptions`.
@@ -155,24 +158,24 @@ This document outlines a phased approach to developing the AI Game Translator ap
     *   **Frontend UI Logic (Handled by `ProjectStringsReview.vue` and `ProjectStringsResult.vue` on `pages/project.vue`):** (Updated as described above)
 6.  **Reconstruct Translated Files (Rust):**
     *   **Goal:** To take the batch-translated strings, read the original game files, inject these translations into the correct places within the JSON structures (in memory, non-destructively), and produce the final translated JSON content as strings in memory, ready for ZIP packaging.
-    *   **Sub-Task 6.1: Define `TranslatedStringEntryFromFrontend` Struct (Rust):**
-        *   Define the struct in `src-tauri/src/models/translation.rs` to match the data structure sent from the frontend (includes `objectId`, `text` (original), `sourceFile`, `jsonPath`, `translatedText`, and `error` option). (COMPLETE)
+    *   **Sub-Task 6.1: Define `WorkingTranslation` Struct (Rust):**
+        *   Define the struct in `src-tauri/src/models/translation.rs` to match the data structure sent from the frontend (includes `objectId`, `originalText` (original), `sourceFile`, `jsonPath`, `translatedText`, `translationSource`, and `error` option). (COMPLETE)
     *   **Sub-Task 6.2: Implement `reconstruct_translated_project_files` Tauri Command (Rust):**
         *   Create in `src-tauri/src/commands/project.rs`.
-        *   Accepts `project_path` and `Vec<TranslatedStringEntryFromFrontend>`.
+        *   Accepts `project_path` and `Vec<WorkingTranslation>`.
         *   Groups translations by `source_file`.
         *   For each file: reads original content, then calls core reconstruction logic (Sub-Task 6.3) - *currently a placeholder call*.
         *   Returns a `HashMap<String, String>` of {relative_file_path: translated_json_string} - *currently with placeholder content*.
         *   Add command to `lib.rs` invoke_handler. (COMPLETE - Basic command structure with placeholder logic)
     *   **Sub-Task 6.3: Implement Core Reconstruction Logic Dispatcher (Rust):**
         *   Create `reconstruct_file_content` function in `src-tauri/src/core/rpgmv/project.rs`.
-        *   Takes original JSON string, `relative_file_path`, and relevant `Vec<&TranslatedStringEntryFromFrontend>`.
+        *   Takes original JSON string, `relative_file_path`, and relevant `Vec<&WorkingTranslation>`.
         *   Dispatches to specific file-type reconstructor (Sub-Task 6.4) based on `relative_file_path`. (COMPLETE - Dispatcher implemented; specific reconstructor calls are placeholders returning `CoreError::Unimplemented`)
         *   Define `CoreError` enum in `src-tauri/src/error.rs` and register `error.rs` in `lib.rs`. (COMPLETE)
     *   **Sub-Task 6.4: Implement Specific Reconstructor Functions (Rust):**
         *   For each RPGMV file type module (e.g., `core/rpgmv/actors.rs`), add a `reconstruct_<filetype>_json` function.
         *   Parses original JSON string to mutable `serde_json::Value`.
-        *   Uses `object_id` and `json_path` from each `TranslatedStringEntryFromFrontend` to locate and update fields in the `Value` (leveraging the `update_value_at_path` helper from Sub-Task 6.5 where applicable).
+        *   Uses `object_id` and `json_path` from each `WorkingTranslation` to locate and update fields in the `Value` (leveraging the `update_value_at_path` helper from Sub-Task 6.5 where applicable).
         *   If translation failed (error present), inserts original text back.
         *   Serializes modified `Value` back to a JSON string.
         *   Status:
@@ -197,7 +200,7 @@ This document outlines a phased approach to developing the AI Game Translator ap
         *   (COMPLETE - Initial version with basic path handling and tests implemented in `utils/json_utils.rs`)
     *   **Sub-Task 6.6: Implement `reconstruct_event_command_list` Helper (Rust):**
         *   (COMPLETE - Helper function in `core/rpgmv/common.rs` for reconstructing event command lists, used by relevant reconstructors.)
-    *   **Sub-Task 6.7: Refactor Reconstruction Logic (Rust - COMPLETE):**
+    *   **Sub-Task 6.7: Refactor Backend Data Structures & Parsers/Reconstructors (Rust - COMPLETE):**
         *   Implemented generic reconstruction helpers in `core/rpgmv/common.rs`:
             *   `reconstruct_json_generically` (COMPLETE).
             *   `reconstruct_object_array_by_id` (COMPLETE).
@@ -211,6 +214,10 @@ This document outlines a phased approach to developing the AI Game Translator ap
             *   `troops.rs`
             *   `maps.rs`
         *   All relevant unit tests for the refactored modules are passing, confirming the changes.
+        *   The `SourceStringData` (formerly `TranslatableStringEntry`) and `WorkingTranslation` (formerly `TranslatedStringEntryFromFrontend`) structs are defined in `models/translation.rs`.
+        *   All RPG Maker MV parser modules in `core/rpgmv/` (and the main `project.rs` dispatcher) have been updated to use `SourceStringData`.
+        *   All RPG Maker MV reconstructor modules in `core/rpgmv/` (and the main `project.rs` dispatcher) have been updated to use `WorkingTranslation`.
+        *   Unit tests for all parsers/reconstructors have been updated and are passing.
 7.  **ZIP Archive Creation (Rust):** (COMPLETE)
     *   `zip` crate (`zip = "4.0.0"`) was already in `src-tauri/Cargo.toml`.
     *   Created `src-tauri/src/services/zip_service.rs` and declared module in `services/mod.rs` (and `services` in `lib.rs`).
@@ -366,5 +373,6 @@ This document outlines a phased approach to developing the AI Game Translator ap
 *   Real-time translation as user types.
 *   Plugin system for users to add custom engine support or AI providers.
 *   More sophisticated offline model management (in-app downloads, updates for embedded models).
+*   **Refactor Backend Dispatch Logic:** Investigate refactoring the file-based dispatch logic in `src-tauri/src/core/rpgmv/project.rs` (specifically in `extract_translatable_strings_from_project` and `reconstruct_file_content`) to use dispatch tables (e.g., `HashMap` mapping file names to handler functions). This could improve maintainability and extensibility as more RPG Maker MV file types or other game engine file types are added. This would involve using function pointers or closures and potentially `lazy_static` or `once_cell` for static initialization of the dispatch tables.
 
 This plan is a high-level guide and can be adjusted as development progresses. 

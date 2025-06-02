@@ -7,13 +7,10 @@ use tauri_plugin_opener::OpenerExt;
 
 // Import the detection result and function from the core module
 use crate::core::game_detection::{detect_rpg_maker_mv, RpgMakerDetectionResult};
-// Import the TranslatableStringEntry for the command's return type
-use crate::core::rpgmv::common::TranslatableStringEntry;
 use std::collections::HashMap;
 use tokio::fs;
 use std::path::Path;
-use crate::models::translation::TranslatedStringEntryFromFrontend;
-// Potentially: use crate::error::CoreError; // If we define and use it here
+use crate::models::translation::{SourceStringData, WorkingTranslation} ;
 
 #[tauri::command]
 pub async fn select_project_folder_command(app_handle: AppHandle) -> Result<Option<(String, RpgMakerDetectionResult)>, ()> {
@@ -56,7 +53,7 @@ pub async fn detect_rpg_maker_mv_project_command(project_path: String) -> Result
 }
 
 #[tauri::command]
-pub async fn extract_project_strings_command(project_path: String) -> Result<Vec<TranslatableStringEntry>, String> {
+pub async fn extract_project_strings_command(project_path: String) -> Result<Vec<SourceStringData>, String> {
     // The command now delegates to the new core RPGMV project logic
     crate::core::rpgmv::project::extract_translatable_strings_from_project(&project_path)
 }
@@ -64,9 +61,9 @@ pub async fn extract_project_strings_command(project_path: String) -> Result<Vec
 #[tauri::command]
 pub async fn reconstruct_translated_project_files(
     project_path: String,
-    translated_entries: Vec<TranslatedStringEntryFromFrontend>,
+    translated_entries: Vec<WorkingTranslation>,
 ) -> Result<String, String> {
-    let mut grouped_translations: HashMap<String, Vec<&TranslatedStringEntryFromFrontend>> = HashMap::new();
+    let mut grouped_translations: HashMap<String, Vec<&WorkingTranslation>> = HashMap::new();
     for entry in &translated_entries {
         grouped_translations.entry(entry.source_file.clone()).or_default().push(entry);
     }

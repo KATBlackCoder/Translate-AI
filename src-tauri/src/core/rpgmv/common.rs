@@ -1,24 +1,8 @@
 use serde::Deserialize;
 use serde_json::Value;
-
-#[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]
-pub struct TranslatableStringEntry {
-    pub object_id: u32,        // The ID from the JSON object itself (e.g., actor.id, item.id)
-    pub text: String,          // The actual string to be translated
-    pub source_file: String,   // Relative path to the file from the project root, e.g., "www/data/Actors.json"
-    pub json_path: String,     // A string representing the path within the JSON, e.g., "[1].name"
-}
-
-#[derive(serde::Serialize, Debug)]
-pub struct TranslatedStringEntry {
-    pub object_id: u32,
-    pub original_text: String,
-    pub translated_text: String,
-    pub source_file: String,
-    pub json_path: String,
-    pub translation_source: String, // e.g., "ollama", "deepl", "glossary"
-    pub error: Option<String>,     // To capture individual translation errors
-}
+use crate::models::translation::WorkingTranslation;
+use crate::error::CoreError;
+use crate::utils::json_utils::update_value_at_path;
 
 // Represents a single command in an event's list.
 // This is used by CommonEvents.json, Troops.json event pages, and MapXXX.json events.
@@ -40,7 +24,7 @@ pub fn extract_strings_from_json_array<T: RpgMvDataObject>(
     file_content: &str,
     source_file: &str,
     file_type_name: &str, // e.g., "Actors.json" or "Armors" for error messages
-) -> Result<Vec<TranslatableStringEntry>, String> {
+) -> Result<Vec<crate::models::translation::SourceStringData>, String> {
     // Attempt to parse the whole file as Vec<Option<T>> to handle nulls gracefully.
     // This is a common pattern in RPG Maker MV JSON files (e.g., first element is often null).
     let data_array_options: Vec<Option<T>> = serde_json::from_str(file_content)
@@ -64,9 +48,9 @@ pub fn extract_strings_from_json_array<T: RpgMvDataObject>(
 
             for (field_key, field_value_ref) in item.get_translatable_fields() {
                 if !field_value_ref.trim().is_empty() {
-                    entries.push(TranslatableStringEntry {
+                    entries.push(crate::models::translation::SourceStringData {
                         object_id: item.get_id(),
-                        text: field_value_ref.clone(),
+                        original_text: field_value_ref.clone(),
                         source_file: source_file.to_string(),
                         json_path: format!("[{}].{}", index, field_key),
                     });
@@ -85,19 +69,19 @@ pub fn extract_strings_from_json_array<T: RpgMvDataObject>(
 ///
 /// # Arguments
 /// * `commands` - A slice of `EventCommand`s to process.
-/// * `entry_object_id` - The ID to be used for `TranslatableStringEntry.object_id` (e.g., CommonEvent ID, Troop ID, Map Event ID).
+/// * `entry_object_id` - The ID to be used for `SourceStringData.object_id` (e.g., CommonEvent ID, Troop ID, Map Event ID).
 /// * `source_file` - The relative path of the source JSON file.
 /// * `json_path_prefix_for_command_list` - The JSON path string that leads up to the command list itself 
 ///   (e.g., "[1].list" or "events[0].pages[0].list").
 ///
 /// # Returns
-/// A vector of `TranslatableStringEntry` extracted from the commands.
+/// A vector of `crate::models::translation::SourceStringData` extracted from the commands.
 pub fn extract_translatable_strings_from_event_command_list(
     commands: &[EventCommand],
     entry_object_id: u32,
     source_file: &str,
     json_path_prefix_for_command_list: &str,
-) -> Vec<TranslatableStringEntry> {
+) -> Vec<crate::models::translation::SourceStringData> {
     let mut entries = Vec::new();
 
     for (cmd_idx, command) in commands.iter().enumerate() {
@@ -106,9 +90,9 @@ pub fn extract_translatable_strings_from_event_command_list(
                 if command.parameters.len() > 4 {
                     if let Value::String(speaker_name) = &command.parameters[4] {
                         if !speaker_name.trim().is_empty() {
-                            entries.push(TranslatableStringEntry {
+                            entries.push(crate::models::translation::SourceStringData {
                                 object_id: entry_object_id,
-                                text: speaker_name.clone(),
+                                original_text: speaker_name.clone(),
                                 source_file: source_file.to_string(),
                                 json_path: format!(
                                     "{}[{}].parameters[4]",
@@ -123,9 +107,9 @@ pub fn extract_translatable_strings_from_event_command_list(
                 if !command.parameters.is_empty() {
                     if let Value::String(text_line) = &command.parameters[0] {
                         if !text_line.trim().is_empty() {
-                            entries.push(TranslatableStringEntry {
+                            entries.push(crate::models::translation::SourceStringData {
                                 object_id: entry_object_id,
-                                text: text_line.clone(),
+                                original_text: text_line.clone(),
                                 source_file: source_file.to_string(),
                                 json_path: format!(
                                     "{}[{}].parameters[0]",
@@ -142,9 +126,9 @@ pub fn extract_translatable_strings_from_event_command_list(
                         for (choice_idx, choice_val) in choices.iter().enumerate() {
                             if let Value::String(choice_text) = choice_val {
                                 if !choice_text.trim().is_empty() {
-                                    entries.push(TranslatableStringEntry {
+                                    entries.push(crate::models::translation::SourceStringData {
                                         object_id: entry_object_id,
-                                        text: choice_text.clone(),
+                                        original_text: choice_text.clone(),
                                         source_file: source_file.to_string(),
                                         json_path: format!(
                                             "{}[{}].parameters[0][{}]",
@@ -161,9 +145,9 @@ pub fn extract_translatable_strings_from_event_command_list(
                 if !command.parameters.is_empty() {
                     if let Value::String(scroll_text) = &command.parameters[0] {
                         if !scroll_text.trim().is_empty() {
-                            entries.push(TranslatableStringEntry {
+                            entries.push(crate::models::translation::SourceStringData {
                                 object_id: entry_object_id,
-                                text: scroll_text.clone(),
+                                original_text: scroll_text.clone(),
                                 source_file: source_file.to_string(),
                                 json_path: format!(
                                     "{}[{}].parameters[0]",
@@ -185,16 +169,13 @@ pub fn extract_translatable_strings_from_event_command_list(
     entries
 }
 
-use crate::models::translation::TranslatedStringEntryFromFrontend;
-use crate::error::CoreError;
-use crate::utils::json_utils::update_value_at_path;
 
 /// Reconstructs an event command list by injecting translations.
 ///
 /// # Arguments
 /// * `command_list_value_array` - A mutable reference to `Vec<Value>`, representing the command list.
 /// * `parent_object_id` - The ID of the parent object (e.g., Common Event ID, Map Event ID).
-/// * `translations` - A slice of `TranslatedStringEntryFromFrontend` relevant to this command list.
+/// * `translations` - A slice of `WorkingTranslation` relevant to this command list.
 /// * `json_path_prefix_for_command_list` - The JSON path prefix for this command list (e.g., "[1].list").
 ///
 /// # Returns
@@ -203,7 +184,7 @@ use crate::utils::json_utils::update_value_at_path;
 pub fn reconstruct_event_command_list(
     command_list_value_array: &mut Vec<Value>, // Mutably borrow the array of commands
     parent_object_id: u32,
-    translations: &[&TranslatedStringEntryFromFrontend],
+    translations: &[&WorkingTranslation],
     json_path_prefix_for_command_list: &str, // e.g. "[1].list"
 ) -> Result<(), CoreError> { // Return a Result, CoreError for now can be generic or specific
     for entry in translations {
@@ -263,7 +244,7 @@ pub fn reconstruct_event_command_list(
         }
 
         let text_to_insert = if entry.error.is_some() {
-            &entry.text
+            &entry.original_text
         } else {
             &entry.translated_text
         };
@@ -289,7 +270,7 @@ pub fn reconstruct_event_command_list(
 /// directly based on `json_path` relative to the root of the JSON document.
 pub fn reconstruct_json_generically(
     original_json_str: &str,
-    translations: &[&TranslatedStringEntryFromFrontend], // All translations for this file
+    translations: &[&WorkingTranslation], // All translations for this file
 ) -> Result<String, CoreError> {
     let mut value: serde_json::Value = serde_json::from_str(original_json_str)
         .map_err(|e| CoreError::JsonParse(format!("Failed to parse original JSON for generic reconstruction: {}. Snippet: {:.100}", e, original_json_str.chars().take(100).collect::<String>())))?;
@@ -298,7 +279,7 @@ pub fn reconstruct_json_generically(
         // Use translated_text if available and not empty, and no error; otherwise use the original text.
         let text_to_insert = 
             if trans_entry.error.is_some() || trans_entry.translated_text.is_empty() {
-                trans_entry.text.as_str()
+                trans_entry.original_text.as_str()
             } else {
                 trans_entry.translated_text.as_str()
             };
@@ -326,7 +307,7 @@ pub fn reconstruct_json_generically(
 /// The `json_path` in translations is relative to the found object.
 pub fn reconstruct_object_array_by_id(
     original_json_str: &str,
-    translations: &[&TranslatedStringEntryFromFrontend],
+    translations: &[&WorkingTranslation],
     file_type_name_for_logging: &str, // e.g., "Actors.json"
 ) -> Result<String, CoreError> {
     let mut json_array: Vec<Value> = serde_json::from_str(original_json_str)
@@ -345,7 +326,7 @@ pub fn reconstruct_object_array_by_id(
                     found_object = true;
                     let text_to_insert = 
                         if entry.error.is_some() || entry.translated_text.is_empty() {
-                            entry.text.as_str()
+                            entry.original_text.as_str()
                         } else {
                             entry.translated_text.as_str()
                         };
@@ -381,7 +362,7 @@ pub fn reconstruct_object_array_by_id(
 /// The `json_path` has the format `"[index].field.subfield"`.
 pub fn reconstruct_object_array_by_path_index(
     original_json_str: &str,
-    translations: &[&TranslatedStringEntryFromFrontend],
+    translations: &[&WorkingTranslation],
     file_type_name_for_logging: &str, // e.g., "Classes.json"
 ) -> Result<String, CoreError> {
     let mut json_array: Vec<Value> = serde_json::from_str(original_json_str)
@@ -441,7 +422,7 @@ pub fn reconstruct_object_array_by_path_index(
 
             let text_to_insert = 
                 if entry.error.is_some() || entry.translated_text.is_empty() {
-                    entry.text.as_str()
+                    entry.original_text.as_str()
                 } else {
                     entry.translated_text.as_str()
                 };

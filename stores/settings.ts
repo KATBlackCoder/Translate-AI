@@ -1,17 +1,18 @@
 import { defineStore } from 'pinia';
 import { ref } from 'vue';
+import type { LanguageOption, EngineOption } from '~/types/setting';
 
 // Define a simple type for language options for clarity
-export interface LanguageOption {
-  id: string;
-  label: string;
-}
+// export interface LanguageOption {
+//   id: string;
+//   label: string;
+// }
 
 // Define a type for engine options
-export interface EngineOption {
-  id: string;
-  label: string;
-}
+// export interface EngineOption {
+//   id: string;
+//   label: string;
+// }
 
 export const useSettingsStore = defineStore('settings', () => {
   // --- State ---

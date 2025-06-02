@@ -1,72 +1,96 @@
 #[cfg(test)]
-mod common_events_extraction_tests {
-    // use std::path::Path;
-    use crate::core::rpgmv::common::TranslatableStringEntry;
-    // use crate::core::rpgmv::project::extract_translatable_strings_from_project;
-    use crate::tests::common_test_utils::setup_and_extract_all_strings;
+mod tests {
+    use crate::core::rpgmv::common_events;
+    use crate::models::translation::{SourceStringData, WorkingTranslation};
+    use crate::tests::common_test_utils::setup_project_and_extract_strings;
+    use serde_json::json;
+
+    const TEST_PROJECT_SUBPATH: &str = "test_projects/rpg_mv_project_1";
+    const COMMON_EVENTS_JSON_FILENAME: &str = "CommonEvents.json";
+    const COMMON_EVENTS_JSON_FIXTURE_PATH: &str = "www/data/CommonEvents.json";
+
+    fn create_event_translation(
+        object_id: u32, 
+        original_text: &str, 
+        translated_text: &str, 
+        json_path: &str,
+        source_file: &str
+    ) -> WorkingTranslation {
+        WorkingTranslation {
+            object_id,
+            original_text: original_text.to_string(),
+            translated_text: translated_text.to_string(),
+            source_file: source_file.to_string(),
+            json_path: json_path.to_string(),
+            translation_source: "test_engine".to_string(),
+            error: None,
+        }
+    }
 
     #[test]
-    fn test_common_events_extraction() {
-        let all_extracted_strings = setup_and_extract_all_strings();
-
-        let common_event_strings: Vec<&TranslatableStringEntry> = all_extracted_strings
-            .iter()
-            .filter(|e| e.source_file.ends_with("CommonEvents.json"))
-            .collect();
-
-        // --- COMMONITEMS.JSON --- 
-        let expected_common_event_strings_count = 1084; 
-        if common_event_strings.len() != expected_common_event_strings_count {
-            eprintln!("Found {} strings from CommonEvents.json, but expected {}.", common_event_strings.len(), expected_common_event_strings_count);
-            for (i, entry) in common_event_strings.iter().take(25).enumerate() { // Show more examples
-                eprintln!("  CommonEvent String Example {}: {:?}", i + 1, entry);
-            }
-        }
-        assert_eq!(common_event_strings.len(), expected_common_event_strings_count, "Incorrect number of strings extracted from CommonEvents.json.");
-
-        // Spot check for Common Event ID 1, name "TPチャージ"
-        let expected_event_id_1 = 1;
-        let expected_event_name_1 = "TPチャージ";
-        let expected_json_path_name_1 = "[1].name";
-        
-        let event_name_entry_1 = common_event_strings.iter().find(|e| 
-            e.object_id == expected_event_id_1 && e.json_path == expected_json_path_name_1
+    fn test_extract_common_events_strings() {
+        let (_temp_dir, _project_root_path, extracted_strings) = setup_project_and_extract_strings(
+            TEST_PROJECT_SUBPATH, 
+            &[COMMON_EVENTS_JSON_FIXTURE_PATH], 
+            COMMON_EVENTS_JSON_FILENAME
         );
-        assert!(event_name_entry_1.is_some(), "Could not find common event name for ID {} with path {}", expected_event_id_1, expected_json_path_name_1);
-        assert_eq!(event_name_entry_1.unwrap().text, expected_event_name_1, "Incorrect text for common event name (ID {}, path {}).", expected_event_id_1, expected_json_path_name_1);
 
-        // Spot check for Common Event ID 6, command text
-        let expected_event_id_6 = 6;
-        let expected_command_text_6 = "\u{3000}\u{3000}\u{3000}\u{3000}\u{3000}\u{3000}恥獄隷奴セレン体験版へようこそ！"; // "　　　　　　恥獄隷奴セレン体験版へようこそ！"
-        let expected_json_path_command_6 = "[6].list[2].parameters[0]";
-        
-        let command_text_entry_6 = common_event_strings.iter().find(|e| 
-            e.object_id == expected_event_id_6 && e.json_path == expected_json_path_command_6
+        // Based on test_projects/rpg_mv_project_1/www/data/CommonEvents.json
+        // Event 1 (Sample Common Event): name, list[0].parameters[4] (Show Text name), list[1].parameters[0] (Show Text line 1), list[2].parameters[0] (Show Choices choice 1), list[2].parameters[0] (Show Choices choice 2)
+        // Total = 5 strings for Event 1
+        // Event 2 (Another Event): name, list[0].parameters[0] (Show Text line 1)
+        // Total = 2 strings for Event 2
+        // Grand Total = 7 strings
+        assert_eq!(extracted_strings.len(), 7, "Incorrect number of strings from CommonEvents.json");
+
+        let event1_name = extracted_strings.iter().find(|s| s.object_id == 1 && s.json_path == "[1].name").unwrap();
+        assert_eq!(event1_name.original_text, "Sample Common Event");
+        assert_eq!(event1_name.source_file, "www/data/CommonEvents.json");
+
+        let event1_showtext_name = extracted_strings.iter().find(|s| s.object_id == 1 && s.json_path == "[1].list[0].parameters[4]").unwrap();
+        assert_eq!(event1_showtext_name.original_text, "Narrator");
+
+        let event1_choice2 = extracted_strings.iter().find(|s| s.object_id == 1 && s.json_path == "[1].list[2].parameters[0][1]").unwrap(); // Choice 2 is at index 1 of parameters[0] array
+        assert_eq!(event1_choice2.original_text, "Choice B");
+    }
+
+    #[test]
+    fn test_reconstruct_common_events_json() {
+        let (temp_dir, project_root_path, _) = setup_project_and_extract_strings(
+            TEST_PROJECT_SUBPATH, 
+            &[COMMON_EVENTS_JSON_FIXTURE_PATH], 
+            COMMON_EVENTS_JSON_FILENAME
         );
-        assert!(command_text_entry_6.is_some(), "Could not find command text for event ID {} with path {}", expected_event_id_6, expected_json_path_command_6);
-        assert_eq!(command_text_entry_6.unwrap().text, expected_command_text_6, "Incorrect text for command (event ID {}, path {}).", expected_event_id_6, expected_json_path_command_6);
+        let original_json_path = project_root_path.join("www/data").join(COMMON_EVENTS_JSON_FILENAME);
+        let original_json_str = std::fs::read_to_string(original_json_path).unwrap();
 
-        // Spot check for Common Event ID 20, name "降参"
-        let expected_event_id_20 = 20;
-        let expected_event_name_20 = "降参";
-        let expected_json_path_name_20 = "[20].name";
-        
-        let event_name_entry_20 = common_event_strings.iter().find(|e| 
-            e.object_id == expected_event_id_20 && e.json_path == expected_json_path_name_20
-        );
-        assert!(event_name_entry_20.is_some(), "Could not find common event name for ID {} with path {}", expected_event_id_20, expected_json_path_name_20);
-        assert_eq!(event_name_entry_20.unwrap().text, expected_event_name_20, "Incorrect text for common event name (ID {}, path {}).", expected_event_id_20, expected_json_path_name_20);
-        
-        // Spot check for Common Event ID 20, command text "立場がわからず・・・・"
-        let expected_command_text_20_alt = "立場がわからず・・・・";
-        let expected_json_path_command_20_alt = "[20].list[5].parameters[0]";
+        let relative_path = format!("www/data/{}", COMMON_EVENTS_JSON_FILENAME);
 
-        let command_text_entry_20_alt = common_event_strings.iter().find(|e| 
-            e.object_id == expected_event_id_20 && e.json_path == expected_json_path_command_20_alt
-        );
-        assert!(command_text_entry_20_alt.is_some(), "Could not find command text for event ID {} with path {}", expected_event_id_20, expected_json_path_command_20_alt);
-        assert_eq!(command_text_entry_20_alt.unwrap().text, expected_command_text_20_alt, "Incorrect text for command (event ID {}, path {}).", expected_event_id_20, expected_json_path_command_20_alt);
+        let translations = vec![
+            create_event_translation(1, "Sample Common Event", "Evento Común de Muestra", "[1].name", &relative_path),
+            create_event_translation(1, "Narrator", "Narrador", "[1].list[0].parameters[4]", &relative_path),
+            create_event_translation(1, "This is the first line.", "Esta es la primera línea.", "[1].list[1].parameters[0]", &relative_path),
+            create_event_translation(1, "Choice A", "Opción A", "[1].list[2].parameters[0][0]", &relative_path),
+            // Skip translating Choice B for Event 1
+            create_event_translation(2, "Another Event", "Otro Evento", "[2].name", &relative_path),
+            create_event_translation(2, "Hello from event 2!", "¡Hola desde el evento 2!", "[2].list[0].parameters[0]", &relative_path),
+        ];
+        let translations_refs: Vec<&WorkingTranslation> = translations.iter().collect();
 
-        println!("Successfully validated {} strings from CommonEvents.json.", common_event_strings.len());
+        let result = common_events::reconstruct_common_events_json(&original_json_str, translations_refs);
+        assert!(result.is_ok(), "Reconstruction failed: {:?}", result.err());
+        let reconstructed_json_str = result.unwrap();
+        let recon_val: serde_json::Value = serde_json::from_str(&reconstructed_json_str).unwrap();
+
+        assert_eq!(recon_val[1]["name"].as_str().unwrap(), "Evento Común de Muestra");
+        assert_eq!(recon_val[1]["list"][0]["parameters"][4].as_str().unwrap(), "Narrador");
+        assert_eq!(recon_val[1]["list"][1]["parameters"][0].as_str().unwrap(), "Esta es la primera línea.");
+        assert_eq!(recon_val[1]["list"][2]["parameters"][0][0].as_str().unwrap(), "Opción A");
+        assert_eq!(recon_val[1]["list"][2]["parameters"][0][1].as_str().unwrap(), "Choice B"); // Original
+
+        assert_eq!(recon_val[2]["name"].as_str().unwrap(), "Otro Evento");
+        assert_eq!(recon_val[2]["list"][0]["parameters"][0].as_str().unwrap(), "¡Hola desde el evento 2!");
+
+        temp_dir.close().unwrap();
     }
 } 

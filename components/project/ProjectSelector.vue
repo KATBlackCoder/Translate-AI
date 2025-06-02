@@ -86,10 +86,8 @@
 </template>
 
 <script lang="ts" setup>
-import {
-  useProjectStore,
-  type RpgMakerDetectionResultType,
-} from "~/stores/project";
+import { useProjectStore } from "~/stores/project";
+import type { RpgMakerDetectionResultType } from "~/types/project";
 // ProjectBatchTranslationControls is auto-imported by Nuxt 3 from components/project/BatchTranslationControls.vue
 
 const projectStore = useProjectStore();

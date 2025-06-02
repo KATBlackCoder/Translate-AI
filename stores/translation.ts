@@ -2,23 +2,7 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 import { useToast, navigateTo } from '#imports' // Assuming navigateTo is auto-imported or available
-
-// Re-defining these here for now. Consider a shared types file if they grow.
-export interface TranslatableStringEntry {
-  object_id: number;
-  text: string;
-  source_file: string;
-  json_path: string;
-}
-export interface TranslatedStringEntry {
-  object_id: number;
-  original_text: string;
-  translated_text: string;
-  source_file: string;
-  json_path: string;
-  translation_source: string;
-  error: string | null;
-}
+import type { SourceStringData, WorkingTranslation } from '~/types/translation'; // Updated import
 
 // LanguageOption interface removed as it's now in stores/settings.ts
 
@@ -30,7 +14,7 @@ export const useTranslationStore = defineStore('translation', () => {
 
   // State for batch translation (moved from project.ts)
   const isLoadingBatchTranslation = ref(false)
-  const batchTranslatedStrings = ref<TranslatedStringEntry[]>([])
+  const batchTranslatedStrings = ref<WorkingTranslation[]>([]) // Updated type
   const batchTranslationError = ref<string | null>(null)
 
   // --- Helper for error messages ---
@@ -42,7 +26,7 @@ export const useTranslationStore = defineStore('translation', () => {
 
   // --- Actions ---
   async function performBatchTranslation(
-    entriesToTranslate: TranslatableStringEntry[],
+    entriesToTranslate: SourceStringData[], // Updated type
     sourceLanguage: string, 
     targetLanguage: string, 
     engineName: string
@@ -57,7 +41,7 @@ export const useTranslationStore = defineStore('translation', () => {
     batchTranslationError.value = null;
 
     try {
-      const results: TranslatedStringEntry[] = await invoke('batch_translate_strings_command', {
+      const results: WorkingTranslation[] = await invoke('batch_translate_strings_command', { // Updated type
         entries: entriesToTranslate,
         sourceLanguage,
         targetLanguage,

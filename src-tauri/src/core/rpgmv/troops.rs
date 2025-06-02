@@ -1,10 +1,13 @@
 use serde::Deserialize;
 use serde_json::Value;
+use crate::models::translation::{SourceStringData, WorkingTranslation};
 use crate::core::rpgmv::common::{
     EventCommand, 
-    TranslatableStringEntry,
-    extract_translatable_strings_from_event_command_list
+    extract_translatable_strings_from_event_command_list,
+    reconstruct_event_command_list
 };
+use crate::error::CoreError;
+use crate::utils::json_utils::update_value_at_path;
 
 #[derive(Deserialize, Debug, Clone)]
 struct TroopPage {
@@ -24,7 +27,7 @@ struct Troop {
 pub fn extract_strings(
     file_content: &str,
     source_file: &str,
-) -> Result<Vec<TranslatableStringEntry>, String> {
+) -> Result<Vec<SourceStringData>, String> {
     let troops_json: Value = serde_json::from_str(file_content)
         .map_err(|e| format!("Failed to parse Troops.json: {}", e))?;
 
@@ -47,9 +50,9 @@ pub fn extract_strings(
 
                     // 1. Extract Troop Name
                     if !troop.name.trim().is_empty() {
-                        entries.push(TranslatableStringEntry {
+                        entries.push(SourceStringData {
                             object_id: troop.id,
-                            text: troop.name.clone(),
+                            original_text: troop.name.clone(),
                             source_file: source_file.to_string(),
                             json_path: format!("[{}].name", troop_idx),
                         });
@@ -84,14 +87,10 @@ pub fn extract_strings(
     Ok(entries)
 } 
 
-use crate::error::CoreError;
-use crate::models::translation::TranslatedStringEntryFromFrontend;
-use crate::utils::json_utils::update_value_at_path;
-use super::common::reconstruct_event_command_list;
 
 pub fn reconstruct_troops_json(
     original_json_str: &str,
-    translations: Vec<&TranslatedStringEntryFromFrontend>,
+    translations: Vec<&WorkingTranslation>,
 ) -> Result<String, CoreError> {
     let mut troops_json_array: Vec<Value> = serde_json::from_str(original_json_str)
         .map_err(|e| CoreError::JsonParse(format!("Failed to parse Troops.json: {}", e)))?;
@@ -131,7 +130,7 @@ pub fn reconstruct_troops_json(
         }
 
         let text_to_insert = if entry.error.is_some() {
-            &entry.text
+            &entry.original_text
         } else {
             &entry.translated_text
         };
@@ -156,7 +155,9 @@ pub fn reconstruct_troops_json(
     for troop_idx_val in 0..troops_json_array.len() {
         if troops_json_array[troop_idx_val].is_null() { continue; }
 
-        let current_troop_id = troops_json_array[troop_idx_val].get("id").and_then(|id| id.as_u64()).map_or(0, |id| id as u32);
+        let current_troop_id = troops_json_array[troop_idx_val].get("id")
+            .and_then(|id| id.as_u64())
+            .map_or(0, |id| id as u32);
         if current_troop_id == 0 { continue; }
 
         if let Some(pages_value) = troops_json_array[troop_idx_val].get_mut("pages") {
@@ -164,7 +165,7 @@ pub fn reconstruct_troops_json(
                 for page_idx in 0..pages_array.len() {
                     let page_json_path_prefix = format!("[{}].pages.[{}].list", troop_idx_val, page_idx);
                     
-                    let relevant_translations_for_page: Vec<&TranslatedStringEntryFromFrontend> = translations
+                    let relevant_translations_for_page: Vec<&WorkingTranslation> = translations
                         .iter()
                         .filter(|t| t.object_id == current_troop_id && t.json_path.starts_with(&page_json_path_prefix))
                         .map(|&t_ref| t_ref)
@@ -256,56 +257,62 @@ mod tests {
     fn test_reconstruct_troops_basic() {
         let original_json_str = TEST_TROOPS_JSON;
         let translations = vec![
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation {
                 object_id: 1,
-                text: "こうもり*2".to_string(),
+                original_text: "こうもり*2".to_string(),
                 source_file: "www/data/Troops.json".to_string(),
                 json_path: "[1].name".to_string(),
                 translated_text: "Bat*2 (EN)".to_string(),
+                translation_source: "test".to_string(),
                 error: None,
             },
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation {
                 object_id: 1,
-                text: "Bat A".to_string(),
+                original_text: "Bat A".to_string(),
                 source_file: "www/data/Troops.json".to_string(),
                 json_path: "[1].pages.[0].list.[0].parameters.[4]".to_string(),
                 translated_text: "Murciélago A".to_string(),
+                translation_source: "test".to_string(),
                 error: None,
             },
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation {
                 object_id: 1,
-                text: "Screech!".to_string(),
+                original_text: "Screech!".to_string(),
                 source_file: "www/data/Troops.json".to_string(),
                 json_path: "[1].pages.[0].list.[1].parameters.[0]".to_string(),
                 translated_text: "¡Chillido!".to_string(),
+                translation_source: "test".to_string(),
                 error: None,
             },
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation {
                 object_id: 9,
-                text: "サンプル4　暗殺者".to_string(),
+                original_text: "サンプル4　暗殺者".to_string(),
                 source_file: "www/data/Troops.json".to_string(),
-                json_path: "[2].name".to_string(), // Note: ID 9 is at index 2 in TEST_TROOPS_JSON
+                json_path: "[2].name".to_string(),
                 translated_text: "Sample 4 Assassin (EN)".to_string(),
+                translation_source: "test".to_string(),
                 error: None,
             },
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation {
                 object_id: 9,
-                text: "だ、誰だお前は！！！".to_string(),
+                original_text: "だ、誰だお前は！！！".to_string(),
                 source_file: "www/data/Troops.json".to_string(),
                 json_path: "[2].pages.[0].list.[2].parameters.[0]".to_string(),
                 translated_text: "W-who are you!!! (EN)".to_string(),
+                translation_source: "test".to_string(),
                 error: None,
             },
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation {
                 object_id: 9,
-                text: "Second page comment".to_string(),
+                original_text: "Second page comment".to_string(),
                 source_file: "www/data/Troops.json".to_string(),
                 json_path: "[2].pages.[1].list.[0].parameters.[0]".to_string(),
                 translated_text: "Comentario de segunda página".to_string(),
+                translation_source: "test".to_string(),
                 error: None,
             },
         ];
-        let translations_ref: Vec<&TranslatedStringEntryFromFrontend> = translations.iter().collect();
+        let translations_ref: Vec<&WorkingTranslation> = translations.iter().collect();
 
         let result = reconstruct_troops_json(&original_json_str, translations_ref);
         assert!(result.is_ok(), "reconstruct_troops_json failed: {:?}", result.err());
@@ -328,29 +335,31 @@ mod tests {
     fn test_reconstruct_troops_with_translation_error() {
         let original_json_str = TEST_TROOPS_JSON;
         let translations = vec![
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation {
                 object_id: 1,
-                text: "こうもり*2".to_string(),
+                original_text: "こうもり*2".to_string(),
                 source_file: "www/data/Troops.json".to_string(),
                 json_path: "[1].name".to_string(),
                 translated_text: "Bat*2 (Failed)".to_string(),
+                translation_source: "test".to_string(),
                 error: Some("AI Error".to_string()),
             },
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation {
                 object_id: 1,
-                text: "Screech!".to_string(),
+                original_text: "Screech!".to_string(),
                 source_file: "www/data/Troops.json".to_string(),
                 json_path: "[1].pages.[0].list.[1].parameters.[0]".to_string(),
                 translated_text: "¡Chillido! (Bueno)".to_string(),
+                translation_source: "test".to_string(),
                 error: None,
             },
         ];
-        let translations_ref: Vec<&TranslatedStringEntryFromFrontend> = translations.iter().collect();
+        let translations_ref: Vec<&WorkingTranslation> = translations.iter().collect();
         let result = reconstruct_troops_json(&original_json_str, translations_ref);
         assert!(result.is_ok());
         let reconstructed_json: Value = serde_json::from_str(&result.unwrap()).unwrap();
 
-        assert_eq!(reconstructed_json[1]["name"].as_str().unwrap(), "こうもり*2"); // Original due to error
+        assert_eq!(reconstructed_json[1]["name"].as_str().unwrap(), "こうもり*2");
         assert_eq!(reconstructed_json[1]["pages"][0]["list"][1]["parameters"][0].as_str().unwrap(), "¡Chillido! (Bueno)");
     }
 
@@ -358,16 +367,17 @@ mod tests {
     fn test_reconstruct_troops_non_existent_id_in_json_path() {
         let original_json_str = TEST_TROOPS_JSON;
         let translations = vec![
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation {
                 object_id: 1,
-                text: "Data".to_string(),
+                original_text: "Data".to_string(),
                 source_file: "www/data/Troops.json".to_string(),
-                json_path: "[99].name".to_string(), // Non-existent troop index
+                json_path: "[99].name".to_string(),
                 translated_text: "Phantom Name".to_string(),
+                translation_source: "test".to_string(),
                 error: None,
             },
         ];
-        let translations_ref: Vec<&TranslatedStringEntryFromFrontend> = translations.iter().collect();
+        let translations_ref: Vec<&WorkingTranslation> = translations.iter().collect();
         let result = reconstruct_troops_json(&original_json_str, translations_ref);
         assert!(result.is_ok());
         let reconstructed_value: Value = serde_json::from_str(&result.unwrap()).expect("Failed to parse reconstructed");
@@ -379,16 +389,17 @@ mod tests {
     fn test_reconstruct_troops_id_mismatch_between_path_and_entry() {
         let original_json_str = TEST_TROOPS_JSON;
         let translations = vec![
-            TranslatedStringEntryFromFrontend {
-                object_id: 9, // Entry says object_id is 9
-                text: "こうもり*2".to_string(),
+            WorkingTranslation {
+                object_id: 9,
+                original_text: "こうもり*2".to_string(),
                 source_file: "www/data/Troops.json".to_string(),
-                json_path: "[1].name".to_string(), // but path points to troop with id 1
+                json_path: "[1].name".to_string(),
                 translated_text: "Mismatched Name".to_string(),
+                translation_source: "test".to_string(),
                 error: None,
             },
         ];
-        let translations_ref: Vec<&TranslatedStringEntryFromFrontend> = translations.iter().collect();
+        let translations_ref: Vec<&WorkingTranslation> = translations.iter().collect();
         let result = reconstruct_troops_json(&original_json_str, translations_ref);
         assert!(result.is_ok());
         let reconstructed_value: Value = serde_json::from_str(&result.unwrap()).expect("Failed to parse reconstructed");
@@ -401,24 +412,26 @@ mod tests {
     fn test_reconstruct_troops_non_existent_internal_path() {
         let original_json_str = TEST_TROOPS_JSON;
         let translations = vec![
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation {
                 object_id: 1,
-                text: "Value".to_string(),
+                original_text: "Value".to_string(),
                 source_file: "www/data/Troops.json".to_string(),
                 json_path: "[1].inventedField".to_string(),
                 translated_text: "Translated Invented".to_string(),
+                translation_source: "test".to_string(),
                 error: None,
             },
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation {
                 object_id: 1,
-                text: "Value".to_string(),
+                original_text: "Value".to_string(),
                 source_file: "www/data/Troops.json".to_string(),
                 json_path: "[1].pages.[0].list.[0].parameters.[99]".to_string(),
                 translated_text: "Translated Deep Invented".to_string(),
+                translation_source: "test".to_string(),
                 error: None,
             },
         ];
-        let translations_ref: Vec<&TranslatedStringEntryFromFrontend> = translations.iter().collect();
+        let translations_ref: Vec<&WorkingTranslation> = translations.iter().collect();
         let result = reconstruct_troops_json(&original_json_str, translations_ref);
         assert!(result.is_ok());
         let reconstructed_value: Value = serde_json::from_str(&result.unwrap()).expect("Failed to parse reconstructed");
@@ -429,8 +442,8 @@ mod tests {
     #[test]
     fn test_reconstruct_troops_empty_translations_list() {
         let original_json_str = TEST_TROOPS_JSON;
-        let translations: Vec<TranslatedStringEntryFromFrontend> = Vec::new();        
-        let translations_ref: Vec<&TranslatedStringEntryFromFrontend> = translations.iter().collect();
+        let translations: Vec<WorkingTranslation> = Vec::new();        
+        let translations_ref: Vec<&WorkingTranslation> = translations.iter().collect();
         let result = reconstruct_troops_json(&original_json_str, translations_ref);
         assert!(result.is_ok());
         let reconstructed_value: Value = serde_json::from_str(&result.unwrap()).expect("Failed to parse reconstructed");
@@ -442,7 +455,7 @@ mod tests {
     fn test_reconstruct_troops_invalid_original_json() {
         let original_json_str = r#"[null, {"id":1, "name":"Bat"}]Broken"#; 
         let translations = vec![ /* ... */ ];
-        let translations_ref: Vec<&TranslatedStringEntryFromFrontend> = translations.iter().collect();
+        let translations_ref: Vec<&WorkingTranslation> = translations.iter().collect();
         let result = reconstruct_troops_json(original_json_str, translations_ref);
         assert!(result.is_err());
         match result.err().unwrap() {

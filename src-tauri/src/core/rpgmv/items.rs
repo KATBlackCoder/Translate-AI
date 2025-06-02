@@ -1,14 +1,11 @@
 use serde::Deserialize;
 use super::common::{
-    TranslatableStringEntry,
     RpgMvDataObject,
     extract_strings_from_json_array,
     reconstruct_object_array_by_id
 };
-use serde_json::Value;
-use crate::models::translation::TranslatedStringEntryFromFrontend;
+use crate::models::translation::{SourceStringData, WorkingTranslation};
 use crate::error::CoreError;
-use crate::utils::json_utils::update_value_at_path;
 
 #[derive(Deserialize, Debug)]
 struct Item {
@@ -36,15 +33,15 @@ impl RpgMvDataObject for Item {
 pub fn extract_strings(
     file_content: &str,
     source_file: &str,
-) -> Result<Vec<TranslatableStringEntry>, String> {
+) -> Result<Vec<SourceStringData>, String> {
     extract_strings_from_json_array::<Item>(file_content, source_file, "Items.json")
 }
 
 pub fn reconstruct_items_json(
     original_json_str: &str,
-    translations: Vec<&TranslatedStringEntryFromFrontend>,
+    translations: Vec<&WorkingTranslation>,
 ) -> Result<String, CoreError> {
-    super::common::reconstruct_object_array_by_id(
+    reconstruct_object_array_by_id(
         original_json_str,
         &translations,
         "Items.json"
@@ -54,9 +51,7 @@ pub fn reconstruct_items_json(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde_json::Value;
-    use crate::models::translation::TranslatedStringEntryFromFrontend;
-    use crate::error::CoreError; // Ensure CoreError is in scope for tests if needed for matching
+    use serde_json::Value; 
 
     const TEST_ITEMS_JSON: &str = r#"[
         null,
@@ -72,51 +67,56 @@ mod tests {
 
         let translations = vec![
             // Translate Potion (ID 1) name and description
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation {
                 object_id: 1,
-                text: "ポーション".to_string(),
+                original_text: "ポーション".to_string(),
                 source_file: "www/data/Items.json".to_string(),
                 json_path: "name".to_string(),
                 translated_text: "Potion (EN)".to_string(),
+                translation_source: "test".to_string(),
                 error: None,
             },
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation {
                 object_id: 1,
-                text: "".to_string(), // Original description is empty
+                original_text: "".to_string(), // Original description is empty
                 source_file: "www/data/Items.json".to_string(),
                 json_path: "description".to_string(),
                 translated_text: "Heals a small amount of HP.".to_string(),
+                translation_source: "test".to_string(),
                 error: None,
             },
              // Translate Magic Water (ID 2) name, leave note empty as it was
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation {
                 object_id: 2,
-                text: "マジックウォーター".to_string(),
+                original_text: "マジックウォーター".to_string(),
                 source_file: "www/data/Items.json".to_string(),
                 json_path: "name".to_string(),
                 translated_text: "Magic Water (EN)".to_string(),
+                translation_source: "test".to_string(),
                 error: None,
             },
             // Translate Item 5 name and note
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation {
                 object_id: 5,
-                text: "アイテム　↓".to_string(),
+                original_text: "アイテム　↓".to_string(),
                 source_file: "www/data/Items.json".to_string(),
                 json_path: "name".to_string(),
                 translated_text: "Item Placeholder (EN)".to_string(),
+                translation_source: "test".to_string(),
                 error: None,
             },
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation {
                 object_id: 5,
-                text: "<拡張説明:>".to_string(),
+                original_text: "<拡張説明:>".to_string(),
                 source_file: "www/data/Items.json".to_string(),
                 json_path: "note".to_string(),
                 translated_text: "<Extended Desc: (EN)>".to_string(),
+                translation_source: "test".to_string(),
                 error: None,
             },
         ];
         
-        let translations_ref: Vec<&TranslatedStringEntryFromFrontend> = translations.iter().collect();
+        let translations_ref: Vec<&WorkingTranslation> = translations.iter().collect();
 
         let result = reconstruct_items_json(&original_json_str, translations_ref);
         assert!(result.is_ok(), "reconstruct_items_json failed: {:?}", result.err());
@@ -150,32 +150,35 @@ mod tests {
         let original_json_str = TEST_ITEMS_JSON;
 
         let translations = vec![
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation {
                 object_id: 1, // Potion
-                text: "ポーション".to_string(), 
+                original_text: "ポーション".to_string(), 
                 source_file: "www/data/Items.json".to_string(),
                 json_path: "name".to_string(),
                 translated_text: "NameFail".to_string(), // This would be some placeholder from translation attempt
+                translation_source: "test".to_string(),
                 error: Some("AI translation failed".to_string()), 
             },
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation {
                 object_id: 1, // Potion
-                text: "".to_string(), // Original description for Potion is empty
+                original_text: "".to_string(), // Original description for Potion is empty
                 source_file: "www/data/Items.json".to_string(),
                 json_path: "description".to_string(),
-                translated_text: "Translated Desc".to_string(), 
+                translated_text: "Translated Desc".to_string(),
+                translation_source: "test".to_string(),
                 error: None, // Description translation is successful
             },
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation {
                 object_id: 6, // Jail Key
-                text: "<拡張説明:\\n捕まった人達がいる牢の鍵\\nかなり頑丈にできている。>".to_string(),
+                original_text: "<拡張説明:\n捕まった人達がいる牢の鍵\nかなり頑丈にできている。>".to_string(),
                 source_file: "www/data/Items.json".to_string(),
                 json_path: "note".to_string(),
                 translated_text: "NoteFail".to_string(),
+                translation_source: "test".to_string(),
                 error: Some("Another AI error".to_string()),
             },
         ];
-        let translations_ref: Vec<&TranslatedStringEntryFromFrontend> = translations.iter().collect();
+        let translations_ref: Vec<&WorkingTranslation> = translations.iter().collect();
 
         let result = reconstruct_items_json(&original_json_str, translations_ref);
         assert!(result.is_ok(), "reconstruct_items_json failed: {:?}", result.err());
@@ -196,16 +199,17 @@ mod tests {
     fn test_reconstruct_items_non_existent_id() {
         let original_json_str = TEST_ITEMS_JSON;
         let translations = vec![
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation {
                 object_id: 999, // Non-existent ID
-                text: "Unknown Item".to_string(),
+                original_text: "Unknown Item".to_string(),
                 source_file: "www/data/Items.json".to_string(),
                 json_path: "name".to_string(),
                 translated_text: "Ghost Item".to_string(),
+                translation_source: "test".to_string(),
                 error: None,
             },
         ];
-        let translations_ref: Vec<&TranslatedStringEntryFromFrontend> = translations.iter().collect();
+        let translations_ref: Vec<&WorkingTranslation> = translations.iter().collect();
 
         let result = reconstruct_items_json(&original_json_str, translations_ref);
         assert!(result.is_ok());
@@ -222,16 +226,17 @@ mod tests {
     fn test_reconstruct_items_non_existent_json_path() {
         let original_json_str = TEST_ITEMS_JSON;
         let translations = vec![
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation {
                 object_id: 1, // Potion
-                text: "Some value".to_string(),
+                original_text: "Some value".to_string(),
                 source_file: "www/data/Items.json".to_string(),
                 json_path: "inventedField".to_string(), // This field does not exist in the Item struct/JSON
                 translated_text: "Translated Invented Field".to_string(),
+                translation_source: "test".to_string(),
                 error: None,
             },
         ];
-        let translations_ref: Vec<&TranslatedStringEntryFromFrontend> = translations.iter().collect();
+        let translations_ref: Vec<&WorkingTranslation> = translations.iter().collect();
 
         let result = reconstruct_items_json(&original_json_str, translations_ref);
         assert!(result.is_ok());
@@ -247,9 +252,9 @@ mod tests {
     #[test]
     fn test_reconstruct_items_empty_translations_list() {
         let original_json_str = TEST_ITEMS_JSON;
-        let translations: Vec<TranslatedStringEntryFromFrontend> = Vec::new(); // Empty list
+        let translations: Vec<WorkingTranslation> = Vec::new(); // Empty list
         
-        let translations_ref: Vec<&TranslatedStringEntryFromFrontend> = translations.iter().collect();
+        let translations_ref: Vec<&WorkingTranslation> = translations.iter().collect();
 
         let result = reconstruct_items_json(&original_json_str, translations_ref);
         assert!(result.is_ok());
@@ -265,16 +270,17 @@ mod tests {
     fn test_reconstruct_items_invalid_original_json() {
         let original_json_str = r#"[null, {"id":1, "name":"Potion", "description":"Broken JSON"#; // Intentionally broken
         let translations = vec![
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation {
                 object_id: 1,
-                text: "Potion".to_string(),
+                original_text: "Potion".to_string(),
                 source_file: "www/data/Items.json".to_string(),
                 json_path: "name".to_string(),
                 translated_text: "ポーション".to_string(),
+                translation_source: "test".to_string(),
                 error: None,
             },
         ];
-        let translations_ref: Vec<&TranslatedStringEntryFromFrontend> = translations.iter().collect();
+        let translations_ref: Vec<&WorkingTranslation> = translations.iter().collect();
 
         let result = reconstruct_items_json(original_json_str, translations_ref);
         assert!(result.is_err());

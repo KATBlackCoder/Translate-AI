@@ -1,10 +1,13 @@
 use serde::Deserialize;
 use serde_json::Value;
+use crate::models::translation::{SourceStringData, WorkingTranslation};
 use crate::core::rpgmv::common::{
-    TranslatableStringEntry, 
     EventCommand,
-    extract_translatable_strings_from_event_command_list
+    extract_translatable_strings_from_event_command_list,
+    reconstruct_event_command_list
 };
+use crate::error::CoreError;
+use crate::utils::json_utils::update_value_at_path;
 
 // Represents a single command in a move route list.
 #[derive(Deserialize, Debug, Clone)]
@@ -31,7 +34,7 @@ struct CommonEvent {
 pub fn extract_strings(
     file_content: &str,
     source_file: &str,
-) -> Result<Vec<TranslatableStringEntry>, String> {
+) -> Result<Vec<SourceStringData>, String> {
     let common_events_json: Value = serde_json::from_str(file_content)
         .map_err(|e| format!("Failed to parse CommonEvents.json: {}", e))?;
 
@@ -54,9 +57,9 @@ pub fn extract_strings(
 
                     // 1. Extract the Common Event's name
                     if !common_event.name.trim().is_empty() {
-                        entries.push(TranslatableStringEntry {
+                        entries.push(SourceStringData {
                             object_id: common_event.id, 
-                            text: common_event.name.clone(),
+                            original_text: common_event.name.clone(),
                             source_file: source_file.to_string(),
                             json_path: format!("[{}].name", event_index),
                         });
@@ -93,14 +96,9 @@ pub fn extract_strings(
     Ok(entries)
 } 
 
-use crate::error::CoreError;
-use crate::models::translation::TranslatedStringEntryFromFrontend;
-use crate::utils::json_utils::update_value_at_path;
-use super::common::reconstruct_event_command_list; // New helper needed
-
 pub fn reconstruct_common_events_json(
     original_json_str: &str,
-    translations: Vec<&TranslatedStringEntryFromFrontend>,
+    translations: Vec<&WorkingTranslation>,
 ) -> Result<String, CoreError> {
     let mut common_events_json_array: Vec<Value> = serde_json::from_str(original_json_str)
         .map_err(|e| CoreError::JsonParse(format!("Failed to parse CommonEvents.json: {}", e)))?;
@@ -142,7 +140,7 @@ pub fn reconstruct_common_events_json(
         }
 
         let text_to_insert = if entry.error.is_some() {
-            &entry.text
+            &entry.original_text
         } else {
             &entry.translated_text
         };
@@ -179,7 +177,7 @@ pub fn reconstruct_common_events_json(
                                 .map_or(0, |id| id as u32);
         if common_event_id == 0 { continue; }
 
-        let relevant_translations: Vec<&TranslatedStringEntryFromFrontend> = translations
+        let relevant_translations: Vec<&WorkingTranslation> = translations
             .iter()
             .filter(|t| t.object_id == common_event_id && t.json_path.contains(&format!("[{}].list", event_index)))
             .map(|&t_ref| t_ref)
@@ -265,64 +263,71 @@ mod tests {
     fn test_reconstruct_common_events_basic() {
         let original_json_str = TEST_COMMON_EVENTS_JSON;
         let translations = vec![
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation {
                 object_id: 1,
-                text: "Test Event 1".to_string(),
+                original_text: "Test Event 1".to_string(),
                 source_file: "www/data/CommonEvents.json".to_string(),
                 json_path: "[1].name".to_string(),
                 translated_text: "Evento de Prueba 1".to_string(),
+                translation_source: "test_source".to_string(),
                 error: None,
             },
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation {
                 object_id: 1,
-                text: "ActorName".to_string(),
+                original_text: "ActorName".to_string(),
                 source_file: "www/data/CommonEvents.json".to_string(),
                 json_path: "[1].list.[0].parameters.[4]".to_string(),
                 translated_text: "NombreDelActor".to_string(),
+                translation_source: "test_source".to_string(),
                 error: None,
             },
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation {
                 object_id: 1,
-                text: "This is the first line of dialogue.".to_string(),
+                original_text: "This is the first line of dialogue.".to_string(),
                 source_file: "www/data/CommonEvents.json".to_string(),
                 json_path: "[1].list.[1].parameters.[0]".to_string(),
                 translated_text: "Esta es la primera línea de diálogo.".to_string(),
+                translation_source: "test_source".to_string(),
                 error: None,
             },
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation {
                 object_id: 1,
-                text: "Choice 1".to_string(),
+                original_text: "Choice 1".to_string(),
                 source_file: "www/data/CommonEvents.json".to_string(),
                 json_path: "[1].list.[3].parameters.[0].[0]".to_string(), // First choice
                 translated_text: "Opción 1".to_string(),
+                translation_source: "test_source".to_string(),
                 error: None,
             },
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation {
                 object_id: 2, // Event with no name originally
-                text: "".to_string(),
+                original_text: "".to_string(),
                 source_file: "www/data/CommonEvents.json".to_string(),
                 json_path: "[2].name".to_string(),
                 translated_text: "Evento Sin Nombre".to_string(), 
+                translation_source: "test_source".to_string(),
                 error: None,
             },
-             TranslatedStringEntryFromFrontend {
+             WorkingTranslation {
                 object_id: 2,
-                text: "Comment line 1".to_string(),
+                original_text: "Comment line 1".to_string(),
                 source_file: "www/data/CommonEvents.json".to_string(),
                 json_path: "[2].list.[0].parameters.[0]".to_string(), // 108 comment
                 translated_text: "Línea de comentario 1".to_string(), 
+                translation_source: "test_source".to_string(),
                 error: None,
             },
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation {
                 object_id: 2,
-                text: "Another dialogue here.".to_string(),
+                original_text: "Another dialogue here.".to_string(),
                 source_file: "www/data/CommonEvents.json".to_string(),
                 json_path: "[2].list.[3].parameters.[0]".to_string(), 
                 translated_text: "Otro diálogo aquí.".to_string(), 
+                translation_source: "test_source".to_string(),
                 error: None,
             },
         ];
-        let translations_ref: Vec<&TranslatedStringEntryFromFrontend> = translations.iter().collect();
+        let translations_ref: Vec<&WorkingTranslation> = translations.iter().collect();
 
         let result = reconstruct_common_events_json(&original_json_str, translations_ref);
         assert!(result.is_ok(), "reconstruct_common_events_json failed: {:?}", result.err());
@@ -348,24 +353,26 @@ mod tests {
     fn test_reconstruct_common_events_with_translation_error() {
         let original_json_str = TEST_COMMON_EVENTS_JSON;
         let translations = vec![
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation {
                 object_id: 1,
-                text: "Test Event 1".to_string(),
+                original_text: "Test Event 1".to_string(),
                 source_file: "www/data/CommonEvents.json".to_string(),
                 json_path: "[1].name".to_string(),
                 translated_text: "FailName".to_string(),
+                translation_source: "test_source".to_string(),
                 error: Some("AI error".to_string()),
             },
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation {
                 object_id: 1,
-                text: "This is the first line of dialogue.".to_string(),
+                original_text: "This is the first line of dialogue.".to_string(),
                 source_file: "www/data/CommonEvents.json".to_string(),
                 json_path: "[1].list.[1].parameters.[0]".to_string(),
                 translated_text: "Good Dialogue".to_string(),
+                translation_source: "test_source".to_string(),
                 error: None,
             },
         ];
-        let translations_ref: Vec<&TranslatedStringEntryFromFrontend> = translations.iter().collect();
+        let translations_ref: Vec<&WorkingTranslation> = translations.iter().collect();
         let result = reconstruct_common_events_json(&original_json_str, translations_ref);
         assert!(result.is_ok());
         let reconstructed_json: Value = serde_json::from_str(&result.unwrap()).unwrap();
@@ -379,16 +386,17 @@ mod tests {
         // This tests if the event_index in json_path is out of bounds
         let original_json_str = TEST_COMMON_EVENTS_JSON;
         let translations = vec![
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation {
                 object_id: 1, // ID exists, but path index might be wrong
-                text: "Data".to_string(),
+                original_text: "Data".to_string(),
                 source_file: "www/data/CommonEvents.json".to_string(),
                 json_path: "[99].name".to_string(), // Non-existent event index
                 translated_text: "Phantom Name".to_string(),
+                translation_source: "test_source".to_string(),
                 error: None,
             },
         ];
-        let translations_ref: Vec<&TranslatedStringEntryFromFrontend> = translations.iter().collect();
+        let translations_ref: Vec<&WorkingTranslation> = translations.iter().collect();
         let result = reconstruct_common_events_json(&original_json_str, translations_ref);
         assert!(result.is_ok());
         let reconstructed_value: Value = serde_json::from_str(&result.unwrap()).expect("Failed to parse reconstructed");
@@ -400,16 +408,17 @@ mod tests {
     fn test_reconstruct_common_events_id_mismatch_between_path_and_entry() {
         let original_json_str = TEST_COMMON_EVENTS_JSON;
         let translations = vec![
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation {
                 object_id: 2, // Entry says object_id is 2
-                text: "Test Event 1".to_string(),
+                original_text: "Test Event 1".to_string(),
                 source_file: "www/data/CommonEvents.json".to_string(),
                 json_path: "[1].name".to_string(), // but path points to event with id 1
                 translated_text: "Mismatched Name".to_string(),
+                translation_source: "test_source".to_string(),
                 error: None,
             },
         ];
-        let translations_ref: Vec<&TranslatedStringEntryFromFrontend> = translations.iter().collect();
+        let translations_ref: Vec<&WorkingTranslation> = translations.iter().collect();
         let result = reconstruct_common_events_json(&original_json_str, translations_ref);
         assert!(result.is_ok());
         let reconstructed_value: Value = serde_json::from_str(&result.unwrap()).expect("Failed to parse reconstructed");
@@ -421,24 +430,26 @@ mod tests {
     fn test_reconstruct_common_events_non_existent_internal_path() {
         let original_json_str = TEST_COMMON_EVENTS_JSON;
         let translations = vec![
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation {
                 object_id: 1,
-                text: "Value".to_string(),
+                original_text: "Value".to_string(),
                 source_file: "www/data/CommonEvents.json".to_string(),
                 json_path: "[1].inventedField".to_string(), // Path inside event object that doesn't exist
                 translated_text: "Translated Invented".to_string(),
+                translation_source: "test_source".to_string(),
                 error: None,
             },
-             TranslatedStringEntryFromFrontend {
+             WorkingTranslation {
                 object_id: 1,
-                text: "Value".to_string(),
+                original_text: "Value".to_string(),
                 source_file: "www/data/CommonEvents.json".to_string(),
                 json_path: "[1].list.[0].parameters.[99]".to_string(), // Path inside command parameters that doesn't exist
                 translated_text: "Translated Deep Invented".to_string(),
+                translation_source: "test_source".to_string(),
                 error: None,
             },
         ];
-        let translations_ref: Vec<&TranslatedStringEntryFromFrontend> = translations.iter().collect();
+        let translations_ref: Vec<&WorkingTranslation> = translations.iter().collect();
         let result = reconstruct_common_events_json(&original_json_str, translations_ref);
         assert!(result.is_ok());
         let reconstructed_value: Value = serde_json::from_str(&result.unwrap()).expect("Failed to parse reconstructed");
@@ -451,8 +462,8 @@ mod tests {
     #[test]
     fn test_reconstruct_common_events_empty_translations_list() {
         let original_json_str = TEST_COMMON_EVENTS_JSON;
-        let translations: Vec<TranslatedStringEntryFromFrontend> = Vec::new();        
-        let translations_ref: Vec<&TranslatedStringEntryFromFrontend> = translations.iter().collect();
+        let translations: Vec<WorkingTranslation> = Vec::new();        
+        let translations_ref: Vec<&WorkingTranslation> = translations.iter().collect();
         let result = reconstruct_common_events_json(&original_json_str, translations_ref);
         assert!(result.is_ok());
         let reconstructed_value: Value = serde_json::from_str(&result.unwrap()).expect("Failed to parse reconstructed");
@@ -463,8 +474,7 @@ mod tests {
     #[test]
     fn test_reconstruct_common_events_invalid_original_json() {
         let original_json_str = r#"[null, {"id":1, "name":"Test Event" "list":[]}]"#; // Malformed
-        let translations = vec![ /* ... */ ];
-        let translations_ref: Vec<&TranslatedStringEntryFromFrontend> = translations.iter().collect();
+        let translations_ref: Vec<&WorkingTranslation> = Vec::new();
         let result = reconstruct_common_events_json(original_json_str, translations_ref);
         assert!(result.is_err());
         match result.err().unwrap() {

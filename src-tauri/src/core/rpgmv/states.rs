@@ -1,6 +1,7 @@
 use serde::Deserialize;
-use crate::core::rpgmv::common::TranslatableStringEntry;
+use crate::models::translation::{SourceStringData, WorkingTranslation};
 use super::common::reconstruct_object_array_by_path_index;
+use crate::error::CoreError;
 
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -33,7 +34,7 @@ struct StateEntry {
 pub fn extract_strings(
     file_content: &str,
     source_file: &str, // e.g., "www/data/States.json"
-) -> Result<Vec<TranslatableStringEntry>, String> {
+) -> Result<Vec<SourceStringData>, String> {
     let states: Vec<Option<StateEntry>> = serde_json::from_str(file_content)
         .map_err(|e| format!("Failed to parse {}: {}. Content snippet: {:.100}", source_file, e, file_content.chars().take(100).collect::<String>()))?;
 
@@ -45,9 +46,9 @@ pub fn extract_strings(
 
             // Name
             if !state_data.name.trim().is_empty() {
-                entries.push(TranslatableStringEntry {
+                entries.push(SourceStringData {
                     object_id,
-                    text: state_data.name.clone(),
+                    original_text: state_data.name.clone(),
                     source_file: source_file.to_string(),
                     json_path: format!("[{}].name", index),
                 });
@@ -55,9 +56,9 @@ pub fn extract_strings(
 
             // Note
             if !state_data.note.trim().is_empty() {
-                entries.push(TranslatableStringEntry {
+                entries.push(SourceStringData {
                     object_id,
-                    text: state_data.note.clone(),
+                    original_text: state_data.note.clone(),
                     source_file: source_file.to_string(),
                     json_path: format!("[{}].note", index),
                 });
@@ -65,9 +66,9 @@ pub fn extract_strings(
 
             // Message1
             if !state_data.message1.trim().is_empty() {
-                entries.push(TranslatableStringEntry {
+                entries.push(SourceStringData {
                     object_id,
-                    text: state_data.message1.clone(),
+                    original_text: state_data.message1.clone(),
                     source_file: source_file.to_string(),
                     json_path: format!("[{}].message1", index),
                 });
@@ -75,9 +76,9 @@ pub fn extract_strings(
 
             // Message2
             if !state_data.message2.trim().is_empty() {
-                entries.push(TranslatableStringEntry {
+                entries.push(SourceStringData {
                     object_id,
-                    text: state_data.message2.clone(),
+                    original_text: state_data.message2.clone(),
                     source_file: source_file.to_string(),
                     json_path: format!("[{}].message2", index),
                 });
@@ -85,9 +86,9 @@ pub fn extract_strings(
 
             // Message3
             if !state_data.message3.trim().is_empty() {
-                entries.push(TranslatableStringEntry {
+                entries.push(SourceStringData {
                     object_id,
-                    text: state_data.message3.clone(),
+                    original_text: state_data.message3.clone(),
                     source_file: source_file.to_string(),
                     json_path: format!("[{}].message3", index),
                 });
@@ -95,9 +96,9 @@ pub fn extract_strings(
 
             // Message4
             if !state_data.message4.trim().is_empty() {
-                entries.push(TranslatableStringEntry {
+                entries.push(SourceStringData {
                     object_id,
-                    text: state_data.message4.clone(),
+                    original_text: state_data.message4.clone(),
                     source_file: source_file.to_string(),
                     json_path: format!("[{}].message4", index),
                 });
@@ -108,27 +109,23 @@ pub fn extract_strings(
     Ok(entries)
 }
 
-use serde_json::Value;
-use crate::models::translation::TranslatedStringEntryFromFrontend;
-use crate::error::CoreError;
-use crate::utils::json_utils::update_value_at_path;
+
 
 pub fn reconstruct_states_json(
     original_json_str: &str,
-    translations: Vec<&TranslatedStringEntryFromFrontend>,
+    translations: Vec<&WorkingTranslation>,
 ) -> Result<String, CoreError> {
-    super::common::reconstruct_object_array_by_path_index(
+    reconstruct_object_array_by_path_index(
         original_json_str,
         &translations,
         "States.json"
     )
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
+    use serde_json::Value;
     #[test]
     fn test_extract_states_strings() {
         let json_content = r#"[
@@ -179,35 +176,35 @@ mod tests {
         assert_eq!(result.len(), 9, "Incorrect number of entries extracted.");
 
         let expected_entries = vec![
-            TranslatableStringEntry {
-                object_id: 1, text: "Knockout".to_string(), source_file: "www/data/States.json".to_string(), json_path: "[1].name".to_string()
+            SourceStringData {
+                object_id: 1, original_text: "Knockout".to_string(), source_file: "www/data/States.json".to_string(), json_path: "[1].name".to_string()
             },
-            TranslatableStringEntry {
-                object_id: 1, text: "This is a KO state.".to_string(), source_file: "www/data/States.json".to_string(), json_path: "[1].note".to_string()
+            SourceStringData {
+                object_id: 1, original_text: "This is a KO state.".to_string(), source_file: "www/data/States.json".to_string(), json_path: "[1].note".to_string()
             },
-            TranslatableStringEntry {
-                object_id: 1, text: "is knocked out.".to_string(), source_file: "www/data/States.json".to_string(), json_path: "[1].message1".to_string()
+            SourceStringData {
+                object_id: 1, original_text: "is knocked out.".to_string(), source_file: "www/data/States.json".to_string(), json_path: "[1].message1".to_string()
             },
             // message2 for state 1 is empty
-            TranslatableStringEntry {
-                object_id: 1, text: "is revived!".to_string(), source_file: "www/data/States.json".to_string(), json_path: "[1].message3".to_string()
+            SourceStringData {
+                object_id: 1, original_text: "is revived!".to_string(), source_file: "www/data/States.json".to_string(), json_path: "[1].message3".to_string()
             },
             // message4 for state 1 is empty
-            TranslatableStringEntry {
-                object_id: 2, text: "Guard".to_string(), source_file: "www/data/States.json".to_string(), json_path: "[2].name".to_string()
+            SourceStringData {
+                object_id: 2, original_text: "Guard".to_string(), source_file: "www/data/States.json".to_string(), json_path: "[2].name".to_string()
             },
             // note for state 2 is empty
-            TranslatableStringEntry {
-                object_id: 2, text: "guards.".to_string(), source_file: "www/data/States.json".to_string(), json_path: "[2].message1".to_string()
+            SourceStringData {
+                object_id: 2, original_text: "guards.".to_string(), source_file: "www/data/States.json".to_string(), json_path: "[2].message1".to_string()
             },
-            TranslatableStringEntry {
-                object_id: 2, text: "is still guarding.".to_string(), source_file: "www/data/States.json".to_string(), json_path: "[2].message2".to_string()
+            SourceStringData {
+                object_id: 2, original_text: "is still guarding.".to_string(), source_file: "www/data/States.json".to_string(), json_path: "[2].message2".to_string()
             },
-            TranslatableStringEntry {
-                object_id: 2, text: "stops guarding.".to_string(), source_file: "www/data/States.json".to_string(), json_path: "[2].message3".to_string()
+            SourceStringData {
+                object_id: 2, original_text: "stops guarding.".to_string(), source_file: "www/data/States.json".to_string(), json_path: "[2].message3".to_string()
             },
-            TranslatableStringEntry {
-                object_id: 2, text: "recovers from guard.".to_string(), source_file: "www/data/States.json".to_string(), json_path: "[2].message4".to_string()
+            SourceStringData {
+                object_id: 2, original_text: "recovers from guard.".to_string(), source_file: "www/data/States.json".to_string(), json_path: "[2].message4".to_string()
             }
         ];
 
@@ -227,12 +224,12 @@ mod tests {
         assert_eq!(result.len(), 6); // name, note, msg1-4 for state 2
         
         let expected_entries_state2 = vec![
-            TranslatableStringEntry {object_id: 2, text: "Active State".to_string(), source_file: "www/data/States.json".to_string(), json_path: "[2].name".to_string()},
-            TranslatableStringEntry {object_id: 2, text: "Has a note.".to_string(), source_file: "www/data/States.json".to_string(), json_path: "[2].note".to_string()},
-            TranslatableStringEntry {object_id: 2, text: "Begins".to_string(), source_file: "www/data/States.json".to_string(), json_path: "[2].message1".to_string()},
-            TranslatableStringEntry {object_id: 2, text: "Continues".to_string(), source_file: "www/data/States.json".to_string(), json_path: "[2].message2".to_string()},
-            TranslatableStringEntry {object_id: 2, text: "Ends".to_string(), source_file: "www/data/States.json".to_string(), json_path: "[2].message3".to_string()},
-            TranslatableStringEntry {object_id: 2, text: "Recovers".to_string(), source_file: "www/data/States.json".to_string(), json_path: "[2].message4".to_string()},
+            SourceStringData {object_id: 2, original_text: "Active State".to_string(), source_file: "www/data/States.json".to_string(), json_path: "[2].name".to_string()},
+            SourceStringData {object_id: 2, original_text: "Has a note.".to_string(), source_file: "www/data/States.json".to_string(), json_path: "[2].note".to_string()},
+            SourceStringData {object_id: 2, original_text: "Begins".to_string(), source_file: "www/data/States.json".to_string(), json_path: "[2].message1".to_string()},
+            SourceStringData {object_id: 2, original_text: "Continues".to_string(), source_file: "www/data/States.json".to_string(), json_path: "[2].message2".to_string()},
+            SourceStringData {object_id: 2, original_text: "Ends".to_string(), source_file: "www/data/States.json".to_string(), json_path: "[2].message3".to_string()},
+            SourceStringData {object_id: 2, original_text: "Recovers".to_string(), source_file: "www/data/States.json".to_string(), json_path: "[2].message4".to_string()},
         ];
         for expected in expected_entries_state2 {
             assert!(result.contains(&expected), "Missing expected entry for state 2: {:?}", expected);
@@ -268,48 +265,53 @@ mod tests {
     fn test_reconstruct_states_basic() {
         let original_json_str = TEST_STATES_JSON_FOR_RECONSTRUCTION;
         let translations = vec![
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation {
                 object_id: 1,
-                text: "Poison".to_string(),
+                original_text: "Poison".to_string(),
                 source_file: "www/data/States.json".to_string(),
                 json_path: "[1].name".to_string(),
                 translated_text: "Veneno".to_string(),
+                translation_source: "test".to_string(),
                 error: None,
             },
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation {
                 object_id: 1,
-                text: "Deals damage over time.".to_string(),
+                original_text: "Deals damage over time.".to_string(),
                 source_file: "www/data/States.json".to_string(),
                 json_path: "[1].note".to_string(),
                 translated_text: "Causa daño con el tiempo.".to_string(),
+                translation_source: "test".to_string(),
                 error: None,
             },
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation {
                 object_id: 1,
-                text: "%1 takes poison damage!".to_string(),
+                original_text: "%1 takes poison damage!".to_string(),
                 source_file: "www/data/States.json".to_string(),
                 json_path: "[1].message1".to_string(),
                 translated_text: "¡%1 sufre daño por veneno!".to_string(),
+                translation_source: "test".to_string(),
                 error: None,
             },
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation {
                 object_id: 2,
-                text: "Blind".to_string(),
+                original_text: "Blind".to_string(),
                 source_file: "www/data/States.json".to_string(),
                 json_path: "[2].name".to_string(),
                 translated_text: "Ceguera".to_string(),
+                translation_source: "test".to_string(),
                 error: None,
             },
-            TranslatedStringEntryFromFrontend { // Translate an originally empty message
+            WorkingTranslation {
                 object_id: 2,
-                text: "".to_string(),
+                original_text: "".to_string(),
                 source_file: "www/data/States.json".to_string(),
                 json_path: "[2].message2".to_string(),
                 translated_text: "%1 sigue ciego.".to_string(),
+                translation_source: "test".to_string(),
                 error: None,
             },
         ];
-        let translations_ref: Vec<&TranslatedStringEntryFromFrontend> = translations.iter().collect();
+        let translations_ref: Vec<&WorkingTranslation> = translations.iter().collect();
         let result = reconstruct_states_json(&original_json_str, translations_ref);
         assert!(result.is_ok(), "reconstruct_states_json failed: {:?}", result.err());
         let reconstructed_json: Value = serde_json::from_str(&result.unwrap()).expect("Failed to parse reconstructed JSON");
@@ -317,10 +319,10 @@ mod tests {
         assert_eq!(reconstructed_json[1]["name"].as_str().unwrap(), "Veneno");
         assert_eq!(reconstructed_json[1]["note"].as_str().unwrap(), "Causa daño con el tiempo.");
         assert_eq!(reconstructed_json[1]["message1"].as_str().unwrap(), "¡%1 sufre daño por veneno!");
-        assert_eq!(reconstructed_json[1]["message2"].as_str().unwrap(), "%1 is still poisoned."); // Unchanged
+        assert_eq!(reconstructed_json[1]["message2"].as_str().unwrap(), "%1 is still poisoned.");
 
         assert_eq!(reconstructed_json[2]["name"].as_str().unwrap(), "Ceguera");
-        assert_eq!(reconstructed_json[2]["note"].as_str().unwrap(), "Reduces accuracy."); // Unchanged
+        assert_eq!(reconstructed_json[2]["note"].as_str().unwrap(), "Reduces accuracy.");
         assert_eq!(reconstructed_json[2]["message2"].as_str().unwrap(), "%1 sigue ciego.");
     }
 
@@ -328,46 +330,49 @@ mod tests {
     fn test_reconstruct_states_with_translation_error() {
         let original_json_str = TEST_STATES_JSON_FOR_RECONSTRUCTION;
         let translations = vec![
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation {
                 object_id: 1,
-                text: "Poison".to_string(),
+                original_text: "Poison".to_string(),
                 source_file: "www/data/States.json".to_string(),
                 json_path: "[1].name".to_string(),
                 translated_text: "Veneno Fallido".to_string(),
+                translation_source: "test".to_string(),
                 error: Some("AI error".to_string()),
             },
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation {
                 object_id: 1,
-                text: "%1 is still poisoned.".to_string(),
+                original_text: "%1 is still poisoned.".to_string(),
                 source_file: "www/data/States.json".to_string(),
                 json_path: "[1].message2".to_string(),
                 translated_text: "Mensaje Bueno".to_string(),
+                translation_source: "test".to_string(),
                 error: None,
             },
         ];
-        let translations_ref: Vec<&TranslatedStringEntryFromFrontend> = translations.iter().collect();
+        let translations_ref: Vec<&WorkingTranslation> = translations.iter().collect();
         let result = reconstruct_states_json(&original_json_str, translations_ref);
         assert!(result.is_ok());
         let reconstructed_json: Value = serde_json::from_str(&result.unwrap()).unwrap();
 
-        assert_eq!(reconstructed_json[1]["name"].as_str().unwrap(), "Poison"); // Original due to error
-        assert_eq!(reconstructed_json[1]["message2"].as_str().unwrap(), "Mensaje Bueno"); // Translated
+        assert_eq!(reconstructed_json[1]["name"].as_str().unwrap(), "Poison");
+        assert_eq!(reconstructed_json[1]["message2"].as_str().unwrap(), "Mensaje Bueno");
     }
 
     #[test]
     fn test_reconstruct_states_non_existent_id() {
         let original_json_str = TEST_STATES_JSON_FOR_RECONSTRUCTION;
         let translations = vec![
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation {
                 object_id: 999, 
-                text: "Phantom State".to_string(),
+                original_text: "Phantom State".to_string(),
                 source_file: "www/data/States.json".to_string(),
                 json_path: "[1].name".to_string(),
                 translated_text: "Estado Fantasma".to_string(),
+                translation_source: "test".to_string(),
                 error: None,
             },
         ];
-        let translations_ref: Vec<&TranslatedStringEntryFromFrontend> = translations.iter().collect();
+        let translations_ref: Vec<&WorkingTranslation> = translations.iter().collect();
         let result = reconstruct_states_json(&original_json_str, translations_ref);
         assert!(result.is_ok());
         let reconstructed_value: Value = serde_json::from_str(&result.unwrap()).unwrap();
@@ -379,16 +384,17 @@ mod tests {
     fn test_reconstruct_states_non_existent_json_path_index() {
         let original_json_str = TEST_STATES_JSON_FOR_RECONSTRUCTION;
         let translations = vec![
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation {
                 object_id: 1,
-                text: "Value".to_string(),
+                original_text: "Value".to_string(),
                 source_file: "www/data/States.json".to_string(),
                 json_path: "[99].message1".to_string(), 
                 translated_text: "Translated Mystery Message".to_string(),
+                translation_source: "test".to_string(),
                 error: None,
             },
         ];
-        let translations_ref: Vec<&TranslatedStringEntryFromFrontend> = translations.iter().collect();
+        let translations_ref: Vec<&WorkingTranslation> = translations.iter().collect();
         let result = reconstruct_states_json(&original_json_str, translations_ref);
         assert!(result.is_ok());
         let reconstructed_value: Value = serde_json::from_str(&result.unwrap()).unwrap();
@@ -400,16 +406,17 @@ mod tests {
     fn test_reconstruct_states_non_existent_json_path_field() {
         let original_json_str = TEST_STATES_JSON_FOR_RECONSTRUCTION;
         let translations = vec![
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation {
                 object_id: 1,
-                text: "Value".to_string(),
+                original_text: "Value".to_string(),
                 source_file: "www/data/States.json".to_string(),
                 json_path: "[1].unknownField".to_string(),
                 translated_text: "Translated Unknown".to_string(),
+                translation_source: "test".to_string(),
                 error: None,
             },
         ];
-        let translations_ref: Vec<&TranslatedStringEntryFromFrontend> = translations.iter().collect();
+        let translations_ref: Vec<&WorkingTranslation> = translations.iter().collect();
         let result = reconstruct_states_json(&original_json_str, translations_ref);
         assert!(result.is_ok());
         let reconstructed_value: Value = serde_json::from_str(&result.unwrap()).unwrap();
@@ -420,8 +427,8 @@ mod tests {
     #[test]
     fn test_reconstruct_states_empty_translations_list() {
         let original_json_str = TEST_STATES_JSON_FOR_RECONSTRUCTION;
-        let translations: Vec<TranslatedStringEntryFromFrontend> = Vec::new();        
-        let translations_ref: Vec<&TranslatedStringEntryFromFrontend> = translations.iter().collect();
+        let translations: Vec<WorkingTranslation> = Vec::new();        
+        let translations_ref: Vec<&WorkingTranslation> = translations.iter().collect();
         let result = reconstruct_states_json(&original_json_str, translations_ref);
         assert!(result.is_ok());
         let reconstructed_value: Value = serde_json::from_str(&result.unwrap()).unwrap();
@@ -433,7 +440,7 @@ mod tests {
     fn test_reconstruct_states_invalid_original_json() {
         let original_json_str = r#"[null, {"id":1, "name":"Poison", "message1":"Broken"#;
         let translations = vec![/* ... */];
-        let translations_ref: Vec<&TranslatedStringEntryFromFrontend> = translations.iter().collect();
+        let translations_ref: Vec<&WorkingTranslation> = translations.iter().collect();
         let result = reconstruct_states_json(original_json_str, translations_ref);
         assert!(result.is_err());
         match result.err().unwrap() {

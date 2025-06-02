@@ -1,16 +1,11 @@
 use serde::Deserialize; // Keep Deserialize for the Actor struct
+use crate::models::translation::{SourceStringData, WorkingTranslation}; // Updated imports
+use crate::error::CoreError;
 use super::common::{
-    TranslatableStringEntry, 
     RpgMvDataObject, 
     extract_strings_from_json_array,
     reconstruct_object_array_by_id // Add the new common function here
 };
-use serde_json::Value;
-// No, TranslatedStringEntryFromFrontend is in crate::models::translation
-// use crate::core::rpgmv::common::TranslatedStringEntryFromFrontend; // This path would be wrong if struct is in models
-use crate::models::translation::TranslatedStringEntryFromFrontend;
-use crate::error::CoreError;
-use crate::utils::json_utils::update_value_at_path; // Added import for the helper
 
 // A simplified struct representing an Actor for deserialization.
 // We only care about fields that might contain translatable text or are needed for context.
@@ -45,16 +40,16 @@ impl RpgMvDataObject for Actor {
 pub fn extract_strings(
     json_content: &str, 
     file_path: &str
-) -> Result<Vec<TranslatableStringEntry>, String> {
+) -> Result<Vec<SourceStringData>, String> { // Updated return type
     extract_strings_from_json_array::<Actor>(json_content, file_path, "Actors.json")
 } 
 
 pub fn reconstruct_actors_json(
     original_json_str: &str,
-    translations: Vec<&TranslatedStringEntryFromFrontend>,
+    translations: Vec<&WorkingTranslation>, // Updated parameter type
 ) -> Result<String, CoreError> {
     // Call the generic reconstruction function from common.rs
-    super::common::reconstruct_object_array_by_id(
+    reconstruct_object_array_by_id(
         original_json_str,
         &translations, // Pass as slice
         "Actors.json"  // Identifier for logging purposes
@@ -64,7 +59,7 @@ pub fn reconstruct_actors_json(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::translation::TranslatedStringEntryFromFrontend;
+    use crate::models::translation::WorkingTranslation; // Updated import for tests
     use serde_json::{json, Value};
 
     #[test]
@@ -109,58 +104,64 @@ mod tests {
 
         let translations = vec![
             // Translate Harold's (ID 1) name, nickname, profile, and note
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation { // Updated struct name
                 object_id: 1,
-                text: "ハロルド".to_string(),
+                original_text: "ハロルド".to_string(), // Field name is original_text
                 source_file: "www/data/Actors.json".to_string(),
                 json_path: "name".to_string(),
                 translated_text: "Harold (EN)".to_string(),
+                translation_source: "test_source".to_string(), // Added for WorkingTranslation
                 error: None,
             },
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation { // Updated struct name
                 object_id: 1,
-                text: "".to_string(),
+                original_text: "".to_string(),
                 source_file: "www/data/Actors.json".to_string(),
                 json_path: "nickname".to_string(),
                 translated_text: "Harry".to_string(),
+                translation_source: "test_source".to_string(),
                 error: None,
             },
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation { // Updated struct name
                 object_id: 1,
-                text: "".to_string(),
+                original_text: "".to_string(),
                 source_file: "www/data/Actors.json".to_string(),
                 json_path: "profile".to_string(),
                 translated_text: "A brave hero indeed.".to_string(),
+                translation_source: "test_source".to_string(),
                 error: None,
             },
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation { // Updated struct name
                 object_id: 1,
-                text: "".to_string(),
+                original_text: "".to_string(),
                 source_file: "www/data/Actors.json".to_string(),
                 json_path: "note".to_string(),
                 translated_text: "Harold's translated note.".to_string(),
+                translation_source: "test_source".to_string(),
                 error: None,
             },
             // Translate Seren's (ID 9) name and profile only
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation { // Updated struct name
                 object_id: 9,
-                text: "セレン".to_string(),
+                original_text: "セレン".to_string(),
                 source_file: "www/data/Actors.json".to_string(),
                 json_path: "name".to_string(),
                 translated_text: "Seren (EN)".to_string(),
+                translation_source: "test_source".to_string(),
                 error: None,
             },
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation { // Updated struct name
                 object_id: 9,
-                text: "素性は誰も知らない。暗器を隠している。\n振り向いて、彼女がいれば命はない！".to_string(),
+                original_text: "素性は誰も知らない。暗器を隠している。\n振り向いて、彼女がいれば命はない！".to_string(),
                 source_file: "www/data/Actors.json".to_string(),
                 json_path: "profile".to_string(),
                 translated_text: "Her origins are unknown. She conceals hidden weapons.\nIf you turn and see her, your life is forfeit!".to_string(),
+                translation_source: "test_source".to_string(),
                 error: None,
             },
         ];
         
-        let translations_ref: Vec<&TranslatedStringEntryFromFrontend> = translations.iter().collect();
+        let translations_ref: Vec<&WorkingTranslation> = translations.iter().collect(); // Updated type
 
         let result = reconstruct_actors_json(&original_json_str, translations_ref);
         assert!(result.is_ok(), "reconstruct_actors_json failed: {:?}", result.err());
@@ -197,24 +198,26 @@ mod tests {
         ]).to_string();
 
         let translations = vec![
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation { // Updated struct name
                 object_id: 1,
-                text: "ハロルド".to_string(), // Original name
+                original_text: "ハロルド".to_string(), // Original name. Field name is original_text
                 source_file: "www/data/Actors.json".to_string(),
                 json_path: "name".to_string(),
-                translated_text: "HLD_TransFail".to_string(), // This would be some placeholder or error string from translation attempt
-                error: Some("AI translation timed out".to_string()), // Error occurred for name
+                translated_text: "HLD_TransFail".to_string(), 
+                translation_source: "test_source".to_string(), // Added
+                error: Some("AI translation timed out".to_string()),
             },
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation { // Updated struct name
                 object_id: 1,
-                text: "元のプロフィール".to_string(),
+                original_text: "元のプロフィール".to_string(),
                 source_file: "www/data/Actors.json".to_string(),
                 json_path: "profile".to_string(),
-                translated_text: "Translated Profile".to_string(), // Successful translation for profile
+                translated_text: "Translated Profile".to_string(),
+                translation_source: "test_source".to_string(), // Added
                 error: None,
             },
         ];
-        let translations_ref: Vec<&TranslatedStringEntryFromFrontend> = translations.iter().collect();
+        let translations_ref: Vec<&WorkingTranslation> = translations.iter().collect(); // Updated type
 
         let result = reconstruct_actors_json(&original_json_str, translations_ref);
         assert!(result.is_ok(), "reconstruct_actors_json failed: {:?}", result.err());
@@ -247,16 +250,17 @@ mod tests {
         ]).to_string();
 
         let translations = vec![
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation { // Updated struct name
                 object_id: 99, // Non-existent ID
-                text: "Unknown".to_string(),
+                original_text: "Unknown".to_string(),
                 source_file: "www/data/Actors.json".to_string(),
                 json_path: "name".to_string(),
                 translated_text: "亡霊".to_string(),
+                translation_source: "test_source".to_string(), // Added
                 error: None,
             },
         ];
-        let translations_ref: Vec<&TranslatedStringEntryFromFrontend> = translations.iter().collect();
+        let translations_ref: Vec<&WorkingTranslation> = translations.iter().collect(); // Updated type
 
         let result = reconstruct_actors_json(&original_json_str, translations_ref);
         assert!(result.is_ok()); // Function should still succeed, just not modify anything
@@ -282,16 +286,17 @@ mod tests {
         ]).to_string();
 
         let translations = vec![
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation { // Updated struct name
                 object_id: 1,
-                text: "Original Field Value".to_string(),
+                original_text: "Original Field Value".to_string(),
                 source_file: "www/data/Actors.json".to_string(),
                 json_path: "nonExistentField".to_string(), // Field not in Actor object
                 translated_text: "Translated value for non-existent field".to_string(),
+                translation_source: "test_source".to_string(), // Added
                 error: None,
             },
         ];
-        let translations_ref: Vec<&TranslatedStringEntryFromFrontend> = translations.iter().collect();
+        let translations_ref: Vec<&WorkingTranslation> = translations.iter().collect(); // Updated type
 
         let result = reconstruct_actors_json(&original_json_str, translations_ref);
         assert!(result.is_ok()); // Function should succeed
@@ -302,4 +307,4 @@ mod tests {
         assert_eq!(reconstructed_json, original_value);
         // We expect an eprintln! warning from update_value_at_path (via reconstruct_actors_json)
     }
-}
+} 

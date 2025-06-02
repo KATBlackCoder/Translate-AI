@@ -1,10 +1,7 @@
 use serde::Deserialize;
-use crate::core::rpgmv::common::TranslatableStringEntry;
+use crate::models::translation::{SourceStringData, WorkingTranslation};
 use super::common::reconstruct_object_array_by_path_index;
-use serde_json::Value;
-use crate::models::translation::TranslatedStringEntryFromFrontend;
 use crate::error::CoreError;
-use crate::utils::json_utils::update_value_at_path;
 
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
@@ -21,7 +18,7 @@ struct MapInfoEntry {
 pub fn extract_strings(
     file_content: &str,
     source_file: &str, // e.g., "www/data/MapInfos.json"
-) -> Result<Vec<TranslatableStringEntry>, String> {
+) -> Result<Vec<SourceStringData>, String> {
     let map_infos: Vec<Option<MapInfoEntry>> = serde_json::from_str(file_content)
         .map_err(|e| format!("Failed to parse {}: {}. Content snippet: {:.100}", source_file, e, file_content.chars().take(100).collect::<String>()))?;
 
@@ -38,9 +35,9 @@ pub fn extract_strings(
                 continue;
             }
             if !map_info.name.trim().is_empty() {
-                entries.push(TranslatableStringEntry {
+                entries.push(SourceStringData {
                     object_id: map_info.id,
-                    text: map_info.name.clone(),
+                    original_text: map_info.name.clone(),
                     source_file: source_file.to_string(),
                     json_path: format!("[{}].name", index), // Use original index from JSON array
                 });
@@ -54,9 +51,9 @@ pub fn extract_strings(
 
 pub fn reconstruct_map_infos_json(
     original_json_str: &str,
-    translations: Vec<&TranslatedStringEntryFromFrontend>,
+    translations: Vec<&WorkingTranslation>,
 ) -> Result<String, CoreError> {
-    super::common::reconstruct_object_array_by_path_index(
+    reconstruct_object_array_by_path_index(
         original_json_str,
         &translations,
         "MapInfos.json"
@@ -66,6 +63,7 @@ pub fn reconstruct_map_infos_json(
 #[cfg(test)]
 mod tests {
     use super::*; 
+    use serde_json::Value;
 
     const TEST_MAP_INFOS_JSON: &str = r#"[
         null,
@@ -79,24 +77,26 @@ mod tests {
     fn test_reconstruct_map_infos_basic() {
         let original_json_str = TEST_MAP_INFOS_JSON;
         let translations = vec![
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation {
                 object_id: 1,
-                text: "Test Map 1".to_string(),
+                original_text: "Test Map 1".to_string(),
                 source_file: "www/data/MapInfos.json".to_string(),
                 json_path: "[1].name".to_string(),
                 translated_text: "Carte de Test 1".to_string(),
+                translation_source: "test".to_string(),
                 error: None,
             },
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation {
                 object_id: 4,
-                text: "テストマップ".to_string(),
+                original_text: "テストマップ".to_string(),
                 source_file: "www/data/MapInfos.json".to_string(),
                 json_path: "[4].name".to_string(),
                 translated_text: "テストマップ (TL)".to_string(),
+                translation_source: "test".to_string(),
                 error: None,
             },
         ];
-        let translations_ref: Vec<&TranslatedStringEntryFromFrontend> = translations.iter().collect();
+        let translations_ref: Vec<&WorkingTranslation> = translations.iter().collect();
 
         let result = reconstruct_map_infos_json(&original_json_str, translations_ref);
         assert!(result.is_ok(), "reconstruct_map_infos_json failed: {:?}", result.err());
@@ -113,24 +113,26 @@ mod tests {
     fn test_reconstruct_map_infos_with_translation_error() {
         let original_json_str = TEST_MAP_INFOS_JSON;
         let translations = vec![
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation {
                 object_id: 1,
-                text: "Test Map 1".to_string(),
+                original_text: "Test Map 1".to_string(),
                 source_file: "www/data/MapInfos.json".to_string(),
                 json_path: "[1].name".to_string(),
                 translated_text: "Fail Map".to_string(),
+                translation_source: "test".to_string(),
                 error: Some("AI boom".to_string()),
             },
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation {
                 object_id: 2,
-                text: "Another Map".to_string(),
+                original_text: "Another Map".to_string(),
                 source_file: "www/data/MapInfos.json".to_string(),
                 json_path: "[2].name".to_string(),
                 translated_text: "Autre Carte".to_string(),
+                translation_source: "test".to_string(),
                 error: None,
             },
         ];
-        let translations_ref: Vec<&TranslatedStringEntryFromFrontend> = translations.iter().collect();
+        let translations_ref: Vec<&WorkingTranslation> = translations.iter().collect();
         let result = reconstruct_map_infos_json(&original_json_str, translations_ref);
         assert!(result.is_ok());
         let reconstructed_json: Value = serde_json::from_str(&result.unwrap()).unwrap();
@@ -143,16 +145,17 @@ mod tests {
     fn test_reconstruct_map_infos_non_existent_index_in_path() {
         let original_json_str = TEST_MAP_INFOS_JSON;
         let translations = vec![
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation {
                 object_id: 1, 
-                text: "Data".to_string(),
+                original_text: "Data".to_string(),
                 source_file: "www/data/MapInfos.json".to_string(),
                 json_path: "[99].name".to_string(), // Index 99 does not exist
                 translated_text: "Phantom Name".to_string(),
+                translation_source: "test".to_string(),
                 error: None,
             },
         ];
-        let translations_ref: Vec<&TranslatedStringEntryFromFrontend> = translations.iter().collect();
+        let translations_ref: Vec<&WorkingTranslation> = translations.iter().collect();
         let result = reconstruct_map_infos_json(&original_json_str, translations_ref);
         assert!(result.is_ok());
         let reconstructed_value: Value = serde_json::from_str(&result.unwrap()).expect("Failed to parse reconstructed");
@@ -164,16 +167,17 @@ mod tests {
     fn test_reconstruct_map_infos_id_mismatch() {
         let original_json_str = TEST_MAP_INFOS_JSON;
         let translations = vec![
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation {
                 object_id: 55, // This ID does not match ID 1 at index [1]
-                text: "Test Map 1".to_string(),
+                original_text: "Test Map 1".to_string(),
                 source_file: "www/data/MapInfos.json".to_string(),
                 json_path: "[1].name".to_string(), 
                 translated_text: "Mismatched ID Map".to_string(),
+                translation_source: "test".to_string(),
                 error: None,
             },
         ];
-        let translations_ref: Vec<&TranslatedStringEntryFromFrontend> = translations.iter().collect();
+        let translations_ref: Vec<&WorkingTranslation> = translations.iter().collect();
         let result = reconstruct_map_infos_json(&original_json_str, translations_ref);
         assert!(result.is_ok());
         let reconstructed_value: Value = serde_json::from_str(&result.unwrap()).expect("Failed to parse reconstructed");
@@ -185,24 +189,26 @@ mod tests {
     fn test_reconstruct_map_infos_invalid_json_path_format() {
         let original_json_str = TEST_MAP_INFOS_JSON;
         let translations = vec![
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation {
                 object_id: 1,
-                text: "Test Map 1".to_string(),
+                original_text: "Test Map 1".to_string(),
                 source_file: "www/data/MapInfos.json".to_string(),
                 json_path: "MapInfos[1].name".to_string(), // Invalid format, missing dot or wrong field
                 translated_text: "Bad Path Map".to_string(),
+                translation_source: "test".to_string(),
                 error: None,
             },
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation {
                 object_id: 2,
-                text: "Another Map".to_string(),
+                original_text: "Another Map".to_string(),
                 source_file: "www/data/MapInfos.json".to_string(),
                 json_path: "[2].description".to_string(), // Invalid field name for reconstruction
                 translated_text: "Bad Field Map".to_string(),
+                translation_source: "test".to_string(),
                 error: None,
             },
         ];
-        let translations_ref: Vec<&TranslatedStringEntryFromFrontend> = translations.iter().collect();
+        let translations_ref: Vec<&WorkingTranslation> = translations.iter().collect();
         let result = reconstruct_map_infos_json(&original_json_str, translations_ref);
         assert!(result.is_ok());
         let reconstructed_value: Value = serde_json::from_str(&result.unwrap()).expect("Failed to parse reconstructed");
@@ -213,8 +219,8 @@ mod tests {
     #[test]
     fn test_reconstruct_map_infos_empty_translations_list() {
         let original_json_str = TEST_MAP_INFOS_JSON;
-        let translations: Vec<TranslatedStringEntryFromFrontend> = Vec::new();
-        let translations_ref: Vec<&TranslatedStringEntryFromFrontend> = translations.iter().collect();
+        let translations: Vec<WorkingTranslation> = Vec::new();
+        let translations_ref: Vec<&WorkingTranslation> = translations.iter().collect();
         let result = reconstruct_map_infos_json(&original_json_str, translations_ref);
         assert!(result.is_ok());
         let reconstructed_value: Value = serde_json::from_str(&result.unwrap()).expect("Failed to parse reconstructed");
@@ -225,8 +231,8 @@ mod tests {
     #[test]
     fn test_reconstruct_map_infos_invalid_original_json() {
         let original_json_str = r#"[null, {"id":1, "name":"Map1" broken}]"#;
-        let translations = vec![/* ... */];
-        let translations_ref: Vec<&TranslatedStringEntryFromFrontend> = translations.iter().collect();
+        let translations: Vec<WorkingTranslation> = vec![/* ... */];
+        let translations_ref: Vec<&WorkingTranslation> = translations.iter().collect();
         let result = reconstruct_map_infos_json(&original_json_str, translations_ref);
         assert!(result.is_err());
         match result.err().unwrap() {

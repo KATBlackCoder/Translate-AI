@@ -31,7 +31,7 @@ src/
 │   ├── rpgmv/                 // Sub-module for all RPGMV specific core logic
 │   │   ├── mod.rs             // Declares project, common, actors, items etc.
 │   │   ├── project.rs         // Orchestrator for RPG Maker MV project file parsing & operations
-│   │   ├── common.rs          // Common structs/functions for RPGMV parsing (e.g., TranslatableStringEntry)
+│   │   ├── common.rs          // Common structs/functions for RPGMV parsing (e.g., SourceStringData, WorkingTranslation, EventCommand)
 │   │   ├── actors.rs          // Parser for Actors.json
 │   │   ├── items.rs           // Parser for Items.json
 │   │   ├── armors.rs          // Parser for Armors.json
@@ -97,12 +97,12 @@ Contains the heart of the application's business logic. This code should be, as 
     *   `game_detection.rs`: Implements logic to detect different game engines. For example, `detect_rpg_maker_mv` checks for RPG Maker MV specific files/folders. This can be called by specific game project handlers like `core::rpgmv::project`.
     *   `rpgmv/`: This subdirectory houses all core logic related to RPG Maker MV projects. It acts as a self-contained unit for RPGMV processing.
         *   `mod.rs`: Declares the public interface and sub-modules of `core::rpgmv` (e.g., makes `project.rs` contents accessible).
-        *   `project.rs`: This is the main entry point or orchestrator for RPG Maker MV project-level operations. It handles tasks like directory traversal (using `walkdir`) for `www/data` and delegates the parsing and reconstruction of specific file types to its sibling modules. Its `reconstruct_file_content` function acts as the dispatcher for reconstruction.
-        *   `common.rs`: Contains shared data structures (like `TranslatableStringEntry`, `EventCommand`) and common utility functions for both parsing (like `extract_strings_from_json_array`, `extract_translatable_strings_from_event_command_list`) and reconstruction (like `reconstruct_event_command_list`, `reconstruct_json_generically`, `reconstruct_object_array_by_id`, `reconstruct_object_array_by_path_index`) used by multiple RPGMV file modules within `core::rpgmv`.
-        *   `actors.rs`, `items.rs`, `armors.rs`, `weapons.rs`, `skills.rs`, `enemies.rs`: These parsers utilize the generic `extract_strings_from_json_array` helper. Their reconstruction functions (`reconstruct_<filetype>_json`) have been refactored to call `common::reconstruct_object_array_by_id`.
-        *   `classes.rs`, `map_infos.rs`, `states.rs`: These parsers have specific extraction logic. Their reconstruction functions (`reconstruct_<filetype>_json`) have been refactored to call `common::reconstruct_object_array_by_path_index`.
-        *   `system.rs`: This parser has specific extraction logic. Its reconstruction function (`reconstruct_system_json`) has been refactored to call `common::reconstruct_json_generically`.
-        *   `common_events.rs`, `troops.rs`, `maps.rs`: These parsers handle more complex structures, including event lists. They use the `extract_translatable_strings_from_event_command_list` helper for parsing. Their reconstruction functions retain their specific logic, which includes calling the `common::reconstruct_event_command_list` helper, as the new generic reconstruction functions are not suited for their deeply nested structures requiring custom dispatch to the event list helper.
+        *   `project.rs`: This is the main entry point or orchestrator for RPG Maker MV project-level operations. It handles tasks like directory traversal (using `walkdir`) for `www/data` and delegates the parsing (using `SourceStringData`) and reconstruction (using `WorkingTranslation`) of specific file types to its sibling modules. Its `reconstruct_file_content` function acts as the dispatcher for reconstruction.
+        *   `common.rs`: Contains shared data structures (like `EventCommand`) and common utility functions for both parsing (like `extract_strings_from_json_array`, `extract_translatable_strings_from_event_command_list` - which now produce `SourceStringData`) and reconstruction (like `reconstruct_event_command_list`, `reconstruct_json_generically`, `reconstruct_object_array_by_id`, `reconstruct_object_array_by_path_index` - which now consume `WorkingTranslation`) used by multiple RPGMV file modules within `core::rpgmv`.
+        *   `actors.rs`, `items.rs`, `armors.rs`, `weapons.rs`, `skills.rs`, `enemies.rs`: These parsers utilize the generic `extract_strings_from_json_array` helper (outputting `SourceStringData`). Their reconstruction functions (`reconstruct_<filetype>_json`) have been refactored to call `common::reconstruct_object_array_by_id` (consuming `WorkingTranslation`).
+        *   `classes.rs`, `map_infos.rs`, `states.rs`: These parsers have specific extraction logic (outputting `SourceStringData`). Their reconstruction functions (`reconstruct_<filetype>_json`) have been refactored to call `common::reconstruct_object_array_by_path_index` (consuming `WorkingTranslation`).
+        *   `system.rs`: This parser has specific extraction logic (outputting `SourceStringData`). Its reconstruction function (`reconstruct_system_json`) has been refactored to call `common::reconstruct_json_generically` (consuming `WorkingTranslation`).
+        *   `common_events.rs`, `troops.rs`, `maps.rs`: These parsers handle more complex structures, including event lists. They use the `extract_translatable_strings_from_event_command_list` helper for parsing (outputting `SourceStringData`). Their reconstruction functions retain their specific logic, which includes calling the `common::reconstruct_event_command_list` helper (consuming `WorkingTranslation`), as the new generic reconstruction functions are not suited for their deeply nested structures requiring custom dispatch to the event list helper.
     *   `translation_engine.rs`: (Future) Defines traits or enums for interacting with different AI translation services.
     *   `glossary_manager.rs`: (Future) Implements glossary lookup and application logic.
 
@@ -110,7 +110,7 @@ Contains the heart of the application's business logic. This code should be, as 
 Defines data structures (structs and enums) used throughout the backend. These are often annotated with `serde::{Serialize, Deserialize}` for IPC and file I/O.
 *   **Example Files:**
     *   `app_settings.rs`: Struct representing user-configurable application settings.
-    *   `translation.rs`: Structs for translation requests/responses.
+    *   `translation.rs`: Structs for translation requests/responses, including `SourceStringData` (for extracted strings) and `WorkingTranslation` (for strings being processed/translated).
     *   `project_data.rs`: Structs for representing parsed game project data (e.g., `RpgMakerDetectionResult` could conceptually be here if not in `core/game_detection.rs`, though for enums tightly coupled with a function, keeping them co-located is also fine).
 
 #### 2.1.6 `services/`

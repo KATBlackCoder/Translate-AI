@@ -44,6 +44,7 @@ The frontend follows Nuxt 3 conventions and is organized as follows:
 ├── pages/                    // Top-level routes / views (e.g., index.vue, projects.vue, settings.vue)
 ├── public/                   // Static assets (favicon, etc.)
 └── stores/                   // Pinia state management stores (e.g., translation.ts, settings.ts)
+└── types/                    // TypeScript type definitions (e.g., translation.ts, project.ts)
 ```
 *(This is a representative structure and will evolve as features are added.)*
 
@@ -97,9 +98,16 @@ Stores static assets that are served directly from the root and are not processe
 
 Houses Pinia store modules for state management. These are also auto-imported.
 *   `settings.ts`: Manages application-wide settings and relatively static selectable options. This includes available `languageOptions` and `engineOptions`. (Future: API keys, default preferences, theme settings).
-*   `translation.ts`: Manages the state and actions directly related to performing a translation task, specifically batch translation (loading status, results, errors). (The `TranslatableStringEntry` and `TranslatedStringEntry` interfaces are currently defined here but are candidates for a shared types file.)
-*   `project.ts`: Manages state for project selection, game engine detection, string extraction, and the subsequent reconstruction, packaging (ZIP creation), saving, and opening of the translated project. This includes state like `tempZipPath`, `finalZipSavedPath`, `saveZipError`, `openFolderError`, and `isLoadingSaveZip`, as well as actions like `reconstructAndPackageFiles`, `saveProjectZip`, and `showProjectZipInFolder`. Its `$reset()` method clears project-specific state and also calls `$resetBatchState()` in `translation.ts`.
+*   `translation.ts`: Manages the state and actions directly related to performing a translation task, specifically batch translation (loading status, results, errors). Imports `TranslatableStringEntry` and `TranslatedStringEntry` interfaces from `~/types/translation.ts`.
+*   `project.ts`: Manages state for project selection, game engine detection, string extraction, and the subsequent reconstruction, packaging (ZIP creation), saving, and opening of the translated project. Imports `RpgMakerDetectionResultType` from `~/types/project.ts` and translation-related types from `~/types/translation.ts`. Its `$reset()` method clears project-specific state and also calls `$resetBatchState()` in `translation.ts`.
 *   (Future) `glossary.ts`.
+
+#### 2.1.9 `types/`
+
+Contains shared TypeScript type definitions and interfaces used across the frontend, particularly by stores and components.
+*   `translation.ts`: Defines `TranslatableStringEntry` and `TranslatedStringEntry` interfaces.
+*   `project.ts`: Defines `RpgMakerDetectionResultType` and potentially other project-specific types.
+*   `setting.ts`: Defines `LanguageOption` and `EngineOption` interfaces (moved from `stores/settings.ts`). Also (Future) will house complex type definitions related to settings if needed.
 
 ## 3. Key UI Sections & Global Components (Conceptual)
 
@@ -126,9 +134,9 @@ Pinia stores will be used to manage:
 
 *   **Store Definition:** All Pinia stores will be defined using the **Setup Store** syntax (i.e., a function that returns an object of reactive properties and methods, similar to Vue 3's `setup()` function). This approach aligns best with Nuxt 3 and the Composition API, offering greater flexibility and composability.
 
-*   **`settings.ts`**: Holds application-level settings and configuration data. This includes lists of available languages (`languageOptions`) and translation engines (`engineOptions`) for selection in the UI. In the future, it will also manage user preferences like API keys, default language selections, themes, etc.
-*   **`translation.ts`**: Focuses on the operational aspects of performing a translation. It handles the state for an active batch translation process: loading indicators, storing the translated strings (including any errors per string), and any overall errors from the batch translation command. (The `TranslatableStringEntry` and `TranslatedStringEntry` interfaces are currently defined here but are candidates for a shared types file.)
-*   **`project.ts`**: Manages state related to the game project itself: selected folder path, game engine detection results, extracted translatable strings, and any errors during these initial project processing steps. It also handles the state and actions for the output ZIP file: `tempZipPath` (path after backend reconstruction), `finalZipSavedPath` (path after user saves it), `saveZipError`, `openFolderError`, and `isLoadingSaveZip`. It includes actions like `selectProjectFolder`, `extractProjectStrings`, `reconstructAndPackageFiles`, `saveProjectZip`, and `showProjectZipInFolder`. Its `$reset()` method clears its own state and triggers a reset of batch translation state in `translation.ts`, ensuring a clean slate when a new project is chosen.
+*   **`settings.ts`**: Holds application-level settings and configuration data. This includes lists of available languages (`languageOptions`) and translation engines (`engineOptions`) for selection in the UI (types for these options are in `~/types/setting.ts`). In the future, it will also manage user preferences like API keys, default language selections, themes, etc.
+*   **`translation.ts`**: Focuses on the operational aspects of performing a translation. It handles the state for an active batch translation process: loading indicators, storing the translated strings (including any errors per string), and any overall errors from the batch translation command. Imports `TranslatableStringEntry` and `TranslatedStringEntry` interfaces from `~/types/translation.ts`.
+*   **`project.ts`**: Manages state related to the game project itself: selected folder path, game engine detection results, extracted translatable strings, and any errors during these initial project processing steps. It also handles the state and actions for the output ZIP file: `tempZipPath` (path after backend reconstruction), `finalZipSavedPath` (path after user saves it), `saveZipError`, `openFolderError`, and `isLoadingSaveZip`. It includes actions like `selectProjectFolder`, `extractProjectStrings`, `reconstructAndPackageFiles`, `saveProjectZip`, and `showProjectZipInFolder`. Imports `RpgMakerDetectionResultType` from `~/types/project.ts` and translation-related types from `~/types/translation.ts`. Its `$reset()` method clears its own state and triggers a reset of batch translation state in `translation.ts`, ensuring a clean slate when a new project is chosen.
 *   **`glossary.ts`**: (Future) Glossary terms and management state.
 
 ## 5. Composables

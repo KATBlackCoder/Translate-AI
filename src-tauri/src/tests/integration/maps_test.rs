@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod maps_extraction_tests { // Renaming module for consistency
     // use std::path::Path;
-    use crate::core::rpgmv::common::TranslatableStringEntry;
+    use crate::models::translation::SourceStringData;
     // use crate::core::rpgmv::project::extract_translatable_strings_from_project;
     use crate::tests::common_test_utils::setup_and_extract_all_strings;
 
@@ -9,7 +9,7 @@ mod maps_extraction_tests { // Renaming module for consistency
     fn test_map_files_extraction() {
         let all_extracted_strings = setup_and_extract_all_strings();
 
-        let map_strings: Vec<&TranslatableStringEntry> = all_extracted_strings
+        let map_strings: Vec<&SourceStringData> = all_extracted_strings
             .iter()
             .filter(|e| e.source_file.starts_with("www/data/Map") && e.source_file.ends_with(".json") && !e.source_file.ends_with("MapInfos.json"))
             .collect();
@@ -19,13 +19,13 @@ mod maps_extraction_tests { // Renaming module for consistency
         if map_strings.len() != expected_map_strings_count {
             eprintln!("Found {} total strings from MapXXX.json files (excluding MapInfos.json), but expected {}.", map_strings.len(), expected_map_strings_count);
             // Print details for a specific map file if the count is off, e.g., Map001.json
-            let map001_strings_for_debug: Vec<&&TranslatableStringEntry> = map_strings.iter().filter(|e| e.source_file.ends_with("Map001.json")).collect();
+            let map001_strings_for_debug: Vec<&&SourceStringData> = map_strings.iter().filter(|e| e.source_file.ends_with("Map001.json")).collect();
             eprintln!("Found {} strings specifically from Map001.json (for detail):", map001_strings_for_debug.len());
             for (i, entry) in map001_strings_for_debug.iter().take(25).enumerate() { // Show some examples from Map001.json
                 eprintln!("  Map001.json String Example {}: {:?}", i + 1, entry);
             }
             // It might be useful to also see a few from other actual map files if they exist
-            let other_map_strings_for_debug: Vec<&&TranslatableStringEntry> = map_strings.iter().filter(|e| e.source_file.starts_with("www/data/Map") && e.source_file.ends_with(".json") && !e.source_file.ends_with("Map001.json") && !e.source_file.ends_with("MapInfos.json")).collect();
+            let other_map_strings_for_debug: Vec<&&SourceStringData> = map_strings.iter().filter(|e| e.source_file.starts_with("www/data/Map") && e.source_file.ends_with(".json") && !e.source_file.ends_with("Map001.json") && !e.source_file.ends_with("MapInfos.json")).collect();
             if !other_map_strings_for_debug.is_empty() {
                 eprintln!("Found {} strings from other MapXXX.json files (excluding Map001.json and MapInfos.json) (first few shown):", other_map_strings_for_debug.len());
                 for (i, entry) in other_map_strings_for_debug.iter().take(5).enumerate() {
@@ -53,7 +53,7 @@ mod maps_extraction_tests { // Renaming module for consistency
         //     e.source_file == map001_file_name && e.object_id == 0 && e.json_path == expected_json_path_display_name_map1
         // );
         // assert!(map_display_name_entry_map1.is_some(), "Could not find map display name for {} with path {} and object_id 0", map001_file_name, expected_json_path_display_name_map1);
-        // assert_eq!(map_display_name_entry_map1.unwrap().text, expected_map_display_name_map1, "Incorrect text for map display name ({}, path {}, object_id 0).", map001_file_name, expected_json_path_display_name_map1);
+        // assert_eq!(map_display_name_entry_map1.unwrap().original_text, expected_map_display_name_map1, "Incorrect text for map display name ({}, path {}, object_id 0).", map001_file_name, expected_json_path_display_name_map1);
 
         // 2. Event Name from Map001.json
         let expected_event_id_1_map1 = 1; // Event ID is u32, corresponds to object_id
@@ -66,7 +66,7 @@ mod maps_extraction_tests { // Renaming module for consistency
             e.json_path == expected_json_path_event_name_map1_ev1
         );
         assert!(event_name_entry_map1_ev1.is_some(), "Could not find event name for event ID {} on {} with path {}. Found: {:?}", expected_event_id_1_map1, map001_file_name, expected_json_path_event_name_map1_ev1, map_strings.iter().filter(|e| e.source_file == map001_file_name && e.object_id == expected_event_id_1_map1).collect::<Vec<_>>());
-        assert_eq!(event_name_entry_map1_ev1.unwrap().text, expected_event_name_map1_ev1, "Incorrect text for event name ({}, Event ID {}, path {}).", map001_file_name, expected_event_id_1_map1, expected_json_path_event_name_map1_ev1);
+        assert_eq!(event_name_entry_map1_ev1.unwrap().original_text, expected_event_name_map1_ev1, "Incorrect text for event name ({}, Event ID {}, path {}).", map001_file_name, expected_event_id_1_map1, expected_json_path_event_name_map1_ev1);
 
         // 3. Event Command Text from Map001.json
         let expected_command_text_map1_ev1 = "お呼びですか？ご主人様。";
@@ -78,7 +78,7 @@ mod maps_extraction_tests { // Renaming module for consistency
             e.json_path == expected_json_path_command_map1_ev1
         );
         assert!(command_text_entry_map1_ev1.is_some(), "Could not find command text for event ID {} on {} with path {}. Check if this specific command exists and is extracted. Filtered: {:?}", expected_event_id_1_map1, map001_file_name, expected_json_path_command_map1_ev1, map_strings.iter().filter(|e|e.source_file == map001_file_name && e.object_id == expected_event_id_1_map1).collect::<Vec<_>>());
-        assert_eq!(command_text_entry_map1_ev1.unwrap().text, expected_command_text_map1_ev1, "Incorrect text for command ({}, Event ID {}, path {}).", map001_file_name, expected_event_id_1_map1, expected_json_path_command_map1_ev1);
+        assert_eq!(command_text_entry_map1_ev1.unwrap().original_text, expected_command_text_map1_ev1, "Incorrect text for command ({}, Event ID {}, path {}).", map001_file_name, expected_event_id_1_map1, expected_json_path_command_map1_ev1);
 
         // 4. Event Choice Text from Map001.json
         let expected_event_id_2_map1 = 2; // Event ID 2
@@ -91,7 +91,7 @@ mod maps_extraction_tests { // Renaming module for consistency
             e.json_path == expected_json_path_choice_map1_ev2
         );
         assert!(choice_text_entry_map1_ev2.is_some(), "Could not find choice text for event ID {} on {} with path {}. Filtered: {:?}", expected_event_id_2_map1, map001_file_name, expected_json_path_choice_map1_ev2, map_strings.iter().filter(|e|e.source_file == map001_file_name && e.object_id == expected_event_id_2_map1).collect::<Vec<_>>());
-        assert_eq!(choice_text_entry_map1_ev2.unwrap().text, expected_choice_text_map1_ev2, "Incorrect text for choice ({}, Event ID {}, path {}).", map001_file_name, expected_event_id_2_map1, expected_json_path_choice_map1_ev2);
+        assert_eq!(choice_text_entry_map1_ev2.unwrap().original_text, expected_choice_text_map1_ev2, "Incorrect text for choice ({}, Event ID {}, path {}).", map001_file_name, expected_event_id_2_map1, expected_json_path_choice_map1_ev2);
 
         // If the asserts fail, the eprintln messages with more detailed filtering in the assert! calls should help debug.
         // println!("Successfully validated {} strings from MapXXX.json files (excluding MapInfos.json). DEBUG MODE - SOME ASSERTS COMMENTED", map_strings.len());
@@ -103,7 +103,7 @@ mod maps_extraction_tests { // Renaming module for consistency
     #[test]
     fn test_map_infos_extraction() {
         let all_extracted_strings = setup_and_extract_all_strings();
-        let map_info_strings: Vec<&TranslatableStringEntry> = all_extracted_strings
+        let map_info_strings: Vec<&SourceStringData> = all_extracted_strings
             .iter()
             .filter(|e| e.source_file.ends_with("MapInfos.json"))
             .collect();
@@ -121,7 +121,7 @@ mod maps_extraction_tests { // Renaming module for consistency
         if let Some(map_info_entry) = map_info_strings.iter().find(|e|
             e.object_id == expected_map_id_1_info && e.json_path == expected_json_path_map_name_1_info
         ) {
-            assert_eq!(map_info_entry.text, expected_map_name_1_info, "Incorrect text for map info name spot check (ID {}).", expected_map_id_1_info);
+            assert_eq!(map_info_entry.original_text, expected_map_name_1_info, "Incorrect text for map info name spot check (ID {}).", expected_map_id_1_info);
         } else {
             panic!("Map info for ID {} (name) not found in MapInfos.json. Verify your MapInfos.json and extraction logic.", expected_map_id_1_info);
         }

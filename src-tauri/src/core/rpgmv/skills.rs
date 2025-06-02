@@ -1,15 +1,12 @@
 use serde::Deserialize;
 use super::common::{
-    TranslatableStringEntry,
     RpgMvDataObject,
     extract_strings_from_json_array,
     reconstruct_object_array_by_id
 };
 
-use serde_json::Value;
-use crate::models::translation::TranslatedStringEntryFromFrontend;
+use crate::models::translation::{WorkingTranslation, SourceStringData};
 use crate::error::CoreError;
-use crate::utils::json_utils::update_value_at_path;
 
 #[derive(Deserialize, Debug)]
 struct Skill {
@@ -48,15 +45,15 @@ impl RpgMvDataObject for Skill {
 pub fn extract_strings(
     file_content: &str,
     source_file: &str,
-) -> Result<Vec<TranslatableStringEntry>, String> {
+) -> Result<Vec<SourceStringData>, String> {
     extract_strings_from_json_array::<Skill>(file_content, source_file, "Skills.json")
 }
 
 pub fn reconstruct_skills_json(
     original_json_str: &str,
-    translations: Vec<&TranslatedStringEntryFromFrontend>,
+    translations: Vec<&WorkingTranslation>,
 ) -> Result<String, CoreError> {
-    super::common::reconstruct_object_array_by_id(
+    reconstruct_object_array_by_id(
         original_json_str,
         &translations,
         "Skills.json"
@@ -66,6 +63,7 @@ pub fn reconstruct_skills_json(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::Value; 
     // Using the provided Skills.json for test data inspiration
     const TEST_SKILLS_JSON: &str = r#"[
         null,
@@ -79,56 +77,62 @@ mod tests {
     fn test_reconstruct_skills_basic() {
         let original_json_str = TEST_SKILLS_JSON;
         let translations = vec![
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation {
                 object_id: 1,
-                text: "Attack".to_string(),
+                original_text: "Attack".to_string(),
                 source_file: "www/data/Skills.json".to_string(),
                 json_path: "name".to_string(),
                 translated_text: "Attaque (FR)".to_string(),
+                translation_source: "test".to_string(),
                 error: None,
             },
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation {
                 object_id: 1,
-                text: " attacks!".to_string(),
+                original_text: " attacks!".to_string(),
                 source_file: "www/data/Skills.json".to_string(),
                 json_path: "message1".to_string(),
                 translated_text: " attaque ! (FR)".to_string(),
+                translation_source: "test".to_string(),
                 error: None,
             },
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation {
                 object_id: 10,
-                text: "Fire".to_string(),
+                original_text: "Fire".to_string(),
                 source_file: "www/data/Skills.json".to_string(),
                 json_path: "name".to_string(),
                 translated_text: "Feu (FR)".to_string(),
+                translation_source: "test".to_string(),
                 error: None,
             },
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation {
                 object_id: 10,
-                text: "Harness the power of fire to damage an enemy.".to_string(),
+                original_text: "Harness the power of fire to damage an enemy.".to_string(),
                 source_file: "www/data/Skills.json".to_string(),
                 json_path: "description".to_string(),
                 translated_text: "Exploite la puissance du feu pour blesser un ennemi. (FR)".to_string(),
+                translation_source: "test".to_string(),
                 error: None,
             },
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation {
                 object_id: 10,
-                text: " casts %1!".to_string(),
+                original_text: " casts %1!".to_string(),
                 source_file: "www/data/Skills.json".to_string(),
                 json_path: "message1".to_string(),
                 translated_text: " lance %1 ! (FR)".to_string(),
+                translation_source: "test".to_string(),
                 error: None,
             },
-             TranslatedStringEntryFromFrontend {
+             WorkingTranslation {
                 object_id: 10,
-                text: "Element: Fire\nCost: 5 MP".to_string(),
+                original_text: "Element: Fire\nCost: 5 MP".to_string(),
                 source_file: "www/data/Skills.json".to_string(),
                 json_path: "note".to_string(),
                 translated_text: "Élément : Feu\nCoût : 5 PM (FR)".to_string(),
+                translation_source: "test".to_string(),
                 error: None,
             },
         ];
-        let translations_ref: Vec<&TranslatedStringEntryFromFrontend> = translations.iter().collect();
+        let translations_ref: Vec<&WorkingTranslation> = translations.iter().collect();
         let result = reconstruct_skills_json(&original_json_str, translations_ref);
         assert!(result.is_ok(), "reconstruct_skills_json failed: {:?}", result.err());
         let reconstructed_json_str = result.unwrap();
@@ -149,24 +153,26 @@ mod tests {
     fn test_reconstruct_skills_with_translation_error() {
         let original_json_str = TEST_SKILLS_JSON;
         let translations = vec![
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation {
                 object_id: 1, // Attack
-                text: "Attack".to_string(), 
+                original_text: "Attack".to_string(), 
                 source_file: "www/data/Skills.json".to_string(),
                 json_path: "name".to_string(),
                 translated_text: "AttackFail".to_string(),
+                translation_source: "test".to_string(),
                 error: Some("AI error".to_string()), 
             },
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation {
                 object_id: 2, // Guard
-                text: " guards.".to_string(), 
+                original_text: " guards.".to_string(), 
                 source_file: "www/data/Skills.json".to_string(),
                 json_path: "message1".to_string(),
-                translated_text: " se protège. (FR)".to_string(), 
+                translated_text: " se protège. (FR)".to_string(),
+                translation_source: "test".to_string(),
                 error: None,
             },
         ];
-        let translations_ref: Vec<&TranslatedStringEntryFromFrontend> = translations.iter().collect();
+        let translations_ref: Vec<&WorkingTranslation> = translations.iter().collect();
         let result = reconstruct_skills_json(&original_json_str, translations_ref);
         assert!(result.is_ok());
         let reconstructed_json: Value = serde_json::from_str(&result.unwrap()).unwrap();
@@ -180,16 +186,17 @@ mod tests {
     fn test_reconstruct_skills_non_existent_id() {
         let original_json_str = TEST_SKILLS_JSON;
         let translations = vec![
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation {
                 object_id: 999, 
-                text: "Unknown Skill".to_string(),
+                original_text: "Unknown Skill".to_string(),
                 source_file: "www/data/Skills.json".to_string(),
                 json_path: "name".to_string(),
                 translated_text: "Phantom Skill".to_string(),
+                translation_source: "test".to_string(),
                 error: None,
             },
         ];
-        let translations_ref: Vec<&TranslatedStringEntryFromFrontend> = translations.iter().collect();
+        let translations_ref: Vec<&WorkingTranslation> = translations.iter().collect();
         let result = reconstruct_skills_json(&original_json_str, translations_ref);
         assert!(result.is_ok());
         let reconstructed_value: Value = serde_json::from_str(&result.unwrap()).expect("Failed to parse reconstructed");
@@ -201,16 +208,17 @@ mod tests {
     fn test_reconstruct_skills_non_existent_json_path() {
         let original_json_str = TEST_SKILLS_JSON;
         let translations = vec![
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation {
                 object_id: 1, 
-                text: "Value".to_string(),
+                original_text: "Value".to_string(),
                 source_file: "www/data/Skills.json".to_string(),
                 json_path: "ultimatePower".to_string(), 
                 translated_text: "Divine Intervention".to_string(),
+                translation_source: "test".to_string(),
                 error: None,
             },
         ];
-        let translations_ref: Vec<&TranslatedStringEntryFromFrontend> = translations.iter().collect();
+        let translations_ref: Vec<&WorkingTranslation> = translations.iter().collect();
         let result = reconstruct_skills_json(&original_json_str, translations_ref);
         assert!(result.is_ok());
         let reconstructed_value: Value = serde_json::from_str(&result.unwrap()).expect("Failed to parse reconstructed");
@@ -221,8 +229,8 @@ mod tests {
     #[test]
     fn test_reconstruct_skills_empty_translations_list() {
         let original_json_str = TEST_SKILLS_JSON;
-        let translations: Vec<TranslatedStringEntryFromFrontend> = Vec::new();        
-        let translations_ref: Vec<&TranslatedStringEntryFromFrontend> = translations.iter().collect();
+        let translations: Vec<WorkingTranslation> = Vec::new();        
+        let translations_ref: Vec<&WorkingTranslation> = translations.iter().collect();
         let result = reconstruct_skills_json(&original_json_str, translations_ref);
         assert!(result.is_ok());
         let reconstructed_value: Value = serde_json::from_str(&result.unwrap()).expect("Failed to parse reconstructed");
@@ -234,16 +242,17 @@ mod tests {
     fn test_reconstruct_skills_invalid_original_json() {
         let original_json_str = r#"[null, {"id":1, "name":"Fire", "description":"Very hot"#;
         let translations = vec![
-            TranslatedStringEntryFromFrontend {
+            WorkingTranslation {
                 object_id: 1,
-                text: "Fire".to_string(),
+                original_text: "Fire".to_string(),
                 source_file: "www/data/Skills.json".to_string(),
                 json_path: "name".to_string(),
                 translated_text: "Feu".to_string(),
+                translation_source: "test".to_string(),
                 error: None,
             },
         ];
-        let translations_ref: Vec<&TranslatedStringEntryFromFrontend> = translations.iter().collect();
+        let translations_ref: Vec<&WorkingTranslation> = translations.iter().collect();
         let result = reconstruct_skills_json(original_json_str, translations_ref);
         assert!(result.is_err());
         match result.err().unwrap() {
