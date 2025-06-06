@@ -258,10 +258,10 @@ This document outlines a phased approach to developing the AI Game Translator ap
     *   **Temporary File Cleanup (Rust):**
         *   Handled within the `save_zip_archive_command`. The `std::fs::rename` operation effectively moves the temporary ZIP file, and the fallback mechanism (copy then `std::fs::remove_file`) explicitly deletes the temporary file after a successful copy to the user's chosen destination. Therefore, no separate explicit cleanup step is currently needed for the main successful save path.
 
-## Phase 4: Glossary Feature
+## Phase 4: Glossary Feature and Enhanced AI Prompting
 
-**Goal:** Allow users to define custom translations that enhance AI prompts with term-specific guidance, particularly for vulgar/sensitive terms, game-specific terminology, and cultural references.
-**Definition of Done:** User can manage glossary entries (add, retrieve, edit, delete). The glossary entries are correctly incorporated into AI prompts for more accurate translations, especially for specialized terminology. UI indicates when a translation potentially applied glossary terms. Essential error handling for glossary operations is implemented. Unit/integration tests for backend logic are written and passing.
+**Goal:** Allow users to define custom translations that enhance AI prompts with term-specific guidance, particularly for vulgar/sensitive terms, game-specific terminology, and cultural references. Simultaneously implement field-specific prompts to improve context-aware translations.
+**Definition of Done:** User can manage glossary entries (add, retrieve, edit, delete). The glossary entries and field-specific context are correctly incorporated into AI prompts for more accurate translations. UI indicates which glossary terms were applied to translations. Essential error handling for glossary operations is implemented. Unit/integration tests for backend logic are written and passing.
 
 **Tasks:**
 
@@ -310,24 +310,32 @@ This document outlines a phased approach to developing the AI Game Translator ap
         *   Implement tests for each Tauri command to verify CRUD operations work correctly.
 2.  **Glossary UI (Frontend):**
     *   Settings page/modal section for managing glossary entries (CRUD operations).
-3.  **Integrate Glossary with AI Prompting (Rust):**
-    *   Modify AI calling logic in `src-tauri/src/services/ollama_client.rs` and related files:
-        *   Add a new function to search the glossary for relevant entries based on text content.
-            *   For a given source text and language pair, identify glossary entries whose `source_text` appears as a substring or exact match.
-            *   Limit the number of entries to include (to manage prompt size).
-            *   Optionally prioritize entries based on some criteria (length, frequency, etc.).
-        *   Enhance the prompt construction to include relevant glossary entries as translation guidance.
-            *   Format the prompt to explicitly tell the AI to use these term translations.
-            *   Example enhanced prompt structure:
-              ```
-              Translate the following text from {source_language} to {target_language}.
-              Use these specific translation pairs for these terms:
-              - {term1} -> {translation1}
-              - {term2} -> {translation2}
-              
-              Text to translate: "{text_to_translate}"
-              ```
-        *   Track which glossary terms were potentially applied to each translation.
+3. **Implement Field-Specific Translation Prompts and Glossary Integration:**
+    *   **Create Prompt Templates:**
+        *   Create a `src-tauri/resources/prompts/` directory with template files:
+            *   `name.txt`, `description.txt`, `dialogue.txt`, etc., based on field types.
+            *   Identify initial prompt categories: `Name` (for actors, items, skills), `Description` (items, skills), `Profile` (actors), `Nickname` (actors), `Note`, `Dialogue`, `ChoiceOption`, `SystemTerm`, `BattleMessage`, and `Default`.
+        *   The Rust backend will use the `include_str!` macro to load these templates.
+    *   **Create a Prompt Management Module:**
+        *   Implement `src-tauri/src/services/prompt_manager.rs` to handle all prompt-related logic.
+        *   Create functions to select the appropriate template based on field type.
+        *   Implement logic to search for relevant glossary entries in a source text.
+        *   Create a master function that combines field-specific templates with glossary entries.
+    *   **Integrate with Translation Logic:**
+        *   Modify `src-tauri/src/services/ollama_client.rs` to use the new prompt manager.
+        *   Update the `translate_with_ollama` function to accept field type information and glossary entries.
+        *   Enhance the batch translation process to pass field type data (derived from `json_path`).
+        *   Track which glossary terms were included in each translation's prompt.
+    *   **Example Enhanced Prompt Structure:**
+        ```
+        {field-specific instructions from template}
+        
+        Use these specific translation pairs for these terms:
+        - {term1} -> {translation1}
+        - {term2} -> {translation2}
+        
+        Text to translate: "{text_to_translate}"
+        ```
 4.  **UI Indication for Glossary Usage (Frontend):**
     *   During the batch review/results steps, indicate which glossary terms may have influenced each translation.
     *   Provide a way to view which specific terms from the glossary were included in the prompt for a particular translation.
@@ -335,7 +343,7 @@ This document outlines a phased approach to developing the AI Game Translator ap
 ## Phase 5: Integrate DeepL Online AI API
 
 **Goal:** Add support for DeepL as an online AI translation engine option, including formality selection and robust error handling.
-**Definition of Done:** User can select DeepL as the translation engine. DeepL translations work for single text and batch. Formality options are available for supported languages. Common DeepL API errors (auth, quota, rate limits) are handled with clear user messages. The app's internal glossary is still applied correctly before calling DeepL. Unit/integration tests for DeepL client are written.
+**Definition of Done:** User can select DeepL as the translation engine. DeepL translations work for single text and batch. Formality options are available for supported languages. Common DeepL API errors (auth, quota, rate limits) are handled with clear user messages. The app's internal glossary and field-specific prompts are still applied correctly before calling DeepL. Unit/integration tests for DeepL client are written.
 
 **Tasks:**
 
@@ -379,12 +387,6 @@ This document outlines a phased approach to developing the AI Game Translator ap
     *   Implement a **determinate progress indicator** (e.g., progress bar, percentage complete) for batch translation, requiring backend-to-frontend progress updates (e.g., via Tauri events).
     *   Implement a **cancellation feature** for ongoing batch translation processes. This would likely involve a new Tauri command or modification to existing commands in `src-tauri/src/commands/project.rs`.
     *   **Display Per-File String Counts:** After project string extraction, display a summary showing how many translatable strings were extracted from each processed game file. This involves backend logic to count strings per file and return this summary, and frontend UI to present it.
-    *   **Implement Field-Specific Translation Prompts:** Enhance the AI translation logic (e.g., within `src-tauri/src/services/ollama_client.rs` or a dedicated prompt management module) to improve contextual accuracy. This will evolve the current generic prompting mechanism.
-        *   Instead of a single hardcoded prompt, the system will use different prompt templates based on the `json_path` (or a derived field type like 'name', 'description', 'dialogue') of the text being translated.
-        *   Prompt templates will be stored as individual text files (e.g., `name.txt`, `description.txt`, `default.txt`) within a `src-tauri/resources/prompts/` directory.
-        *   The Rust backend will use the `include_str!` macro (or similar file reading mechanism at runtime if dynamic loading is preferred) to load these prompt templates.
-        *   Logic will be implemented to select the appropriate loaded prompt template based on the field context and then format it with the necessary translation details (source/target language, text to translate) before sending to the AI engine.
-        *   **Identified Initial Prompt Categories (to be refined):** `Name` (for actors, items, skills), `Description` (items, skills), `Profile` (actors), `Nickname` (actors), `Note` (generic notes, needs careful handling of tags/code), `Dialogue` (event text), `ChoiceOption` (event choices), `SystemTerm` (UI text, system messages), `BattleMessage` (skill/item usage messages), and a `Default` prompt.
 4.  **Integrate Optional Frontend Libraries:**
     *   `@vueuse/core` for keyboard shortcuts (e.g., Ctrl+Enter to translate) and clipboard copy.
     *   `@nuxtjs/i18n` if UI translation is prioritized.

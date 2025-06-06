@@ -170,7 +170,7 @@ Phase 1 (Project Setup & Core UI Shell for Project Translation) is complete. Cor
         *   Backend `open_folder_command` in `commands/project.rs` uses `tauri-plugin-opener` to show the ZIP in the file explorer.
         *   Error handling and user feedback via toasts are implemented for these operations.
 
-*   **Phase 4: Glossary Feature (New Current Focus)**
+*   **Phase 4: Glossary Feature and Enhanced AI Prompting (New Current Focus)**
     *   **Task 1: Glossary Data Management (Rust & `tauri-plugin-store`): IN PROGRESS**
         *   Detailed planning complete with the following approach:
             *   **Data Structure Design:** Will create `GlossaryEntry` (with unique ID, source/target text, language codes, timestamps) and `NewGlossaryEntryData` structs in a new `models/glossary.rs` file.
@@ -185,16 +185,34 @@ Phase 1 (Project Setup & Core UI Shell for Project Translation) is complete. Cor
             *   **Prompt Enhancement:** Glossary entries will be searched for relevant terms that appear within the source text, and these will be added to the AI prompt as specific translation guidelines.
             *   **Example:** For terms like "マンコ -> pussy", the AI will be explicitly instructed to use this translation when the term appears in any context, ensuring consistent and accurate handling of sensitive or specialized terminology.
             *   **Benefits:** This approach handles slang, vulgar terms, game-specific terminology, and cultural references more effectively, even when they appear in various forms or within larger sentences.
+    *   **Task 3: Field-Specific Translation Prompts (Integrated from Phase 6):** PLANNING
+        *   **Rationale for Integration:** Moving this task from Phase 6 to Phase 4 to create a unified prompt enhancement system.
+        *   **Integrated Approach:** Combining field-specific templates with glossary term instructions will create more powerful, context-aware prompts.
+        *   **Implementation Plan:**
+            *   Create prompt template files for different field types (names, descriptions, dialogue, etc.).
+            *   Develop a prompt management module that selects the appropriate template based on field context.
+            *   Combine field-specific instructions with relevant glossary terms in a single enhanced prompt.
+            *   Example combined prompt structure:
+              ```
+              {Field-specific instructions from template}
+              
+              Use these specific translation pairs for these terms:
+              - {term1} -> {translation1}
+              - {term2} -> {translation2}
+              
+              Text to translate: "{text_to_translate}"
+              ```
+            *   Benefits: More nuanced translations that understand both the context of the text (field type) and specific terminology requirements (glossary).
 
 ## Next Major Goals (Adjusted from Implementation Plan):
 
-1.  **Complete Phase 4: Glossary Feature**
+1.  **Complete Phase 4: Glossary Feature and Enhanced AI Prompting**
     *   Task 1: Glossary Data Management (Rust) - In Progress
     *   Task 2: Glossary UI (Frontend)
-    *   Task 3: Integrate Glossary with AI Prompting (replacing the pre-check mechanism)
+    *   Task 3: Implement Field-Specific Translation Prompts and Glossary Integration - Planning
     *   Task 4: UI Indication for Glossary Term Usage
 2.  **Phase 5: Integrate DeepL Online AI API**
-3.  **Phase 6: Enhancements, Polish & Core UX Plugins**
+3.  **Phase 6: Enhancements, Polish & Core UX Plugins** (Field-Specific Prompts moved to Phase 4)
 
 ## Pending Clarifications / Blockers:
 *   User feedback on testing integration within the implementation plan.
@@ -203,6 +221,5 @@ Phase 1 (Project Setup & Core UI Shell for Project Translation) is complete. Cor
 
 ## Future Enhancements/Considerations (Deferred from earlier phases):
 *   Address double line break issue from Ollama for Japanese translations (deferred from original Phase 2, still relevant if Ollama is used for batch).
-*   **Evolve AI Prompting (Phase 6 Plan):** The current generic AI prompt (seen in `ollama_client.rs`) is planned to be significantly enhanced in Phase 6. This involves implementing a system for dynamically selecting field-specific prompt templates (from `src-tauri/resources/prompts/`) based on text context (e.g., `json_path`) to improve contextual translation accuracy before sending requests to the AI engine.
 *   (Re-introduction of Single-Text Translation feature can be considered later if desired).
 *   Detailed UI component structure for the Settings page (Phase 6 of implementation plan) to include `SettingEngines.vue`, `SettingModels.vue`, `SettingLanguages.vue`, and potentially `SettingAppearance.vue` for better organization of user configurations.
