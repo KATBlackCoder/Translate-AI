@@ -1,7 +1,7 @@
 use serde::Deserialize;
 use crate::models::translation::{SourceStringData, WorkingTranslation};
 use crate::error::CoreError;
-use super::common::{    
+use super::common::{
     RpgMvDataObject,
     extract_strings_from_json_array,
     reconstruct_object_array_by_id

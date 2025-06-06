@@ -49,18 +49,18 @@
         />
         <UButton 
           label="Save Project ZIP"
+          color="primary"
           icon="i-heroicons-document-arrow-down"
           :loading="projectStore.isLoadingSaveZip" 
           :disabled="!projectStore.tempZipPath || projectStore.isLoadingReconstruction || projectStore.isLoadingSaveZip"
           @click="handleSaveZip"
-          color="primary"
         />
         <UButton 
           label="Show in Folder"
+          variant="outline"
           icon="i-heroicons-folder-open"
           :disabled="!projectStore.finalZipSavedPath"
           @click="handleShowInFolder"
-          variant="outline"
         />
       </div>
       <UAlert

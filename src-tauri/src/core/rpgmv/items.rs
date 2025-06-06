@@ -71,7 +71,7 @@ mod tests {
                 object_id: 1,
                 original_text: "ポーション".to_string(),
                 source_file: "www/data/Items.json".to_string(),
-                json_path: "name".to_string(),
+                json_path: "[1].name".to_string(),
                 translated_text: "Potion (EN)".to_string(),
                 translation_source: "test".to_string(),
                 error: None,
@@ -80,7 +80,7 @@ mod tests {
                 object_id: 1,
                 original_text: "".to_string(), // Original description is empty
                 source_file: "www/data/Items.json".to_string(),
-                json_path: "description".to_string(),
+                json_path: "[1].description".to_string(),
                 translated_text: "Heals a small amount of HP.".to_string(),
                 translation_source: "test".to_string(),
                 error: None,
@@ -90,7 +90,7 @@ mod tests {
                 object_id: 2,
                 original_text: "マジックウォーター".to_string(),
                 source_file: "www/data/Items.json".to_string(),
-                json_path: "name".to_string(),
+                json_path: "[2].name".to_string(),
                 translated_text: "Magic Water (EN)".to_string(),
                 translation_source: "test".to_string(),
                 error: None,
@@ -100,7 +100,7 @@ mod tests {
                 object_id: 5,
                 original_text: "アイテム　↓".to_string(),
                 source_file: "www/data/Items.json".to_string(),
-                json_path: "name".to_string(),
+                json_path: "[3].name".to_string(),
                 translated_text: "Item Placeholder (EN)".to_string(),
                 translation_source: "test".to_string(),
                 error: None,
@@ -109,7 +109,7 @@ mod tests {
                 object_id: 5,
                 original_text: "<拡張説明:>".to_string(),
                 source_file: "www/data/Items.json".to_string(),
-                json_path: "note".to_string(),
+                json_path: "[3].note".to_string(),
                 translated_text: "<Extended Desc: (EN)>".to_string(),
                 translation_source: "test".to_string(),
                 error: None,
@@ -154,7 +154,7 @@ mod tests {
                 object_id: 1, // Potion
                 original_text: "ポーション".to_string(), 
                 source_file: "www/data/Items.json".to_string(),
-                json_path: "name".to_string(),
+                json_path: "[1].name".to_string(),
                 translated_text: "NameFail".to_string(), // This would be some placeholder from translation attempt
                 translation_source: "test".to_string(),
                 error: Some("AI translation failed".to_string()), 
@@ -163,16 +163,16 @@ mod tests {
                 object_id: 1, // Potion
                 original_text: "".to_string(), // Original description for Potion is empty
                 source_file: "www/data/Items.json".to_string(),
-                json_path: "description".to_string(),
+                json_path: "[1].description".to_string(),
                 translated_text: "Translated Desc".to_string(),
                 translation_source: "test".to_string(),
                 error: None, // Description translation is successful
             },
             WorkingTranslation {
                 object_id: 6, // Jail Key
-                original_text: "<拡張説明:\n捕まった人達がいる牢の鍵\nかなり頑丈にできている。>".to_string(),
+                original_text: "<拡張説明:\\n捕まった人達がいる牢の鍵\\nかなり頑丈にできている。>".to_string(), // Match JSON literal's escaped newline
                 source_file: "www/data/Items.json".to_string(),
-                json_path: "note".to_string(),
+                json_path: "[4].note".to_string(), // Item ID 6 is at index 4
                 translated_text: "NoteFail".to_string(),
                 translation_source: "test".to_string(),
                 error: Some("Another AI error".to_string()),
@@ -203,7 +203,7 @@ mod tests {
                 object_id: 999, // Non-existent ID
                 original_text: "Unknown Item".to_string(),
                 source_file: "www/data/Items.json".to_string(),
-                json_path: "name".to_string(),
+                json_path: "[999].name".to_string(),
                 translated_text: "Ghost Item".to_string(),
                 translation_source: "test".to_string(),
                 error: None,
@@ -230,7 +230,7 @@ mod tests {
                 object_id: 1, // Potion
                 original_text: "Some value".to_string(),
                 source_file: "www/data/Items.json".to_string(),
-                json_path: "inventedField".to_string(), // This field does not exist in the Item struct/JSON
+                json_path: "[1].inventedField".to_string(),
                 translated_text: "Translated Invented Field".to_string(),
                 translation_source: "test".to_string(),
                 error: None,
@@ -274,7 +274,7 @@ mod tests {
                 object_id: 1,
                 original_text: "Potion".to_string(),
                 source_file: "www/data/Items.json".to_string(),
-                json_path: "name".to_string(),
+                json_path: "[1].name".to_string(),
                 translated_text: "ポーション".to_string(),
                 translation_source: "test".to_string(),
                 error: None,

@@ -331,12 +331,29 @@ pub fn reconstruct_object_array_by_id(
                             entry.translated_text.as_str()
                         };
 
-                    match update_value_at_path(item_value, &entry.json_path, text_to_insert) {
+                    // Extract the field part from entry.json_path (e.g., from "[1].name" get "name")
+                    let relative_path = entry.json_path.split_once('.').map_or_else(
+                        || {
+                            eprintln!(
+                                "Warning ({}): Could not parse relative_path from json_path '{}' for id {}. It might be missing a '.' separator. Skipping update.",
+                                file_type_name_for_logging, entry.json_path, target_id
+                            );
+                            "" // Return an empty string to skip this update path
+                        },
+                        |(_index_part, field_part)| field_part
+                    );
+
+                    if relative_path.is_empty() {
+                        // Warning already printed by map_or_else's closure, just continue.
+                        continue; 
+                    }
+
+                    match update_value_at_path(item_value, relative_path, text_to_insert) {
                         Ok(_) => { /* Successfully updated */ }
                         Err(e) => {
                             eprintln!(
-                                "Warning ({}): Failed to update path '{}' for id {}: {}. Skipping update.", 
-                                file_type_name_for_logging, entry.json_path, target_id, e
+                                "Warning ({}): Failed to update relative path '{}' (original full path '{}') for id {}: {}. Skipping update.", 
+                                file_type_name_for_logging, relative_path, entry.json_path, target_id, e
                             );
                         }
                     }

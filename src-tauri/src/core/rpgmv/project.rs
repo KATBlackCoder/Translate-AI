@@ -75,7 +75,7 @@ pub fn extract_translatable_strings_from_project(
                         Ok(mut actor_strings) => all_strings.append(&mut actor_strings),
                         Err(e) => parsing_errors.push(format!("Error parsing {}: {}", relative_file_path, e)),
                     }
-                }/* else if file_name_str == "Items.json" {
+                } else if file_name_str == "Items.json" {
                     match items::extract_strings(&_content, &relative_file_path) {
                         Ok(mut item_strings) => all_strings.append(&mut item_strings),
                         Err(e) => parsing_errors.push(format!("Error parsing {}: {}", relative_file_path, e)),
@@ -135,7 +135,7 @@ pub fn extract_translatable_strings_from_project(
                         Ok(mut map_strings) => all_strings.append(&mut map_strings),
                         Err(e) => parsing_errors.push(format!("Error parsing {}: {}", relative_file_path, e)),
                     }
-                } */else {
+                } else {
                     // Placeholder for other files or unhandled files
                     // You might want to log these or handle them specifically later
                     if file_name_str != "Actors.json" { // Only log if it's not the one we are processing
@@ -174,7 +174,7 @@ pub fn reconstruct_file_content(
     // For the dispatcher to compile and be callable, we'll return Unimplemented error for now.
     match file_name {
         "Actors.json" => super::actors::reconstruct_actors_json(original_json_str, translations),
-        /*"Items.json" => super::items::reconstruct_items_json(original_json_str, translations),
+        "Items.json" => super::items::reconstruct_items_json(original_json_str, translations),
         "Armors.json" => super::armors::reconstruct_armors_json(original_json_str, translations),
         "Weapons.json" => super::weapons::reconstruct_weapons_json(original_json_str, translations),
         "Skills.json" => super::skills::reconstruct_skills_json(original_json_str, translations),
@@ -188,7 +188,7 @@ pub fn reconstruct_file_content(
         _ if file_name.starts_with("Map") && file_name.ends_with(".json") => {
             // Pass the file_name itself for more specific error logging inside reconstruct_map_json
             super::maps::reconstruct_map_json(original_json_str, translations, file_name)
-        }*/
+        }
         _ => Err(CoreError::Unimplemented(format!(
             "Reconstruction dispatch not implemented for file type: {}",
             file_name

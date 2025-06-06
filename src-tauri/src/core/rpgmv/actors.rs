@@ -108,7 +108,7 @@ mod tests {
                 object_id: 1,
                 original_text: "ハロルド".to_string(), // Field name is original_text
                 source_file: "www/data/Actors.json".to_string(),
-                json_path: "name".to_string(),
+                json_path: "[1].name".to_string(), // Format: "[index].field"
                 translated_text: "Harold (EN)".to_string(),
                 translation_source: "test_source".to_string(), // Added for WorkingTranslation
                 error: None,
@@ -117,7 +117,7 @@ mod tests {
                 object_id: 1,
                 original_text: "".to_string(),
                 source_file: "www/data/Actors.json".to_string(),
-                json_path: "nickname".to_string(),
+                json_path: "[1].nickname".to_string(), // Format: "[index].field"
                 translated_text: "Harry".to_string(),
                 translation_source: "test_source".to_string(),
                 error: None,
@@ -126,7 +126,7 @@ mod tests {
                 object_id: 1,
                 original_text: "".to_string(),
                 source_file: "www/data/Actors.json".to_string(),
-                json_path: "profile".to_string(),
+                json_path: "[1].profile".to_string(), // Format: "[index].field"
                 translated_text: "A brave hero indeed.".to_string(),
                 translation_source: "test_source".to_string(),
                 error: None,
@@ -135,7 +135,7 @@ mod tests {
                 object_id: 1,
                 original_text: "".to_string(),
                 source_file: "www/data/Actors.json".to_string(),
-                json_path: "note".to_string(),
+                json_path: "[1].note".to_string(), // Format: "[index].field"
                 translated_text: "Harold's translated note.".to_string(),
                 translation_source: "test_source".to_string(),
                 error: None,
@@ -145,7 +145,7 @@ mod tests {
                 object_id: 9,
                 original_text: "セレン".to_string(),
                 source_file: "www/data/Actors.json".to_string(),
-                json_path: "name".to_string(),
+                json_path: "[2].name".to_string(), // Actor ID 9 is at index 2
                 translated_text: "Seren (EN)".to_string(),
                 translation_source: "test_source".to_string(),
                 error: None,
@@ -154,7 +154,7 @@ mod tests {
                 object_id: 9,
                 original_text: "素性は誰も知らない。暗器を隠している。\n振り向いて、彼女がいれば命はない！".to_string(),
                 source_file: "www/data/Actors.json".to_string(),
-                json_path: "profile".to_string(),
+                json_path: "[2].profile".to_string(), // Actor ID 9 is at index 2
                 translated_text: "Her origins are unknown. She conceals hidden weapons.\nIf you turn and see her, your life is forfeit!".to_string(),
                 translation_source: "test_source".to_string(),
                 error: None,
@@ -202,7 +202,7 @@ mod tests {
                 object_id: 1,
                 original_text: "ハロルド".to_string(), // Original name. Field name is original_text
                 source_file: "www/data/Actors.json".to_string(),
-                json_path: "name".to_string(),
+                json_path: "[1].name".to_string(), // Format: "[index].field"
                 translated_text: "HLD_TransFail".to_string(), 
                 translation_source: "test_source".to_string(), // Added
                 error: Some("AI translation timed out".to_string()),
@@ -211,7 +211,7 @@ mod tests {
                 object_id: 1,
                 original_text: "元のプロフィール".to_string(),
                 source_file: "www/data/Actors.json".to_string(),
-                json_path: "profile".to_string(),
+                json_path: "[1].profile".to_string(), // Format: "[index].field"
                 translated_text: "Translated Profile".to_string(),
                 translation_source: "test_source".to_string(), // Added
                 error: None,
@@ -254,7 +254,7 @@ mod tests {
                 object_id: 99, // Non-existent ID
                 original_text: "Unknown".to_string(),
                 source_file: "www/data/Actors.json".to_string(),
-                json_path: "name".to_string(),
+                json_path: "[99].name".to_string(), // Hypothetical path for a non-existent ID
                 translated_text: "亡霊".to_string(),
                 translation_source: "test_source".to_string(), // Added
                 error: None,
@@ -290,7 +290,7 @@ mod tests {
                 object_id: 1,
                 original_text: "Original Field Value".to_string(),
                 source_file: "www/data/Actors.json".to_string(),
-                json_path: "nonExistentField".to_string(), // Field not in Actor object
+                json_path: "[1].nonExistentField".to_string(), // Format: "[index].field"
                 translated_text: "Translated value for non-existent field".to_string(),
                 translation_source: "test_source".to_string(), // Added
                 error: None,

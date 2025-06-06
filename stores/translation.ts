@@ -48,7 +48,7 @@ export const useTranslationStore = defineStore('translation', () => {
         engineName, 
       });
       batchTranslatedStrings.value = results;
-      
+
       const successCount = results.filter(r => r.error === null).length;
       const failureCount = results.length - successCount;
 

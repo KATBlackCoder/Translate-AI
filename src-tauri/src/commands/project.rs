@@ -130,13 +130,7 @@ pub async fn reconstruct_translated_project_files(
     }
 
     // Define output path for the ZIP file (temporary for now)
-    // Ensure the target directory exists or handle its creation.
-    let target_dir = Path::new("src-tauri").join("target");
-    if !target_dir.exists() {
-        if let Err(e) = std::fs::create_dir_all(&target_dir) {
-            return Err(format!("Failed to create target directory for ZIP: {:?}: {}", target_dir, e));
-        }
-    }
+    let target_dir = std::env::temp_dir();
     let output_zip_file_path = target_dir.join("translated_project_output.zip");
 
     match crate::services::zip_service::create_zip_archive_from_memory(&all_reconstructed_content, &output_zip_file_path) {
@@ -156,7 +150,7 @@ pub async fn reconstruct_translated_project_files(
 #[tauri::command]
 pub async fn save_zip_archive_command(app_handle: AppHandle, temp_zip_path: String) -> Result<Option<String>, String> {
     let temp_path = Path::new(&temp_zip_path);
-    let file_name = temp_path.file_name().unwrap_or_else(|| std::ffi::OsStr::new("translated_project.zip"));
+    let file_name = temp_path.file_name().unwrap_or_else(|| std::ffi::OsStr::new("translated.zip"));
 
     let dialog_result = app_handle
         .dialog()

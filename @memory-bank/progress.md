@@ -170,10 +170,31 @@ Phase 1 (Project Setup & Core UI Shell for Project Translation) is complete. Cor
         *   Backend `open_folder_command` in `commands/project.rs` uses `tauri-plugin-opener` to show the ZIP in the file explorer.
         *   Error handling and user feedback via toasts are implemented for these operations.
 
+*   **Phase 4: Glossary Feature (New Current Focus)**
+    *   **Task 1: Glossary Data Management (Rust & `tauri-plugin-store`): IN PROGRESS**
+        *   Detailed planning complete with the following approach:
+            *   **Data Structure Design:** Will create `GlossaryEntry` (with unique ID, source/target text, language codes, timestamps) and `NewGlossaryEntryData` structs in a new `models/glossary.rs` file.
+            *   **Storage Strategy:** Will use `tauri-plugin-store` to persist a `Vec<GlossaryEntry>` under a single key.
+            *   **Command Structure:** Will implement four Tauri commands in a new `commands/glossary.rs` file:
+                *   `add_glossary_entry_command` - Creates a new entry with a UUID and timestamps.
+                *   `get_glossary_entries_command` - Retrieves all entries or an empty Vec.
+                *   `update_glossary_entry_command` - Updates an existing entry by ID.
+                *   `delete_glossary_entry_command` - Removes an entry by ID.
+            *   **Implementation Status:** Initial planning phase complete, implementation pending.
+        *   **Revised Approach:** The glossary will be used to enhance AI prompts rather than for exact-match replacements. This is more practical for real-world translation needs, especially for languages like Japanese where conjugation and sentence structure make exact matches rare.
+            *   **Prompt Enhancement:** Glossary entries will be searched for relevant terms that appear within the source text, and these will be added to the AI prompt as specific translation guidelines.
+            *   **Example:** For terms like "マンコ -> pussy", the AI will be explicitly instructed to use this translation when the term appears in any context, ensuring consistent and accurate handling of sensitive or specialized terminology.
+            *   **Benefits:** This approach handles slang, vulgar terms, game-specific terminology, and cultural references more effectively, even when they appear in various forms or within larger sentences.
+
 ## Next Major Goals (Adjusted from Implementation Plan):
 
-1.  Complete **RPG Maker MV Project Translation (Batch)** (This is the current primary focus, formerly Phase 3).
-2.  (Other phases from the original plan like Glossary, DeepL integration, etc., will follow, their numbering effectively shifted).
+1.  **Complete Phase 4: Glossary Feature**
+    *   Task 1: Glossary Data Management (Rust) - In Progress
+    *   Task 2: Glossary UI (Frontend)
+    *   Task 3: Integrate Glossary with AI Prompting (replacing the pre-check mechanism)
+    *   Task 4: UI Indication for Glossary Term Usage
+2.  **Phase 5: Integrate DeepL Online AI API**
+3.  **Phase 6: Enhancements, Polish & Core UX Plugins**
 
 ## Pending Clarifications / Blockers:
 *   User feedback on testing integration within the implementation plan.
@@ -182,5 +203,6 @@ Phase 1 (Project Setup & Core UI Shell for Project Translation) is complete. Cor
 
 ## Future Enhancements/Considerations (Deferred from earlier phases):
 *   Address double line break issue from Ollama for Japanese translations (deferred from original Phase 2, still relevant if Ollama is used for batch).
+*   **Evolve AI Prompting (Phase 6 Plan):** The current generic AI prompt (seen in `ollama_client.rs`) is planned to be significantly enhanced in Phase 6. This involves implementing a system for dynamically selecting field-specific prompt templates (from `src-tauri/resources/prompts/`) based on text context (e.g., `json_path`) to improve contextual translation accuracy before sending requests to the AI engine.
 *   (Re-introduction of Single-Text Translation feature can be considered later if desired).
 *   Detailed UI component structure for the Settings page (Phase 6 of implementation plan) to include `SettingEngines.vue`, `SettingModels.vue`, `SettingLanguages.vue`, and potentially `SettingAppearance.vue` for better organization of user configurations.
